@@ -20,6 +20,16 @@ const nextConfig: NextConfig = {
 				pathname: '/img**',
 			},
 			{
+				protocol: 'http',
+				hostname: 'api.borkssport.ru',
+				pathname: '/img**',
+			},
+			{
+				protocol: 'https',
+				hostname: 'api.borkssport.ru',
+				pathname: '/img**',
+			},
+			{
 				protocol: 'https',
 				hostname: 'api.sbis.ru',
 				pathname: '/disk/api/v1/**',

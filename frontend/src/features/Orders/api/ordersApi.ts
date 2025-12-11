@@ -1,7 +1,7 @@
 import type { OrderEntity, PaymentEntity } from '../model/types'
 import type { OrderStatus, PaymentType, PaymentProvider, ShippingAddress } from '@/features/Checkout/model/types'
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:1337'
+const API_URL = process.env.NEXT_PUBLIC_STRAPI_URL || process.env.NEXT_STRAPI_URL || 'http://localhost:1337'
 
 interface ApiResponse<T> {
 	success: boolean

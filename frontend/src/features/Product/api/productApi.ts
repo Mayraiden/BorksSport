@@ -8,7 +8,7 @@ import type {
 	SearchSuggestion,
 } from '@/shared/types'
 
-const API_URL = 'http://localhost:1337'
+const API_URL = process.env.NEXT_PUBLIC_STRAPI_URL || process.env.NEXT_STRAPI_URL || 'http://localhost:1337'
 
 // Transform API product to our Product type
 const transformApiProduct = (apiProduct: ApiProduct): Product => {
@@ -420,8 +420,6 @@ export const productApi = {
 
 			const data: ApiResponse<ApiProduct[]> | ApiErrorResponse =
 				await response.json()
-
-			console.log('[getPopularProducts] API response:', data)
 			
 			if (!data.success) {
 				const errorData = data as ApiErrorResponse
@@ -429,11 +427,8 @@ export const productApi = {
 			}
 			
 			const successData = data as ApiResponse<ApiProduct[]>
-			console.log('[getPopularProducts] data.data:', successData.data)
-			console.log('[getPopularProducts] data.data length:', successData.data?.length)
 
 			if (!successData.data || successData.data.length === 0) {
-				console.warn('[getPopularProducts] No products returned from API')
 				return []
 			}
 
@@ -456,8 +451,6 @@ export const productApi = {
 
 			const data: ApiResponse<ApiProduct[]> | ApiErrorResponse =
 				await response.json()
-
-			console.log('[getNewProducts] API response:', data)
 			
 			if (!data.success) {
 				const errorData = data as ApiErrorResponse
@@ -465,11 +458,8 @@ export const productApi = {
 			}
 			
 			const successData = data as ApiResponse<ApiProduct[]>
-			console.log('[getNewProducts] data.data:', successData.data)
-			console.log('[getNewProducts] data.data length:', successData.data?.length)
 
 			if (!successData.data || successData.data.length === 0) {
-				console.warn('[getNewProducts] No products returned from API')
 				return []
 			}
 

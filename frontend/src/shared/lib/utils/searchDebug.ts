@@ -1,7 +1,7 @@
 // Utility functions for debugging Meilisearch integration
 
 export const checkMeilisearchStatus = async (
-	baseUrl: string = 'http://localhost:1337'
+	baseUrl: string = process.env.NEXT_PUBLIC_STRAPI_URL || process.env.NEXT_STRAPI_URL || 'http://localhost:1337'
 ) => {
 	try {
 		// Check if Meilisearch is available through Strapi
@@ -29,7 +29,7 @@ export const checkMeilisearchStatus = async (
 
 // Test Meilisearch with different queries
 export const testMeilisearchQueries = async (
-	baseUrl: string = 'http://localhost:1337'
+	baseUrl: string = process.env.NEXT_PUBLIC_STRAPI_URL || process.env.NEXT_STRAPI_URL || 'http://localhost:1337'
 ) => {
 	const testQueries = [
 		'ball', // English word

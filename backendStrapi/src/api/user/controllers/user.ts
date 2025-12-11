@@ -11,33 +11,33 @@ export default {
 				if (token) {
 					try {
 						const { id } = await strapi.plugins['users-permissions'].services.jwt.verify(token)
-						ctx.state.user = await strapi.entityService.findOne('plugin::users-permissions.user', id)
+						ctx.state.user = await strapi
+							.query('plugin::users-permissions.user')
+							.findOne({ where: { id } })
 					} catch (error) {
 						// Токен невалидный, оставляем ctx.state.user как undefined
 					}
 				}
 			}
 
-			const userId = ctx.state.user?.id
+		const userId = ctx.state.user?.id
 
-			if (!userId) {
-				ctx.status = 401
-				ctx.body = {
-					error: {
-						status: 401,
-						message: 'Unauthorized',
-					},
-				}
-				return
+		if (!userId) {
+			ctx.status = 401
+			ctx.body = {
+				error: {
+					status: 401,
+					message: 'Unauthorized',
+				},
 			}
+			return
+		}
 
-			const user = await strapi.entityService.findOne(
-				'plugin::users-permissions.user',
-				userId,
-				{
-					// Не указываем fields, чтобы получить все поля включая кастомные
-				}
-			)
+		// Используем query вместо entityService, чтобы получить все поля включая кастомные
+		// entityService может фильтровать поля на основе permissions
+		const user = await strapi
+			.query('plugin::users-permissions.user')
+			.findOne({ where: { id: userId } })
 
 			if (!user) {
 				ctx.status = 404
@@ -75,7 +75,9 @@ export default {
 				if (token) {
 					try {
 						const { id } = await strapi.plugins['users-permissions'].services.jwt.verify(token)
-						ctx.state.user = await strapi.entityService.findOne('plugin::users-permissions.user', id)
+						ctx.state.user = await strapi
+							.query('plugin::users-permissions.user')
+							.findOne({ where: { id } })
 					} catch (error) {
 						// Токен невалидный, оставляем ctx.state.user как undefined
 					}
@@ -106,14 +108,13 @@ export default {
 				updateData.phone = phone
 			}
 
-			const updatedUser = await strapi.entityService.update(
-				'plugin::users-permissions.user',
-				userId,
-				{
+			// Используем query вместо entityService, чтобы получить все поля включая кастомные
+			const updatedUser = await strapi
+				.query('plugin::users-permissions.user')
+				.update({
+					where: { id: userId },
 					data: updateData,
-					// Не указываем fields, чтобы получить все поля включая кастомные
-				}
-			)
+				})
 
 			ctx.body = updatedUser
 		} catch (error) {

@@ -6,33 +6,36 @@ import type { ProfileFormData } from '@shared/lib/validations/profile'
 import type { IUserType } from './types'
 import { isStrapiError } from '@/shared/lib/errors/authErrors'
 
-const API_URL = process.env.NEXT_STRAPI_URL || 'http://localhost:1337'
+const API_URL =
+	process.env.NEXT_PUBLIC_STRAPI_URL ||
+	process.env.NEXT_STRAPI_URL ||
+	'http://localhost:1337'
 
 export const strapiAuth = {
 	register: async (data: RegisterFormData) => {
 		try {
+			const requestBody = {
+				username: data.email,
+				email: data.email,
+				password: data.password,
+				firstName: data.name,
+				phone: data.phone,
+			}
+
 			const response = await fetch(`${API_URL}/api/auth/local/register`, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					username: data.email,
-					email: data.email,
-					password: data.password,
-					firstName: data.name,
-					phone: data.phone,
-				}),
+				body: JSON.stringify(requestBody),
 			})
 
 			const result = await response.json()
 
-			// Если это ошибка, выбрасываем её
 			if (isStrapiError(result)) {
 				throw new Error(result.error?.message || 'Ошибка сервера')
 			}
 
 			return result
 		} catch (error) {
-			// Если это сетевая ошибка или другая ошибка
 			throw error
 		}
 	},
@@ -90,7 +93,10 @@ export const strapiAuth = {
 		}
 	},
 
-	updateProfile: async (data: ProfileFormData, jwt: string): Promise<IUserType> => {
+	updateProfile: async (
+		data: ProfileFormData,
+		jwt: string
+	): Promise<IUserType> => {
 		try {
 			const response = await fetch(`${API_URL}/api/users/me`, {
 				method: 'PUT',

@@ -31,8 +31,8 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files - allowed to commit for server deployment
-# .env* - removed to allow .env files in repository
+# env files (can opt-in for committing if needed)
+.env*
 
 # vercel
 .vercel

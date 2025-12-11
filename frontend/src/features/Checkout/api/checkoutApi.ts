@@ -9,7 +9,7 @@ import type {
 } from '../model/types'
 import type { CartItemDisplay } from '@/features/Cart/api/cartApi'
 
-const API_URL = 'http://localhost:1337'
+const API_URL = process.env.NEXT_PUBLIC_STRAPI_URL || process.env.NEXT_STRAPI_URL || 'http://localhost:1337'
 
 const checkoutLogger = {
 	maskToken(token?: string) {

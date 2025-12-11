@@ -121,7 +121,7 @@ coverage
 # Strapi
 ############################
 
-# .env - removed to allow .env files in repository for server deployment
+.env
 license.txt
 exports
 .strapi

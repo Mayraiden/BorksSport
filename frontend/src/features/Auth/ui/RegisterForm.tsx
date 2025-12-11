@@ -53,6 +53,9 @@ export const RegisterForm = () => {
 			onSuccess: () => {
 				router.push('/profile')
 			},
+			onError: () => {
+				// Ошибка обрабатывается через useAuthStore
+			},
 		})
 	}
 
