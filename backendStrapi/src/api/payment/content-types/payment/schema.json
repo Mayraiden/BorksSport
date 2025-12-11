@@ -1,0 +1,70 @@
+{
+	"kind": "collectionType",
+	"collectionName": "payments",
+	"info": {
+		"singularName": "payment",
+		"pluralName": "payments",
+		"displayName": "Payment"
+	},
+	"options": {
+		"comment": "Order payments"
+	},
+	"attributes": {
+		"order": {
+			"type": "relation",
+			"relation": "manyToOne",
+			"target": "api::order.order",
+			"required": true
+		},
+		"paymentId": {
+			"type": "string",
+			"required": true,
+			"unique": true
+		},
+		"amount": {
+			"type": "decimal",
+			"required": true,
+			"min": 0
+		},
+		"status": {
+			"type": "enumeration",
+			"enum": ["pending", "paid", "failed", "refunded"],
+			"default": "pending",
+			"required": true
+		},
+		"provider": {
+			"type": "enumeration",
+			"enum": ["tochka", "sbp", "card", "cash"],
+			"default": "tochka"
+		},
+		"currency": {
+			"type": "string",
+			"default": "RUB"
+		},
+		"paymentUrl": {
+			"type": "string"
+		},
+		"sessionId": {
+			"type": "string"
+		},
+		"externalId": {
+			"type": "string"
+		},
+		"expiresAt": {
+			"type": "datetime"
+		},
+		"paymentMethod": {
+			"type": "string",
+			"required": true
+		},
+		"paymentData": {
+			"type": "json"
+		},
+		"createdAt": {
+			"type": "datetime"
+		},
+		"updatedAt": {
+			"type": "datetime"
+		}
+	}
+}

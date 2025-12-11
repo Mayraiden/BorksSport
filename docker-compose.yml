@@ -1,0 +1,86 @@
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: sportmagazine-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: strapi
+      POSTGRES_PASSWORD: strapi
+      POSTGRES_DB: strapi
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - '5433:5432'  # Изменен внешний порт на 5433, чтобы избежать конфликта с локальным PostgreSQL
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U strapi"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Strapi Backend
+  backend:
+    build:
+      context: ./backendStrapi
+      dockerfile: Dockerfile
+    container_name: sportmagazine-backend
+    restart: unless-stopped
+    env_file:
+      - ./backendStrapi/.env
+    environment:
+      # Переопределяем критичные переменные для Docker сети
+      DATABASE_CLIENT: postgres
+      DATABASE_HOST: postgres
+      DATABASE_PORT: 5432
+      DATABASE_NAME: ${DATABASE_NAME:-strapi}
+      DATABASE_USERNAME: ${DATABASE_USERNAME:-strapi}
+      DATABASE_PASSWORD: ${DATABASE_PASSWORD:-strapi}
+      DATABASE_SSL: 'false'
+      HOST: 0.0.0.0
+      PORT: 1337
+      NODE_ENV: production
+      # CORS Configuration для Docker
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000,http://frontend:3000,http://127.0.0.1:3000}
+    volumes:
+      - backend_uploads:/app/public/uploads
+      - backend_data:/app/.tmp
+    ports:
+      - '1337:1337'
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - app-network
+
+  # Next.js Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: sportmagazine-frontend
+    restart: unless-stopped
+    environment:
+      NEXT_PUBLIC_API_URL: http://backend:1337
+      NEXT_STRAPI_URL: http://backend:1337
+      NODE_ENV: production
+    ports:
+      - '3000:3000'
+    depends_on:
+      - backend
+    networks:
+      - app-network
+
+volumes:
+  postgres_data:
+    driver: local
+  backend_uploads:
+    driver: local
+  backend_data:
+    driver: local
+
+networks:
+  app-network:
+    driver: bridge
+

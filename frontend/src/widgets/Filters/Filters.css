@@ -1,0 +1,54 @@
+/* Кастомные чекбоксы для фильтров */
+.custom-checkbox {
+	appearance: none;
+	width: 16px;
+	height: 16px;
+	border: 2px solid #d1d5db;
+	border-radius: 2px;
+	background: white;
+	cursor: pointer;
+	position: relative;
+	transition: all 0.2s ease;
+}
+
+.custom-checkbox:hover {
+	background: var(--color-burgundy, #991b1b);
+	border-color: var(--color-burgundy, #991b1b);
+}
+
+.custom-checkbox:checked {
+	background: var(--color-burgundy);
+	border-color: var(--color-burgundy);
+}
+
+/* Кастомный скроллбар для Webkit браузеров (Chrome, Safari, Edge) */
+.filters-scroll::-webkit-scrollbar {
+	width: 6px;
+}
+
+.filters-scroll::-webkit-scrollbar-track {
+	background: transparent;
+	border-radius: 3px;
+}
+
+.filters-scroll::-webkit-scrollbar-thumb {
+	background: #d1d5db;
+	border-radius: 3px;
+	transition: background 0.2s ease;
+}
+
+.filters-scroll::-webkit-scrollbar-thumb:hover {
+	background: #9ca3af;
+}
+
+/* Для Firefox */
+.filters-scroll {
+	scrollbar-width: thin;
+	scrollbar-color: #d1d5db transparent;
+	padding-right: 6px;
+}
+
+/* Отступ для контента от скроллбара */
+.filters-content {
+	margin-right: 6px;
+}

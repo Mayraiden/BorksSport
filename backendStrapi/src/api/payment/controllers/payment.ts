@@ -1,0 +1,719 @@
+import { factories } from '@strapi/strapi'
+
+type PaymentStatus = 'pending' | 'paid' | 'failed' | 'refunded'
+
+type JsonValue =
+	| string
+	| number
+	| boolean
+	| null
+	| JsonValue[]
+	| { [key: string]: JsonValue }
+
+type JsonObject = { [key: string]: JsonValue }
+
+const resolveUserId = async (strapi: any, ctx: any): Promise<number | null> => {
+	let userId = ctx.state.user?.id
+
+	if (!userId) {
+		const authHeader = ctx.request.header?.authorization
+		if (authHeader && authHeader.startsWith('Bearer ')) {
+			const token = authHeader.substring(7)
+			try {
+				const { id } = await strapi.plugins['users-permissions'].services.jwt.verify(
+					token
+				)
+				userId = id
+			} catch (e) {
+				// ignore, we'll fallback to 401 below
+			}
+		}
+	}
+
+	return userId ?? null
+}
+
+const mapRemoteStatusToLocal = (remoteStatus: string): {
+	paymentStatus: PaymentStatus
+	orderStatus?: 'awaiting_payment' | 'paid' | 'payment_failed'
+} => {
+	switch (remoteStatus.toLowerCase()) {
+		case 'paid':
+		case 'succeeded':
+		case 'success':
+		case 'completed':
+			return { paymentStatus: 'paid', orderStatus: 'paid' }
+		case 'cancelled':
+		case 'canceled':
+		case 'failed':
+		case 'declined':
+		case 'rejected':
+			return {
+				paymentStatus: 'failed',
+				orderStatus: 'payment_failed',
+			}
+		default:
+			return { paymentStatus: 'pending', orderStatus: 'awaiting_payment' }
+	}
+}
+
+export default factories.createCoreController(
+	'api::payment.payment',
+	({ strapi }) => ({
+		/**
+		 * Get payments for order
+		 * GET /api/payments
+		 */
+		async find(ctx) {
+			try {
+				const { orderId } = ctx.query
+				const userId = await resolveUserId(strapi, ctx)
+
+				if (!userId) {
+					ctx.status = 401
+					ctx.body = {
+						success: false,
+						message: 'User not authenticated',
+					}
+					return
+				}
+
+				let filters = {}
+				if (orderId) {
+					// Verify user owns the order
+					const order = await strapi.entityService.findOne(
+						'api::order.order',
+						orderId as string,
+						{
+							populate: ['user'],
+						}
+					)
+					if (!order || (order as any).user?.id !== userId) {
+						ctx.status = 404
+						ctx.body = {
+							success: false,
+							message: 'Order not found',
+						}
+						return
+					}
+					filters = { order: orderId }
+				}
+
+				const payments = await strapi.entityService.findMany(
+					'api::payment.payment',
+					{
+						filters,
+						sort: 'createdAt:desc',
+					}
+				)
+
+				ctx.body = {
+					success: true,
+					data: payments,
+				}
+			} catch (error) {
+				ctx.status = 500
+				ctx.body = {
+					success: false,
+					error: error.message,
+				}
+			}
+		},
+
+		/**
+		 * Create payment
+		 * POST /api/payments
+		 */
+		async create(ctx) {
+			try {
+				const {
+					orderId,
+					paymentId,
+					amount,
+					paymentMethod,
+					paymentData,
+					provider,
+					currency,
+					paymentUrl,
+					sessionId,
+					externalId,
+					expiresAt,
+				} = ctx.request.body
+				const userId = await resolveUserId(strapi, ctx)
+
+				if (!userId) {
+					ctx.status = 401
+					ctx.body = {
+						success: false,
+						message: 'User not authenticated',
+					}
+					return
+				}
+
+				if (!orderId || !paymentId || !amount || !paymentMethod) {
+					ctx.status = 400
+					ctx.body = {
+						success: false,
+						message:
+							'Required fields: orderId, paymentId, amount, paymentMethod',
+					}
+					return
+				}
+
+				// Verify user owns the order
+				const order = await strapi.entityService.findOne(
+					'api::order.order',
+					orderId,
+					{
+						populate: ['user'],
+					}
+				)
+				if (!order || (order as any).user?.id !== userId) {
+					ctx.status = 404
+					ctx.body = {
+						success: false,
+						message: 'Order not found',
+					}
+					return
+				}
+
+				const payment = await strapi.entityService.create(
+					'api::payment.payment',
+					{
+						data: {
+							order: orderId,
+							paymentId,
+							amount,
+							currency: currency || 'RUB',
+							status: 'pending',
+							paymentMethod,
+							provider: provider || 'tochka',
+							paymentUrl,
+							sessionId,
+							externalId,
+							expiresAt,
+							paymentData: paymentData || {},
+						},
+					}
+				)
+
+				ctx.body = {
+					success: true,
+					data: payment,
+					message: 'Payment created successfully',
+				}
+			} catch (error) {
+				ctx.status = 500
+				ctx.body = {
+					success: false,
+					error: error.message,
+				}
+			}
+		},
+
+		/**
+		 * Update payment status
+		 * PUT /api/payments/:id
+		 */
+		async update(ctx) {
+			try {
+				const { id } = ctx.params
+				const { status, paymentData, paymentUrl, sessionId, expiresAt } =
+					ctx.request.body
+				const userId = await resolveUserId(strapi, ctx)
+
+				if (!userId) {
+					ctx.status = 401
+					ctx.body = {
+						success: false,
+						message: 'User not authenticated',
+					}
+					return
+				}
+
+				const payment = await strapi.entityService.findOne(
+					'api::payment.payment',
+					id,
+					{
+						populate: ['order', 'order.user'],
+					}
+				)
+
+				if (!payment || (payment as any).order?.user?.id !== userId) {
+					ctx.status = 404
+					ctx.body = {
+						success: false,
+						message: 'Payment not found',
+					}
+					return
+				}
+
+				const updateData: any = {
+					status: status || payment.status,
+					paymentData: paymentData || payment.paymentData,
+				}
+				if (paymentUrl) updateData.paymentUrl = paymentUrl
+				if (sessionId) updateData.sessionId = sessionId
+				if (expiresAt) updateData.expiresAt = expiresAt
+
+				const updatedPayment = await strapi.entityService.update(
+					'api::payment.payment',
+					id,
+					{
+						data: updateData,
+					}
+				)
+
+				// Update order status if payment is successful
+				if (status === 'paid') {
+					await strapi.entityService.update(
+						'api::order.order',
+						(payment as any).order.id,
+						{
+							data: { status: 'paid' },
+						}
+					)
+				}
+
+				ctx.body = {
+					success: true,
+					data: updatedPayment,
+					message: 'Payment updated successfully',
+				}
+			} catch (error) {
+				ctx.status = 500
+				ctx.body = {
+					success: false,
+					error: error.message,
+				}
+			}
+		},
+
+		async createTochkaSession(ctx) {
+			try {
+				const userId = await resolveUserId(strapi, ctx)
+				const { orderId } = ctx.request.body
+
+				if (!userId) {
+					ctx.status = 401
+					ctx.body = {
+						success: false,
+						message: 'User not authenticated',
+					}
+					return
+				}
+
+				if (!orderId) {
+					ctx.status = 400
+					ctx.body = {
+						success: false,
+						message: 'orderId is required',
+					}
+					return
+				}
+
+				const order = await strapi.entityService.findOne('api::order.order', orderId, {
+					populate: ['user'],
+				})
+
+				if (!order || (order as any).user?.id !== userId) {
+					ctx.status = 404
+					ctx.body = {
+						success: false,
+						message: 'Order not found',
+					}
+					return
+				}
+
+				if (order.paymentMethod !== 'online') {
+					ctx.status = 400
+					ctx.body = {
+						success: false,
+						message: 'Order does not require online payment',
+					}
+					return
+				}
+
+				const tochkaPayService = strapi.service('api::payment.tochka-pay')
+				const tochkaConfig = tochkaPayService?.config
+
+				if (
+					!tochkaConfig ||
+					!tochkaConfig.authToken ||
+					!tochkaConfig.clientId ||
+					!tochkaConfig.customerCode
+				) {
+					ctx.status = 500
+					ctx.body = {
+						success: false,
+						error: 'Tochka Pay is not configured',
+					}
+					return
+				}
+
+				const amount = Number(order.totalAmount || 0)
+				if (!amount || Number.isNaN(amount)) {
+					ctx.status = 400
+					ctx.body = {
+						success: false,
+						error: 'Order amount is not defined',
+					}
+					return
+				}
+
+				const customerData = (order as any).customerData as
+					| {
+						name?: string
+						email?: string
+						phone?: string
+					}
+					| undefined
+
+				const rawAppUrl =
+					process.env.FRONTEND_URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+				const appUrl = rawAppUrl.startsWith('http://')
+					? rawAppUrl.replace(/^http:\/\//, 'https://')
+					: rawAppUrl.startsWith('https://')
+					? rawAppUrl
+					: `https://${rawAppUrl}`
+				const successRedirectUrl = `${appUrl}/orders/${order.id}?payment=success`
+				const failRedirectUrl = `${appUrl}/orders/${order.id}?payment=failed`
+				const paymentModes = (() => {
+					switch ((order as any).paymentProvider) {
+						case 'sbp':
+							return ['sbp']
+						case 'card':
+						case 'tochka':
+						default:
+							return ['card']
+					}
+				})()
+
+				const orderItems = Array.isArray((order as any).items)
+					? ((order as any).items as Array<{
+						name?: string
+						price?: number
+						quantity?: number
+					}>).map((item, index) => ({
+						name: item.name || `Товар ${index + 1}`,
+						price: Number(item.price || 0),
+						quantity: Number(item.quantity || 1),
+					}))
+					: []
+
+				const session = await tochkaPayService.createPaymentSession({
+					orderNumber: order.orderNumber,
+					amount,
+					description: `Оплата заказа ${order.orderNumber}`,
+					currency: 'RUB',
+					customer: {
+						name: customerData?.name || (order as any).user?.username,
+						email: customerData?.email || (order as any).user?.email,
+						phone: customerData?.phone,
+					},
+					metadata: {
+						orderId,
+						userId,
+						paymentModes,
+						paymentLinkId: order.orderNumber,
+						redirectUrl: successRedirectUrl,
+						failRedirectUrl,
+						ttl: Number(process.env.TOCHKA_PAY_TTL || 10080),
+						items: orderItems,
+						consumerId: String(userId),
+					},
+				})
+
+				const existingPayments = await strapi.entityService.findMany(
+					'api::payment.payment',
+					{
+						filters: {
+							order: orderId,
+						},
+						sort: 'createdAt:desc',
+					}
+				)
+
+				let paymentRecord = existingPayments[0] as
+					| (typeof existingPayments)[number]
+					| undefined
+
+				const previousPaymentData = (
+					paymentRecord?.paymentData ?? {}
+				) as JsonObject
+
+				const paymentData: JsonObject = {
+					...previousPaymentData,
+					lastSession: session.raw as JsonValue,
+				}
+
+				const paymentStatus: PaymentStatus =
+					session.status === 'paid' ? 'paid' : 'pending'
+
+				const paymentPayload = {
+					paymentId: session.externalId,
+					amount,
+					currency: 'RUB',
+					status: paymentStatus,
+					paymentMethod: 'online',
+					provider: 'tochka' as const,
+					paymentUrl: session.paymentUrl ?? undefined,
+					sessionId: session.sessionId ?? undefined,
+					externalId: session.externalId ?? undefined,
+					expiresAt: session.expiresAt ?? undefined,
+					paymentData,
+				}
+
+				if (paymentRecord) {
+					paymentRecord = await strapi.entityService.update(
+						'api::payment.payment',
+						paymentRecord.id,
+						{
+							data: paymentPayload,
+						}
+					)
+				} else {
+					paymentRecord = await strapi.entityService.create(
+						'api::payment.payment',
+						{
+							data: {
+								order: orderId,
+								...paymentPayload,
+							},
+						}
+					)
+				}
+
+				if (order.status !== 'awaiting_payment') {
+					await strapi.entityService.update('api::order.order', orderId, {
+						data: { status: 'awaiting_payment' },
+					})
+				}
+
+				ctx.body = {
+					success: true,
+					data: {
+						paymentId: paymentRecord.id,
+						orderId,
+						externalId: session.externalId,
+						sessionId: session.sessionId,
+						status: session.status,
+						paymentUrl: session.paymentUrl,
+						expiresAt: session.expiresAt,
+					},
+				}
+			} catch (error: any) {
+				strapi.log.error('Tochka Pay session error', error)
+				ctx.status = 500
+				ctx.body = {
+					success: false,
+					error: error.message,
+				}
+			}
+		},
+
+		async tochkaWebhook(ctx) {
+			try {
+				const signatureHeader =
+					(ctx.request.headers['x-request-signature'] as string | undefined) ||
+					(ctx.request.headers['x-signature'] as string | undefined)
+				const body = ctx.request.body as Record<string, unknown>
+
+				const tochkaPayService = strapi.service('api::payment.tochka-pay')
+
+				const signatureValid = tochkaPayService.verifyWebhookSignature(
+					body,
+					signatureHeader
+				)
+
+				if (!signatureValid) {
+					ctx.status = 400
+					ctx.body = {
+						success: false,
+						error: 'Invalid Tochka Pay signature',
+					}
+					return
+				}
+
+				const event = tochkaPayService.mapWebhookEvent(body)
+				const payload = event.payload || {}
+				const invoiceId = (payload.invoice_id as string) ||
+					(payload.invoiceId as string) ||
+					(payload.id as string) ||
+					(payload.order_number as string)
+
+				if (!invoiceId) {
+					strapi.log.warn('Tochka Pay webhook received without invoice id', {
+						payload,
+					})
+					ctx.body = { success: true }
+					return
+				}
+
+				const payments = await strapi.entityService.findMany(
+					'api::payment.payment',
+					{
+						filters: { paymentId: invoiceId },
+						populate: ['order'],
+					}
+				)
+
+				if (!payments.length) {
+					strapi.log.warn('Tochka Pay webhook for unknown payment', {
+						invoiceId,
+						payload,
+					})
+					ctx.body = { success: true }
+					return
+				}
+
+				const payment = payments[0]
+				const { paymentStatus, orderStatus } = mapRemoteStatusToLocal(
+					(String(payload.status || payload.payment_status || 'pending'))
+				)
+
+				const previousWebhookData = (
+					payment.paymentData ?? {}
+				) as JsonObject
+
+				const nextPaymentData: JsonObject = {
+					...previousWebhookData,
+					lastWebhookEvent: payload as JsonValue,
+				}
+
+				await strapi.entityService.update('api::payment.payment', payment.id, {
+					data: {
+						status: paymentStatus,
+						paymentData: nextPaymentData,
+						paymentUrl:
+							(payload.payment_url as string) || payment.paymentUrl,
+						sessionId:
+							(payload.session_id as string) || payment.sessionId,
+						externalId:
+							(payload.invoice_id as string) || payment.externalId,
+						expiresAt:
+							(payload.expires_at as string) || payment.expiresAt,
+					},
+				})
+
+				const paymentOrder = (payment as any)?.order
+
+				if (orderStatus && paymentOrder) {
+					await strapi.entityService.update(
+						'api::order.order',
+						paymentOrder.id,
+						{
+							data: { status: orderStatus },
+						}
+					)
+				}
+
+				ctx.body = { success: true }
+			} catch (error: any) {
+				strapi.log.error('Tochka Pay webhook error', error)
+				ctx.status = 500
+				ctx.body = {
+					success: false,
+					error: error.message,
+				}
+			}
+		},
+
+		async getTochkaStatus(ctx) {
+			try {
+				const userId = await resolveUserId(strapi, ctx)
+				const { id } = ctx.params
+
+				if (!userId) {
+					ctx.status = 401
+					ctx.body = {
+						success: false,
+						message: 'User not authenticated',
+					}
+					return
+				}
+
+				const payment = await strapi.entityService.findOne(
+					'api::payment.payment',
+					id,
+					{
+						populate: ['order', 'order.user'],
+					}
+				)
+
+				if (!payment || (payment as any).order?.user?.id !== userId) {
+					ctx.status = 404
+					ctx.body = {
+						success: false,
+						message: 'Payment not found',
+					}
+					return
+				}
+
+				if (!payment.paymentId) {
+					ctx.status = 400
+					ctx.body = {
+						success: false,
+						error: 'Payment identifier is missing',
+					}
+					return
+				}
+
+				const tochkaPayService = strapi.service('api::payment.tochka-pay')
+				const statusResponse = await tochkaPayService.getPaymentStatus(
+					payment.paymentId
+				)
+				const paymentStatusResponse = String(
+					statusResponse.status ?? 'pending'
+				)
+				const { paymentStatus, orderStatus } = mapRemoteStatusToLocal(
+					paymentStatusResponse
+				)
+
+				const previousPolledData = (
+					payment.paymentData ?? {}
+				) as JsonObject
+
+				const nextPaymentData: JsonObject = {
+					...previousPolledData,
+					lastPolledStatus: statusResponse.raw as JsonValue,
+					lastStatusSyncAt: new Date().toISOString(),
+				}
+
+				await strapi.entityService.update('api::payment.payment', id, {
+					data: {
+						status: paymentStatus,
+						paymentData: nextPaymentData,
+					},
+				})
+
+				const paymentOrder = (payment as any)?.order
+
+				if (orderStatus && paymentOrder) {
+					await strapi.entityService.update(
+						'api::order.order',
+						paymentOrder.id,
+						{
+							data: { status: orderStatus },
+						}
+					)
+				}
+
+				ctx.body = {
+					success: true,
+					data: {
+						status: paymentStatus,
+						rawStatus: statusResponse.raw,
+					},
+				}
+			} catch (error: any) {
+				strapi.log.error('Tochka Pay status error', error)
+				ctx.status = 500
+				ctx.body = {
+					success: false,
+					error: error.message,
+				}
+			}
+		},
+	})
+)

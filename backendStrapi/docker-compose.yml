@@ -1,0 +1,100 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: sportmagazine_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: strapi
+      POSTGRES_PASSWORD: strapi
+      POSTGRES_DB: strapi
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - '5432:5432'
+    networks:
+      - strapi_network
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U strapi']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  strapi:
+    build: .
+    container_name: sportmagazine_strapi
+    restart: unless-stopped
+    environment:
+      # Database
+      DATABASE_CLIENT: postgres
+      DATABASE_HOST: postgres
+      DATABASE_PORT: 5432
+      DATABASE_NAME: strapi
+      DATABASE_USERNAME: strapi
+      DATABASE_PASSWORD: strapi
+      DATABASE_SSL: false
+
+      # Server
+      HOST: 0.0.0.0
+      PORT: 1337
+      NODE_ENV: ${NODE_ENV:-development}
+
+      # Strapi Security
+      APP_KEYS: ${APP_KEYS:-toBeModified1,toBeModified2,toBeModified3,toBeModified4}
+      API_TOKEN_SALT: ${API_TOKEN_SALT:-toBeModified}
+      ADMIN_JWT_SECRET: ${ADMIN_JWT_SECRET:-toBeModified}
+      JWT_SECRET: ${JWT_SECRET:-${ADMIN_JWT_SECRET:-toBeModified}}
+      TRANSFER_TOKEN_SALT: ${TRANSFER_TOKEN_SALT:-toBeModified}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-toBeModified}
+      ADMIN_COOKIE_SECURE: ${ADMIN_COOKIE_SECURE:-false}
+
+      # SBIS Integration (опционально)
+      SBIS_OAUTH_URL: ${SBIS_OAUTH_URL:-https://online.sbis.ru/oauth/service/}
+      SBIS_API_URL: ${SBIS_API_URL:-https://api.sbis.ru/retail/v2}
+      SBIS_APP_CLIENT_ID: ${SBIS_APP_CLIENT_ID:-}
+      SBIS_APP_SECRET: ${SBIS_APP_SECRET:-}
+      SBIS_SECRET_KEY: ${SBIS_SECRET_KEY:-}
+      SBIS_POINT_ID: ${SBIS_POINT_ID:-201}
+      SBIS_PRICE_LIST_ID: ${SBIS_PRICE_LIST_ID:-24}
+      SBIS_TIMEOUT: ${SBIS_TIMEOUT:-30000}
+
+      # CDEK Integration (опционально)
+      CDEK_API_URL: ${CDEK_API_URL:-https://api.edu.cdek.ru/v2}
+      CDEK_CLIENT_ID: ${CDEK_CLIENT_ID:-}
+      CDEK_CLIENT_SECRET: ${CDEK_CLIENT_SECRET:-}
+      CDEK_TEST_MODE: ${CDEK_TEST_MODE:-false}
+
+      # Tochka Pay Integration (опционально)
+      TOCHKA_PAY_SANDBOX: ${TOCHKA_PAY_SANDBOX:-true}
+      TOCHKA_PAY_BASE_URL: ${TOCHKA_PAY_BASE_URL:-}
+      TOCHKA_PAY_API_KEY: ${TOCHKA_PAY_API_KEY:-}
+      TOCHKA_PAY_AUTH_TOKEN: ${TOCHKA_PAY_AUTH_TOKEN:-}
+      TOCHKA_PAY_SECRET_KEY: ${TOCHKA_PAY_SECRET_KEY:-}
+      TOCHKA_PAY_MERCHANT_ID: ${TOCHKA_PAY_MERCHANT_ID:-}
+      TOCHKA_PAY_TERMINAL_ID: ${TOCHKA_PAY_TERMINAL_ID:-}
+      TOCHKA_PAY_CUSTOMER_CODE: ${TOCHKA_PAY_CUSTOMER_CODE:-}
+      TOCHKA_PAY_SUCCESS_URL: ${TOCHKA_PAY_SUCCESS_URL:-}
+      TOCHKA_PAY_FAILURE_URL: ${TOCHKA_PAY_FAILURE_URL:-}
+      TOCHKA_PAY_WEBHOOK_SECRET: ${TOCHKA_PAY_WEBHOOK_SECRET:-}
+      TOCHKA_PAY_USE_RECEIPT: ${TOCHKA_PAY_USE_RECEIPT:-false}
+
+      # Frontend
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+    volumes:
+      - ./data/uploads:/app/public/uploads
+      - ./data/.tmp:/app/.tmp
+      - ./logs:/app/logs
+    ports:
+      - '1337:1337'
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - strapi_network
+
+volumes:
+  postgres_data:
+
+networks:
+  strapi_network:
+    driver: bridge

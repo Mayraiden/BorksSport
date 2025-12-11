@@ -1,0 +1,111 @@
+{
+	"kind": "collectionType",
+	"collectionName": "products",
+	"info": {
+		"singularName": "product",
+		"pluralName": "products",
+		"displayName": "Product"
+	},
+	"options": {
+		"comment": "Products from SBIS"
+	},
+	"attributes": {
+		"name": {
+			"type": "string",
+			"required": true
+		},
+		"description": {
+			"type": "richtext"
+		},
+		"price": {
+			"type": "decimal",
+			"min": 0
+		},
+		"article": {
+			"type": "string"
+		},
+		"unit": {
+			"type": "string"
+		},
+		"length": {
+			"type": "decimal",
+			"min": 0
+		},
+		"width": {
+			"type": "decimal",
+			"min": 0
+		},
+		"height": {
+			"type": "decimal",
+			"min": 0
+		},
+		"weight": {
+			"type": "decimal",
+			"min": 0
+		},
+		"images": {
+			"type": "json"
+		},
+		"published": {
+			"type": "boolean",
+			"default": true
+		},
+		"sbisId": {
+			"type": "integer",
+			"unique": true
+		},
+		"sbisExternalId": {
+			"type": "string"
+		},
+		"sbisNomNumber": {
+			"type": "string"
+		},
+		"categoryName": {
+			"type": "string"
+		},
+		"rootCategoryName": {
+			"type": "string"
+		},
+		"category": {
+			"type": "relation",
+			"relation": "manyToOne",
+			"target": "api::category.category",
+			"inversedBy": "products"
+		},
+		"lastSyncAt": {
+			"type": "datetime"
+		},
+		"sbisSalesCount": {
+			"type": "integer",
+			"default": 0,
+			"min": 0
+		},
+		"sbisTotalQuantitySold": {
+			"type": "integer",
+			"default": 0,
+			"min": 0
+		},
+		"sbisTotalRevenue": {
+			"type": "decimal",
+			"default": 0,
+			"min": 0
+		},
+		"sbisLastSoldAt": {
+			"type": "datetime"
+		},
+		"sbisPopularityScore": {
+			"type": "decimal",
+			"default": 0,
+			"min": 0
+		},
+		"sbisStatsLastUpdated": {
+			"type": "datetime"
+		},
+		"size": {
+			"type": "string"
+		},
+		"color": {
+			"type": "string"
+		}
+	}
+}
