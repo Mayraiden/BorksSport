@@ -1,0 +1,88 @@
+name: Deploy Frontend
+
+on:
+  push:
+    branches:
+      - release
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/deploy-frontend.yml'
+  workflow_dispatch: # Позволяет запускать вручную через GitHub UI
+
+jobs:
+  deploy:
+    name: Deploy Frontend to Server
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: release
+      
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+      
+      - name: Add server to known hosts
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_KNOWN_HOSTS }}" >> ~/.ssh/known_hosts || true
+          chmod 600 ~/.ssh/known_hosts || true
+      
+      - name: Deploy to server
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+        run: |
+          ssh -o StrictHostKeyChecking=no ${SERVER_USER}@${SERVER_HOST} << 'EOF'
+            set -e
+            echo "🚀 Starting frontend deployment..."
+            
+            cd ~/sportmagazine
+            
+            # Обновляем код из репозитория
+            echo "📥 Pulling latest changes from release branch..."
+            git fetch origin
+            git checkout release
+            git pull origin release
+            
+            # Переходим в папку frontend
+            cd frontend
+            
+            # Останавливаем текущий контейнер
+            echo "🛑 Stopping current container..."
+            docker-compose down || true
+            
+            # Пересобираем образ
+            echo "🔨 Building new Docker image..."
+            docker-compose build --no-cache
+            
+            # Запускаем контейнер
+            echo "▶️ Starting container..."
+            docker-compose up -d
+            
+            # Ждем запуска
+            echo "⏳ Waiting for container to start..."
+            sleep 10
+            
+            # Проверяем логи
+            echo "📋 Container logs:"
+            docker logs sportmagazine-frontend --tail 50 || true
+            
+            # Проверяем здоровье приложения
+            echo "🏥 Health check..."
+            if curl -f http://localhost:3000 > /dev/null 2>&1; then
+              echo "✅ Frontend is healthy!"
+            else
+              echo "⚠️ Frontend health check failed, but deployment completed"
+            fi
+            
+            echo "✅ Frontend deployment completed!"
+          EOF
+      
+      - name: Deployment status
+        run: |
+          echo "✅ Frontend deployment workflow completed"
+
