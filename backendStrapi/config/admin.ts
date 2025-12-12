@@ -4,6 +4,13 @@ export default ({ env }) => {
 	return {
 		auth: {
 			secret: env('ADMIN_JWT_SECRET'),
+			// Настройка cookies для работы за reverse proxy
+			sessions: {
+				cookie: {
+					secure: cookieSecure,
+					sameSite: 'lax',
+				},
+			},
 		},
 		apiToken: {
 			salt: env('API_TOKEN_SALT'),
@@ -23,11 +30,5 @@ export default ({ env }) => {
 		// Настройки для работы за reverse proxy с HTTPS
 		url: env('PUBLIC_URL', 'https://api.borkssport.ru'),
 		serveAdminPanel: env.bool('SERVE_ADMIN', true),
-		// Отключаем secure cookies если ADMIN_COOKIE_SECURE=false
-		...(cookieSecure === false && {
-			cookie: {
-				secure: false,
-			},
-		}),
 	};
 }
