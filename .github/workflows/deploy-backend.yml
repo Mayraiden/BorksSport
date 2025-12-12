@@ -42,22 +42,25 @@ jobs:
             
             cd ~/sportmagazine
             
-            # Обновляем код из репозитория
-            echo "📥 Pulling latest changes from release branch..."
-            git fetch origin
-            git checkout release
-            git pull origin release
-            
-            # Переходим в папку backendStrapi
-            cd backendStrapi
-            
-            # Очистка диска перед сборкой
-            echo "🧹 Cleaning up disk space..."
+            # Очистка диска перед обновлением кода
+            echo "🧹 Cleaning up disk space before deployment..."
             df -h
             docker system prune -f --volumes || true
             docker builder prune -af || true
             npm cache clean --force 2>/dev/null || true
             df -h
+            
+            # Обновляем код из репозитория
+            echo "📥 Pulling latest changes from release branch..."
+            # Исправляем проблемы с Git refs если есть
+            git remote prune origin || true
+            rm -f .git/refs/remotes/origin/release || true
+            git fetch origin --prune || true
+            git checkout release || git checkout -b release origin/release || true
+            git pull origin release || git reset --hard origin/release || true
+            
+            # Переходим в папку backendStrapi
+            cd backendStrapi
             
             # Останавливаем текущие контейнеры
             echo "🛑 Stopping current containers..."

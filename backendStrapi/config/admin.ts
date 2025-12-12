@@ -17,4 +17,7 @@ export default ({ env }) => ({
 		nps: env.bool('FLAG_NPS', true),
 		promoteEE: env.bool('FLAG_PROMOTE_EE', true),
 	},
+	// Настройки для работы за reverse proxy с HTTPS
+	url: env('PUBLIC_URL', 'https://api.borkssport.ru'),
+	serveAdminPanel: env.bool('SERVE_ADMIN', true),
 })
