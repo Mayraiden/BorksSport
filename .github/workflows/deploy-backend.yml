@@ -51,6 +51,14 @@ jobs:
             # Переходим в папку backendStrapi
             cd backendStrapi
             
+            # Очистка диска перед сборкой
+            echo "🧹 Cleaning up disk space..."
+            df -h
+            docker system prune -f --volumes || true
+            docker builder prune -af || true
+            npm cache clean --force 2>/dev/null || true
+            df -h
+            
             # Останавливаем текущие контейнеры
             echo "🛑 Stopping current containers..."
             docker-compose down || true
