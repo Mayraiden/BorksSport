@@ -31,7 +31,7 @@ services:
       DATABASE_NAME: strapi
       DATABASE_USERNAME: strapi
       DATABASE_PASSWORD: strapi
-      DATABASE_SSL: false
+      DATABASE_SSL: 'false'
 
       # Server
       HOST: 0.0.0.0
