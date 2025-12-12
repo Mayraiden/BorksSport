@@ -7,8 +7,12 @@ import { AuthModalWrapper } from '@/shared/ui/AuthModalWrapper'
 import { CookieBanner } from '@/shared/ui/CookieBanner'
 
 export const metadata: Metadata = {
-	title: 'ProSport',
-	description: 'твой профспорт',
+	title: 'BorksSport',
+	description: 'твой спорт',
+	icons: {
+		icon: '/miniLogo.png',
+		apple: '/miniLogo.png',
+	},
 }
 
 export default function RootLayout({
