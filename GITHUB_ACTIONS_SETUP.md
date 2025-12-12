@@ -2,12 +2,12 @@
 
 ## Обзор
 
-Этот документ описывает пошаговую настройку автоматического развертывания проекта SportMagazine через GitHub Actions. При каждом push в ветку `main` будет автоматически происходить развертывание изменений на сервер.
+Этот документ описывает пошаговую настройку автоматического развертывания проекта SportMagazine через GitHub Actions. При каждом push в ветку `release` будет автоматически происходить развертывание изменений на сервер (production). Ветка `development` может использоваться для тестового окружения.
 
 ## Архитектура
 
 ```
-GitHub Push (main)
+GitHub Push (release)
   ↓
 GitHub Actions (проверка изменений)
   ↓
@@ -84,9 +84,9 @@ cd ~/sportmagazine
 git remote -v
 
 # Если репозиторий еще не клонирован, клонируйте:
-# git clone https://github.com/Mayraiden/FullStackMagazine.git .
+# git clone https://github.com/Mayraiden/BorksSport.git .
 # или через SSH:
-# git clone git@github.com:Mayraiden/FullStackMagazine.git .
+# git clone git@github.com:Mayraiden/BorksSport.git .
 ```
 
 **Если репозиторий приватный, настройте SSH ключ для Git:**
@@ -141,7 +141,7 @@ ls -la ~/sportmagazine/backendStrapi/.env
 
 ### 2.1 Доступ к настройкам репозитория
 
-1. Откройте репозиторий на GitHub: `https://github.com/Mayraiden/FullStackMagazine`
+1. Откройте репозиторий на GitHub: `https://github.com/Mayraiden/BorksSport`
 2. Перейдите в **Settings** → **Secrets and variables** → **Actions**
 3. Нажмите **New repository secret**
 
@@ -201,7 +201,7 @@ ssh-keyscan 185.251.88.214
 
 **Логика:**
 
-- Триггер: push в `main` с изменениями в `frontend/**`
+- Триггер: push в `release` с изменениями в `frontend/**`
 - Ручной запуск через GitHub UI
 - Подключение к серверу по SSH
 - Git pull в папку frontend
@@ -215,7 +215,7 @@ ssh-keyscan 185.251.88.214
 3. Подключение к серверу
 4. Выполнение команд деплоя:
    - `cd ~/sportmagazine/frontend`
-   - `git pull origin main`
+   - `git pull origin release`
    - `docker-compose down`
    - `docker-compose build --no-cache`
    - `docker-compose up -d`
@@ -228,7 +228,7 @@ ssh-keyscan 185.251.88.214
 
 **Логика:**
 
-- Триггер: push в `main` с изменениями в `backendStrapi/**`
+- Триггер: push в `release` с изменениями в `backendStrapi/**`
 - Ручной запуск через GitHub UI
 - Подключение к серверу по SSH
 - Git pull в папку backendStrapi
@@ -242,7 +242,7 @@ ssh-keyscan 185.251.88.214
 3. Подключение к серверу
 4. Выполнение команд деплоя:
    - `cd ~/sportmagazine/backendStrapi`
-   - `git pull origin main`
+   - `git pull origin release`
    - `docker-compose down`
    - `docker-compose build --no-cache`
    - `docker-compose up -d`
@@ -285,7 +285,7 @@ ssh-keyscan 185.251.88.214
 1. Создать тестовую ветку: `git checkout -b test-deployment`
 2. Внести небольшое изменение в frontend или backend
 3. Закоммитить и запушить: `git push origin test-deployment`
-4. Создать Pull Request в main
+4. Создать Pull Request в release
 5. После merge проверить выполнение workflow в GitHub Actions
 
 ### 5.2 Проверка workflow
@@ -307,7 +307,7 @@ ssh-keyscan 185.251.88.214
 
 1. В GitHub Actions выберите workflow
 2. Нажмите **Run workflow**
-3. Выберите ветку (main)
+3. Выберите ветку (release)
 4. Нажмите **Run workflow**
 5. Проверьте выполнение
 
@@ -321,7 +321,7 @@ ssh-keyscan 185.251.88.214
 
 ### 6.2 Ограничение доступа
 
-- Workflow запускается только при push в `main` (или по ручному запуску)
+- Workflow запускается только при push в `release` (или по ручному запуску)
 - Можно добавить проверку подписи коммитов (опционально)
 - Можно ограничить запуск только для определенных пользователей (опционально)
 
@@ -359,7 +359,7 @@ ssh-keyscan 185.251.88.214
 ssh -i ~/.ssh/github_actions root@185.251.88.214 "echo 'SSH works'"
 
 # Проверка Git
-cd ~/sportmagazine/frontend && git pull origin main
+cd ~/sportmagazine/frontend && git pull origin release
 
 # Проверка Docker
 cd ~/sportmagazine/frontend && docker-compose ps
