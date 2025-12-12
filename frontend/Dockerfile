@@ -21,6 +21,10 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
+# Принимаем build аргументы для переменных окружения
+ARG NEXT_PUBLIC_STRAPI_URL
+ENV NEXT_PUBLIC_STRAPI_URL=$NEXT_PUBLIC_STRAPI_URL
+
 # Устанавливаем переменные окружения для сборки
 ENV NEXT_TELEMETRY_DISABLED 1
 

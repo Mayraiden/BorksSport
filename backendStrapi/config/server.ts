@@ -4,6 +4,16 @@ export default ({ env }) => ({
   app: {
     keys: env.array('APP_KEYS'),
   },
-  // Отключаем proxy для локальной разработки
-  proxy: env.bool('PROXY', false),
+  webhooks: {
+    populateRelations: env.bool('WEBHOOKS_POPULATE_RELATIONS', false),
+  },
+  proxy: true,
+  url: env('PUBLIC_URL', 'https://api.borkssport.ru'),
+  allowedHosts: [
+    'localhost',
+    'api.borkssport.ru',
+    '185.251.88.214',
+    'borkssport.ru',
+    'www.borkssport.ru',
+  ],
 });

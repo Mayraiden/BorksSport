@@ -36,7 +36,9 @@ services:
       # Server
       HOST: 0.0.0.0
       PORT: 1337
-      NODE_ENV: ${NODE_ENV:-development}
+      NODE_ENV: ${NODE_ENV:-production}
+      PUBLIC_URL: ${PUBLIC_URL:-https://api.borkssport.ru}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://borkssport.ru,http://www.borkssport.ru,https://borkssport.ru,https://www.borkssport.ru,http://api.borkssport.ru,https://api.borkssport.ru,http://localhost:3000}
 
       # Strapi Security
       APP_KEYS: ${APP_KEYS:-toBeModified1,toBeModified2,toBeModified3,toBeModified4}
