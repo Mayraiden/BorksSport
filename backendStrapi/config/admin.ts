@@ -20,4 +20,8 @@ export default ({ env }) => ({
 	// Настройки для работы за reverse proxy с HTTPS
 	url: env('PUBLIC_URL', 'https://api.borkssport.ru'),
 	serveAdminPanel: env.bool('SERVE_ADMIN', true),
+	// Явно отключаем secure cookies для работы за HTTP reverse proxy
+	cookie: {
+		secure: env.bool('ADMIN_COOKIE_SECURE', false),
+	},
 })
