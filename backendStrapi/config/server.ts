@@ -11,7 +11,10 @@ export default ({ env }) => ({
 	proxy: {
 		koa: true,
 	},
-	url: env('PUBLIC_URL', 'https://api.borkssport.ru'),
+	url: (() => {
+		const url = env('PUBLIC_URL', 'https://api.borkssport.ru');
+		return url ? url.replace(/\/$/, '') : 'https://api.borkssport.ru';
+	})(),
 	allowedHosts: [
 		'localhost',
 		'api.borkssport.ru',
