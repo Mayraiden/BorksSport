@@ -1,6 +1,11 @@
 export default [
 	'strapi::logger',
 	'strapi::errors',
+	// Middleware для исправления пустых pathname (должен быть рано в цепочке)
+	{
+		name: 'global::pathname-fix',
+		config: {},
+	},
 	'strapi::security',
 	{
 		name: 'strapi::cors',

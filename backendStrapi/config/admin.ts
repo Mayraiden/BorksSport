@@ -30,5 +30,7 @@ export default ({ env }) => {
 		// Настройки для работы за reverse proxy с HTTPS
 		url: env('PUBLIC_URL', 'https://api.borkssport.ru'),
 		serveAdminPanel: env.bool('SERVE_ADMIN', true),
+		// Явно указываем путь к админ-панели для избежания проблем с pathname
+		path: '/admin',
 	};
 }
