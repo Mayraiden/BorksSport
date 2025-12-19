@@ -8,13 +8,8 @@ export default ({ env }) => ({
 		populateRelations: env.bool('WEBHOOKS_POPULATE_RELATIONS', false),
 	},
 	// Правильная настройка proxy для работы за Nginx reverse proxy
-	proxy: {
-		koa: true,
-	},
-	url: (() => {
-		const url = env('PUBLIC_URL', 'https://api.borkssport.ru');
-		return url ? url.replace(/\/$/, '') : 'https://api.borkssport.ru';
-	})(),
+	proxy: true,
+	url: env('PUBLIC_URL', 'https://api.borkssport.ru'),
 	allowedHosts: [
 		'localhost',
 		'api.borkssport.ru',

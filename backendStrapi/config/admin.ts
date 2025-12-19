@@ -28,10 +28,7 @@ export default ({ env }) => {
 			promoteEE: env.bool('FLAG_PROMOTE_EE', true),
 		},
 		// Настройки для работы за reverse proxy с HTTPS
-		url: (() => {
-			const url = env('PUBLIC_URL', 'https://api.borkssport.ru');
-			return url ? url.replace(/\/$/, '') : 'https://api.borkssport.ru';
-		})(),
+		url: env('PUBLIC_URL', 'https://api.borkssport.ru'),
 		serveAdminPanel: env.bool('SERVE_ADMIN', true),
 	};
 }
