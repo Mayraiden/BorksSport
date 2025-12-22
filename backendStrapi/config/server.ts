@@ -7,14 +7,7 @@ export default ({ env }) => ({
 	webhooks: {
 		populateRelations: env.bool('WEBHOOKS_POPULATE_RELATIONS', false),
 	},
-	// Правильная настройка proxy для работы за Nginx reverse proxy
-	proxy: true,
+	proxy: true, // ОБЯЗАТЕЛЬНО для работы за reverse proxy
 	url: env('PUBLIC_URL', 'https://api.borkssport.ru'),
-	allowedHosts: [
-		'localhost',
-		'api.borkssport.ru',
-		'185.251.88.214',
-		'borkssport.ru',
-		'www.borkssport.ru',
-	],
+	allowedHosts: ['api.borkssport.ru', 'borkssport.ru', 'www.borkssport.ru'],
 })
