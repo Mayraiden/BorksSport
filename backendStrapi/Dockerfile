@@ -4,11 +4,22 @@ FROM node:20-alpine
 # Устанавливаем рабочую директорию
 WORKDIR /app
 
+# Настройка npm для лучшей производительности и надежности
+# Увеличиваем таймауты и количество повторов для медленных соединений
+RUN npm config set fetch-retries 5 && \
+    npm config set fetch-retry-mintimeout 20000 && \
+    npm config set fetch-retry-maxtimeout 120000 && \
+    npm config set progress true && \
+    npm config set loglevel info
+
 # Копируем файлы зависимостей
 COPY package*.json ./
 
-# Устанавливаем все зависимости (включая dev для сборки TypeScript)
-RUN npm install
+# Устанавливаем зависимости с подробным выводом прогресса
+# Используем npm ci для production (быстрее и надежнее, требует package-lock.json)
+# Если npm ci не работает (нет lock файла), fallback на npm install
+RUN npm ci --loglevel=info --progress=true || \
+    npm install --loglevel=info --progress=true
 
 # Копируем исходный код
 COPY . .
