@@ -4,8 +4,9 @@ export default ({ env }) => {
 	const publicUrl = env('PUBLIC_URL', 'https://api.borkssport.ru')
 	const isHttps = publicUrl.startsWith('https://')
 
-	// Используем переменную окружения, но если не установлена, определяем по URL
-	const cookieSecure = env.bool('ADMIN_COOKIE_SECURE', isHttps)
+	// Явно устанавливаем secure: true для HTTPS соединений через reverse proxy
+	// Переменная окружения ADMIN_COOKIE_SECURE может переопределить это значение
+	const cookieSecure = isHttps ? true : env.bool('ADMIN_COOKIE_SECURE', false)
 
 	return {
 		auth: {
