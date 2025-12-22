@@ -1,4 +1,9 @@
 export default [
+	// Middleware для диагностики протокола (временно)
+	{
+		name: 'global::debug-proto',
+		config: {},
+	},
 	'strapi::logger',
 	'strapi::errors',
 	// Middleware для исправления пустых pathname (должен быть рано в цепочке)
