@@ -3,10 +3,15 @@ export default (config: any, { strapi }: any) => {
 		// Исправляем протокол на основе X-Forwarded-Proto для работы за reverse proxy
 		const forwardedProto = ctx.request.headers['x-forwarded-proto']
 		if (forwardedProto === 'https') {
-			ctx.request.protocol = 'https'
-			ctx.request.secure = true
-			// Также устанавливаем для app.proxy
-			ctx.app.proxy = true
+			// Устанавливаем протокол через Object.defineProperty (protocol - read-only)
+			Object.defineProperty(ctx.request, 'protocol', {
+				writable: true,
+				value: 'https'
+			})
+			Object.defineProperty(ctx.request, 'secure', {
+				writable: true,
+				value: true
+			})
 		}
 		
 		console.log('--- DEBUG PROTOCOL ---')
