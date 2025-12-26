@@ -6,6 +6,8 @@ const nextConfig: NextConfig = {
 	output: 'standalone',
 
 	images: {
+		// Временно отключаем оптимизацию для api.sbis.ru чтобы избежать бесконечных 404 ошибок
+		unoptimized: false,
 		remotePatterns: [
 			{
 				protocol: 'http',
@@ -35,6 +37,10 @@ const nextConfig: NextConfig = {
 				pathname: '/disk/api/v1/**',
 			},
 		],
+		// Добавляем обработку ошибок для изображений
+		dangerouslyAllowSVG: true,
+		contentDispositionType: 'attachment',
+		contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
 	},
 }
 

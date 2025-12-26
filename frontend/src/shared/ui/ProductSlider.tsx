@@ -21,9 +21,14 @@ export const ProductSlider = ({
 	className = '',
 }: ProductSliderProps) => {
 	const [swiperRef, setSwiperRef] = useState<SwiperType | null>(null)
+	const [imageErrors, setImageErrors] = useState<Set<string>>(new Set())
 
 	const goToPrev = () => swiperRef?.slidePrev()
 	const goToNext = () => swiperRef?.slideNext()
+
+	const handleImageError = (imageUrl: string) => {
+		setImageErrors((prev) => new Set(prev).add(imageUrl))
+	}
 
 	if (!images.length) {
 		return (
@@ -53,20 +58,28 @@ export const ProductSlider = ({
 				onSwiper={setSwiperRef}
 				className="w-full h-120 rounded-[4px] overflow-hidden"
 			>
-				{displayImages.map((image, index) => (
-					<SwiperSlide key={`${image.id}-${index}`}>
-						<div className="w-full h-full relative">
-							<Image
-								src={image.url}
-								alt={image.alt}
-								fill
-								className="object-contain"
-								sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-								priority={index < 3}
-							/>
-						</div>
-					</SwiperSlide>
-				))}
+				{displayImages.map((image, index) => {
+					const isSbisImage = image.url.includes('api.sbis.ru')
+					const hasError = imageErrors.has(image.url)
+					const imageSrc = hasError ? '/NoProductImage.jpg' : image.url
+
+					return (
+						<SwiperSlide key={`${image.id}-${index}`}>
+							<div className="w-full h-full relative">
+								<Image
+									src={imageSrc}
+									alt={image.alt}
+									fill
+									className="object-contain"
+									sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+									priority={index < 3}
+									unoptimized={isSbisImage} // Отключаем оптимизацию для api.sbis.ru чтобы избежать 404 ошибок
+									onError={() => handleImageError(image.url)}
+								/>
+							</div>
+						</SwiperSlide>
+					)
+				})}
 			</Swiper>
 
 			{/* Navigation arrows - всегда показываем для infinity scroll */}

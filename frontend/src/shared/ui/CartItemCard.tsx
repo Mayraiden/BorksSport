@@ -22,12 +22,16 @@ export const CartItemCard = ({
 }: CartItemCardProps) => {
 	const { jwt } = useAuthStore()
 	const [isUpdating, setIsUpdating] = useState(false)
+	const [imageError, setImageError] = useState(false)
 
 	const product = cartItem.product
 	const mainImage = product.images[0] || {
 		url: '/NoProductImage.jpg',
 		alt: product.name || 'Изображение товара',
 	}
+
+	const isSbisImage = mainImage.url.includes('api.sbis.ru')
+	const imageSrc = imageError ? '/NoProductImage.jpg' : mainImage.url
 
 	const formatPrice = (price: number) => {
 		return new Intl.NumberFormat('ru-RU').format(price) + ' руб'
@@ -88,11 +92,17 @@ export const CartItemCard = ({
 				className="flex-shrink-0 w-[120px] h-[120px] relative rounded-[6px] overflow-hidden"
 			>
 				<Image
-					src={mainImage.url}
+					src={imageSrc}
 					alt={mainImage.alt}
 					fill
 					className="object-cover"
 					sizes="120px"
+					unoptimized={isSbisImage} // Отключаем оптимизацию для api.sbis.ru чтобы избежать 404 ошибок
+					onError={() => {
+						if (!imageError) {
+							setImageError(true)
+						}
+					}}
 				/>
 			</Link>
 

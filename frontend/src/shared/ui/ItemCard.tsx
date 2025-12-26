@@ -1,6 +1,6 @@
 'use client'
 
-import { memo, useMemo } from 'react'
+import { memo, useMemo, useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import type { Product } from '@/shared/types'
@@ -41,6 +41,9 @@ export const ItemCard = memo<ItemCardProps>(
 
 		const displayProduct = product || fallbackProduct
 
+		// Состояние для обработки ошибок загрузки изображений
+		const [imageError, setImageError] = useState(false)
+
 		// Memoize expensive calculations
 		const mainImage = useMemo(
 			() =>
@@ -50,6 +53,10 @@ export const ItemCard = memo<ItemCardProps>(
 				},
 			[displayProduct.images]
 		)
+
+		// Определяем, нужно ли использовать unoptimized для api.sbis.ru
+		const isSbisImage = mainImage.url.includes('api.sbis.ru')
+		const imageSrc = imageError ? '/NoProductImage.jpg' : mainImage.url
 
 		const formattedPrice = useMemo(
 			() =>
@@ -70,13 +77,20 @@ export const ItemCard = memo<ItemCardProps>(
 					<div className="relative">
 						<Image
 							className="w-full h-64 object-contain"
-							src={mainImage.url}
+							src={imageSrc}
 							width={236}
 							height={256}
 							alt={mainImage.alt}
 							priority={false} // Don't prioritize images in grid
 							loading="lazy" // Lazy load images
 							sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 25vw"
+							unoptimized={isSbisImage} // Отключаем оптимизацию для api.sbis.ru чтобы избежать 404 ошибок
+							onError={() => {
+								// Fallback на дефолтное изображение при ошибке загрузки
+								if (!imageError) {
+									setImageError(true)
+								}
+							}}
 						/>
 					</div>
 				</Link>
