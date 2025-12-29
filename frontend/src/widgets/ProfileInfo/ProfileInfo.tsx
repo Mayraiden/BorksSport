@@ -10,15 +10,17 @@ import {
 	NotePencilIcon,
 } from '@phosphor-icons/react/ssr'
 import { useAuthStore } from '@/features/Auth/model/store'
-import { useGetMe, useUpdateProfile } from '@/features/Auth/lib/queries'
+import { useGetMe, useUpdateProfile, useDeleteAccount } from '@/features/Auth/lib/queries'
 import {
 	profileSchema,
 	ProfileFormData,
 } from '@/shared/lib/validations/profile'
+import { DeleteAccountModal } from '@/shared/ui/DeleteAccountModal'
 
 export const ProfileInfo = () => {
 	const [isEditMode, setIsEditMode] = useState(false)
 	const [saveSuccess, setSaveSuccess] = useState(false)
+	const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
 
 	// Получаем данные из store
 	const { user, logout } = useAuthStore()
@@ -29,6 +31,9 @@ export const ProfileInfo = () => {
 
 	// Мутация для обновления профиля
 	const updateProfileMutation = useUpdateProfile()
+
+	// Мутация для удаления аккаунта
+	const deleteAccountMutation = useDeleteAccount()
 
 	// Настройка react-hook-form с Zod валидацией
 	const {
@@ -115,8 +120,24 @@ export const ProfileInfo = () => {
 
 	// Удаление аккаунта
 	const handleDeleteAccount = () => {
-		// TODO: Показать модальное окно подтверждения
-		console.log('Delete account')
+		setIsDeleteModalOpen(true)
+	}
+
+	const handleConfirmDelete = async () => {
+		try {
+			await deleteAccountMutation.mutateAsync()
+			// После успешного удаления происходит logout и очистка через onSuccess в useDeleteAccount
+			router.push('/')
+		} catch (error) {
+			console.error('Ошибка при удалении аккаунта:', error)
+			// Модальное окно останется открытым, можно показать ошибку
+		}
+	}
+
+	const handleCloseDeleteModal = () => {
+		if (!deleteAccountMutation.isPending) {
+			setIsDeleteModalOpen(false)
+		}
 	}
 
 	return (
@@ -268,6 +289,14 @@ export const ProfileInfo = () => {
 					</div>
 				</div>
 			</div>
+
+			{/* Модальное окно удаления аккаунта */}
+			<DeleteAccountModal
+				isOpen={isDeleteModalOpen}
+				onClose={handleCloseDeleteModal}
+				onConfirm={handleConfirmDelete}
+				isLoading={deleteAccountMutation.isPending}
+			/>
 		</div>
 	)
 }

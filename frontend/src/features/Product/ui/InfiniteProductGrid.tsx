@@ -55,7 +55,7 @@ export const InfiniteProductGrid = memo<{
 
 	// Loading skeleton
 	const LoadingSkeleton = memo(() => (
-		<div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+		<div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 max-sm:gap-3 md:gap-4">
 			{Array.from({ length: 8 }).map((_, index) => (
 				<div key={index} className="animate-pulse">
 					<div className="w-full h-64 bg-gray/20 rounded-lg mb-3"></div>
@@ -121,7 +121,7 @@ export const InfiniteProductGrid = memo<{
 
 	return (
 		<div className={className}>
-			<div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+			<div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 max-sm:gap-3 md:gap-4">
 				{allProducts.map((product, index) => (
 					<ItemCard
 						key={`${product.id}-${index}`}
@@ -133,10 +133,10 @@ export const InfiniteProductGrid = memo<{
 
 			{/* Load more button */}
 			{hasNextPage && !isFetchingNextPage && (
-				<div className="flex justify-center py-8">
+				<div className="flex justify-center py-8 max-sm:py-4">
 					<button
 						onClick={() => fetchNextPage()}
-						className="px-8 py-3 bg-[#f5f5f5] text-gray-700 rounded-lg hover:bg-gray/30 transition-colors duration-200 font-medium"
+						className="px-8 py-3 bg-burgundy text-white rounded-lg hover:bg-burgundy/90 transition-colors duration-200 font-medium max-sm:px-6 max-sm:py-2.5 max-sm:text-sm"
 					>
 						Загрузить еще
 					</button>

@@ -42,48 +42,18 @@ export interface CartItemDisplay {
 }
 
 // Transform API product to our Product type (same as in productApi)
+// Используем упрощенную версию для корзины, так как варианты там не нужны
 const transformApiProduct = (apiProduct: ApiProduct): Product => {
-	const transformImages = () => {
-		const validImages = (apiProduct.images || [])
-			.filter((imgUrl): imgUrl is string => imgUrl !== null && typeof imgUrl === 'string')
-			.map((imgUrl: string, index: number) => {
-				try {
-					const paramsMatch = imgUrl.match(/params=(.+)/)
-					if (paramsMatch) {
-						const rawParams = paramsMatch[1]
-						try {
-							const decodedParams = atob(rawParams)
-							const params = JSON.parse(decodedParams)
-							if (params.PhotoURL) {
-								return {
-									id: index.toString(),
-									url: params.PhotoURL,
-									alt: apiProduct.name || 'Изображение товара',
-								}
-							}
-						} catch {
-							try {
-								const decodedParams = decodeURIComponent(rawParams)
-								const params = JSON.parse(decodedParams)
-								if (params.PhotoURL) {
-									return {
-										id: index.toString(),
-										url: params.PhotoURL,
-										alt: apiProduct.name || 'Изображение товара',
-									}
-								}
-							} catch {}
-						}
-					}
-				} catch {}
-				return {
-					id: index.toString(),
-					url: '/NoProductImage.jpg',
-					alt: apiProduct.name || 'Изображение товара',
-				}
-			})
-		return validImages.length > 0
-			? validImages
+	// Изображения уже обработаны на бэкенде
+	const images = (apiProduct.images || []).map((url, index) => ({
+		id: index.toString(),
+		url: url,
+		alt: apiProduct.name || 'Изображение товара',
+	}))
+
+	const validImages =
+		images.length > 0
+			? images
 			: [
 					{
 						id: '0',
@@ -91,7 +61,6 @@ const transformApiProduct = (apiProduct: ApiProduct): Product => {
 						alt: apiProduct.name || 'Изображение товара',
 					},
 				]
-	}
 
 	return {
 		id: apiProduct.id.toString(),
@@ -99,14 +68,17 @@ const transformApiProduct = (apiProduct: ApiProduct): Product => {
 		name: apiProduct.name || 'Без названия',
 		brand: apiProduct.categoryName || 'Не указано',
 		price: apiProduct.price || 0,
-		images: transformImages(),
-		colors: [],
-		sizes: [],
+		images: validImages,
+		colors: [], // Для корзины варианты не нужны
+		sizes: [], // Для корзины варианты не нужны
 		description: apiProduct.description,
 		characteristics: {
 			Категория: apiProduct.categoryName || 'Не указано',
 			Артикул: apiProduct.article || apiProduct.sbisNomNumber || 'Не указано',
+			Единица: apiProduct.unit || 'шт',
 		},
+		size: apiProduct.size || null,
+		color: apiProduct.color || null,
 	}
 }
 

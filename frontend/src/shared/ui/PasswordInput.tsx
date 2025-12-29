@@ -30,14 +30,14 @@ export const PasswordInput = forwardRef<HTMLInputElement, PasswordInputProps>(
 					onChange={onChange}
 					onBlur={onBlur}
 					name={name}
-					className={`bg-transparent text-base text-black outline-none disabled:cursor-not-allowed pr-20 ${className} ${
+					className={`bg-transparent text-base text-black outline-none disabled:cursor-not-allowed pr-20 max-sm:pr-16 max-sm:text-sm ${className} ${
 						error ? 'text-red-500' : ''
 					}`}
 				/>
 				<button
 					type="button"
 					onClick={() => setShowPassword(!showPassword)}
-					className="absolute right-3 top-1/2 transform -translate-y-1/2 text-xs text-[#A0A4A8] hover:text-gray-700"
+					className="absolute right-3 top-1/2 transform -translate-y-1/2 text-xs text-[#A0A4A8] hover:text-gray-700 max-sm:right-2 max-sm:text-[10px]"
 				>
 					{showPassword ? 'скрыть' : 'показать'}
 				</button>

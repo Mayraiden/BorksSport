@@ -69,6 +69,13 @@ export type Product = {
 	description?: string
 	characteristics?: Record<string, string>
 	delivery?: string[]
+	variants?: Product[] // Variants of the product (different sizes/colors)
+	size?: string | null
+	color?: string | null
+	weight?: number | null
+	length?: number | null
+	width?: number | null
+	height?: number | null
 }
 
 export type SearchSuggestion = {
@@ -87,7 +94,7 @@ export type ApiProduct = {
 	price: number
 	article: string | null
 	unit: string
-	images: string[] // Array of image URLs
+	images: string[] // Array of image URLs (already processed on backend)
 	published: boolean
 	sbisId: number
 	sbisExternalId: string
@@ -99,6 +106,13 @@ export type ApiProduct = {
 	updatedAt: string
 	publishedAt: string
 	locale: string | null
+	size: string | null
+	color: string | null
+	weight: number | null
+	length: number | null
+	width: number | null
+	height: number | null
+	variants?: ApiProduct[] // Variants of the product (same sbisNomNumber/article)
 }
 
 export type ApiResponse<T> = {

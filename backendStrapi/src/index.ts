@@ -84,16 +84,45 @@ export default {
 
       if (settings.email_confirmation) {
         try {
-          await strapi.plugins['users-permissions'].services.user.sendConfirmationEmail(user);
-        } catch (err) {
+          // Проверяем, что email провайдер настроен корректно перед отправкой
+          const emailService = strapi.plugins['email']?.services?.email;
+          if (emailService) {
+            await strapi.plugins['users-permissions'].services.user.sendConfirmationEmail(user);
+          } else {
+            strapi.log.warn('Email service is not configured. Skipping confirmation email.');
+          }
+        } catch (err: any) {
+          // Логируем ошибку, но не прерываем процесс регистрации
           strapi.log.error('Error sending confirmation email:', err);
+          // Если это ошибка подключения к SMTP, логируем предупреждение
+          if (err?.message?.includes('ECONNREFUSED') || err?.message?.includes('timeout') || err?.message?.includes('Authentication failed')) {
+            strapi.log.warn('SMTP connection error detected. Please check email configuration in admin panel.');
+          }
         }
       }
 
+      // Генерируем access token (короткий срок жизни - 15 минут)
+      const accessToken = strapi.plugins['users-permissions'].services.jwt.issue({
+        id: user.id,
+      })
+
+      // Генерируем refresh token
+      const refreshTokenService = strapi.service('api::refresh-token.refresh-token')
+      const refreshToken = await refreshTokenService.generateRefreshToken(user.id)
+
+      // Устанавливаем refresh token в HTTP-only cookie
+      const isDevelopment = process.env.NODE_ENV === 'development'
+      ctx.cookies.set('refreshToken', refreshToken, {
+        httpOnly: true,
+        secure: !isDevelopment, // true в production (HTTPS), false в development
+        sameSite: 'lax',
+        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 дней
+        path: '/',
+      })
+
       ctx.send({
-        jwt: strapi.plugins['users-permissions'].services.jwt.issue({
-          id: user.id,
-        }),
+        jwt: accessToken,
+        refreshToken: refreshToken, // Также возвращаем в ответе для совместимости (но лучше использовать cookie)
         user: {
           id: user.id,
           username: user.username,
@@ -102,6 +131,40 @@ export default {
           phone: (user as { phone?: string }).phone,
         },
       });
+    };
+
+    // Расширяем login контроллер (callback) для генерации refresh token
+    const originalCallback = strapi.plugins['users-permissions'].controllers.auth.callback.bind(
+      strapi.plugins['users-permissions'].controllers.auth
+    );
+
+    strapi.plugins['users-permissions'].controllers.auth.callback = async (ctx: any) => {
+      // Вызываем оригинальный callback
+      await originalCallback(ctx);
+
+      // Если логин успешен (есть jwt и user в ответе), генерируем refresh token
+      if (ctx.body?.jwt && ctx.body?.user?.id) {
+        try {
+          const refreshTokenService = strapi.service('api::refresh-token.refresh-token');
+          const refreshToken = await refreshTokenService.generateRefreshToken(ctx.body.user.id);
+
+          // Устанавливаем refresh token в HTTP-only cookie
+          const isDevelopment = process.env.NODE_ENV === 'development';
+          ctx.cookies.set('refreshToken', refreshToken, {
+            httpOnly: true,
+            secure: !isDevelopment,
+            sameSite: 'lax',
+            maxAge: 7 * 24 * 60 * 60 * 1000, // 7 дней
+            path: '/',
+          });
+
+          // Также возвращаем в ответе для совместимости
+          ctx.body.refreshToken = refreshToken;
+        } catch (error) {
+          strapi.log.error('Error generating refresh token:', error);
+          // Не прерываем процесс логина, если refresh token не удалось создать
+        }
+      }
     };
   },
 };

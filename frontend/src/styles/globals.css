@@ -49,3 +49,10 @@ body {
 		'Droid Sans',
 		'Helvetica Neue';
 }
+
+/* Поддержка safe area для iOS */
+@supports (padding: max(0px)) {
+	.safe-area-bottom {
+		padding-bottom: max(8px, env(safe-area-inset-bottom));
+	}
+}

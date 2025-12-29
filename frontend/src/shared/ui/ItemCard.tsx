@@ -71,7 +71,7 @@ export const ItemCard = memo<ItemCardProps>(
 
 		return (
 			<div
-				className={`w-full min-w-50 flex flex-col bg-white shadow-md hover:shadow-lg transition-shadow duration-200 ${className}`}
+				className={`w-full min-w-50 flex flex-col bg-white shadow-md hover:shadow-lg transition-shadow duration-200 max-sm:w-59 ${className}`}
 			>
 				<Link href={productUrl} onClick={onClick} className="block">
 					<div className="relative">

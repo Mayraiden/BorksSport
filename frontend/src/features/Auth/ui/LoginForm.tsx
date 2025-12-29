@@ -33,7 +33,7 @@ export const LoginForm = () => {
 	}
 
 	return (
-		<form onSubmit={handleSubmit(handleLogin)} className="space-y-3">
+		<form onSubmit={handleSubmit(handleLogin)} className="space-y-3 max-sm:space-y-2.5">
 			{/* Email */}
 			<FormField label="Email" error={errors.email?.message}>
 				<IInput
@@ -50,14 +50,18 @@ export const LoginForm = () => {
 			</FormField>
 
 			{/* Submit Button */}
-			<div className="pt-4">
+			<div className="pt-4 max-sm:pt-3">
 				<AuthButton type="submit" loading={isPending}>
 					Войти
 				</AuthButton>
 			</div>
 
 			{/* Error Display */}
-			{error && <div className="text-red-500 text-sm mt-2">{error}</div>}
+			{error && (
+				<div className="text-red-500 text-sm mt-2 max-sm:text-xs max-sm:mt-1.5">
+					{error}
+				</div>
+			)}
 		</form>
 	)
 }

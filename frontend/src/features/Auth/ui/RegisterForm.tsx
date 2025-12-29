@@ -60,7 +60,10 @@ export const RegisterForm = () => {
 	}
 
 	return (
-		<form onSubmit={handleSubmit(handleRegister)} className="space-y-3">
+		<form
+			onSubmit={handleSubmit(handleRegister)}
+			className="space-y-3 max-sm:space-y-2.5"
+		>
 			{/* Name */}
 			<FormField label="Имя" error={errors.name?.message}>
 				<IInput
@@ -105,7 +108,7 @@ export const RegisterForm = () => {
 			</FormField>
 
 			{/* Checkboxes */}
-			<div className="space-y-3 pt-2">
+			<div className="space-y-3 pt-2 max-sm:space-y-2 max-sm:pt-1.5">
 				<Checkbox
 					checked={agreement}
 					onChange={(checked) => setValue('agreement', checked)}
@@ -138,14 +141,18 @@ export const RegisterForm = () => {
 			</div>
 
 			{/* Submit Button */}
-			<div className="pt-4">
+			<div className="pt-4 max-sm:pt-3">
 				<AuthButton type="submit" loading={isPending}>
 					Зарегистрироваться
 				</AuthButton>
 			</div>
 
 			{/* Error Display */}
-			{error && <div className="text-red-500 text-sm mt-2">{error}</div>}
+			{error && (
+				<div className="text-red-500 text-sm mt-2 max-sm:text-xs max-sm:mt-1.5">
+					{error}
+				</div>
+			)}
 		</form>
 	)
 }

@@ -2,6 +2,13 @@ import type { Core } from '@strapi/strapi'
 import axios from 'axios'
 import * as fs from 'fs'
 import * as path from 'path'
+import { processImageArray } from '../utils/image-processor'
+import {
+	extractSize,
+	extractColor,
+	extractDimensions,
+	cleanDescriptionHtml,
+} from '../utils/data-extractor'
 
 export default ({ strapi }: { strapi: Core.Strapi }) => {
 	const getConfig = () => {
@@ -910,10 +917,19 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 						{ filters: { sbisId: productData.id } }
 					)
 
-					// Извлекаем размер и цвет из атрибутов
+					// Извлекаем размер и цвет используя улучшенную логику
 					const attributes = productData.attributes || {}
-					const size = attributes['Размер'] || attributes['size'] || null
-					const color = attributes['Цвет'] || attributes['color'] || null
+					const size = extractSize(attributes, productData.name)
+					const color = extractColor(attributes, productData.name)
+
+					// Извлекаем габариты
+					const dimensions = extractDimensions(productData)
+
+					// Обрабатываем изображения
+					const processedImages = processImageArray(productData.images || [])
+
+					// Очищаем описание от HTML тегов
+					const cleanedDescription = cleanDescriptionHtml(productData.description)
 
 					// Находим категорию для товара
 					let categoryStrapiId = null
@@ -924,31 +940,15 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 
 					const productPayload: any = {
 						name: productData.name,
-						description: productData.description,
+						description: cleanedDescription,
 						price: productData.cost,
 						article: productData.article,
 						unit: productData.unit,
-						length:
-							productData.length ??
-							productData.Length ??
-							productData.dimensions?.length ??
-							null,
-						width:
-							productData.width ??
-							productData.Width ??
-							productData.dimensions?.width ??
-							null,
-						height:
-							productData.height ??
-							productData.Height ??
-							productData.dimensions?.height ??
-							null,
-						weight:
-							productData.weight ??
-							productData.Weight ??
-							productData.dimensions?.weight ??
-							null,
-						images: productData.images,
+						length: dimensions.length,
+						width: dimensions.width,
+						height: dimensions.height,
+						weight: dimensions.weight,
+						images: processedImages, // Сохраняем обработанные изображения
 						// Всегда устанавливаем published: true по умолчанию для всех товаров из SBIS
 						// Товары из прайс-листа должны быть доступны на сайте
 						// Если товар не должен быть опубликован, это можно изменить вручную в админке

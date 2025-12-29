@@ -25,7 +25,7 @@ export const IInput = forwardRef<HTMLInputElement, IInputProps>(
 		return (
 			<input
 				ref={ref}
-				className={`w-full bg-transparent outline-none border-none text-base font-normal leading-[1.3125] text-black placeholder:text-[#A0A4A8] placeholder:opacity-25 disabled:opacity-50 disabled:cursor-not-allowed ${className}`}
+				className={`w-full bg-transparent outline-none border-none text-base font-normal leading-[1.3125] text-black placeholder:text-[#A0A4A8] placeholder:opacity-25 disabled:opacity-50 disabled:cursor-not-allowed max-sm:text-sm ${className}`}
 				type={type}
 				disabled={disabled}
 				placeholder={placeholder}

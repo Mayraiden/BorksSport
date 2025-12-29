@@ -20,6 +20,16 @@ export default {
 				middlewares: [],
 			},
 		},
+		{
+			method: 'DELETE',
+			path: '/users/me',
+			handler: 'user.deleteMe',
+			config: {
+				auth: false, // Отключаем стандартную проверку auth, проверяем вручную в контроллере
+				policies: [],
+				middlewares: [],
+			},
+		},
 	],
 }
 

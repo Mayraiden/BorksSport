@@ -3,9 +3,9 @@ import Link from 'next/link'
 export const Hero = () => {
 	return (
 		<section>
-			<div className='lg:w-full lg:h-[87vh] lg:pt-42 bg-[url("/heroImage.jpg")] bg-center bg-cover md:py-10 md:h-full max-sm:py-10 max-sm:h-[70vh]'>
-				<div className="max-w-[1040px] mx-auto pl-12 flex flex-col items-center justify-between md:justify-start md:gap-10 max-sm:gap-10">
-					<div className="self-start">
+			<div className='lg:w-full lg:h-[87vh] lg:pt-42 bg-[url("/heroImage.jpg")] bg-center bg-cover md:py-10 md:h-full max-sm:py-10 max-sm:h-[64vh]'>
+				<div className="max-w-[1040px] mx-auto pl-12 flex flex-col items-center justify-between md:justify-start md:gap-10 max-sm:gap-10 max-sm:p-2">
+					<div className="self-start max-sm:self-start max-sm:text-left">
 						<h1 className="lg:text-7xl text-[#F5F5F5] font-bold select-none md:text-4xl max-sm:text-4xl">
 							ТВОЙ СПОРТ
 						</h1>
@@ -13,7 +13,7 @@ export const Hero = () => {
 							ТВОИ ПРАВИЛА
 						</h1>
 					</div>
-					<div className="self-start">
+					<div className="self-start max-sm:self-center max-sm:text-left">
 						<p className="lg:pl-42 lg:text-[28px] text-[#F5F5F5] self-start select-none md:text-2xl md:pl-0 max-sm:text-2xl max-sm:mb-2">
 							Премиальное спортивное снаряжение и одежда <br />
 						</p>
@@ -23,7 +23,7 @@ export const Hero = () => {
 					</div>
 					<Link
 						href="/catalog"
-						className="w-65 h-15 text-base flex items-center justify-center rounded-sm bg-gold lg:self-end hover:opacity-90 transition-opacity duration-200 md:self-start"
+						className="w-65 h-15 text-base flex items-center justify-center rounded-sm bg-gold lg:self-end hover:opacity-90 transition-opacity duration-200 md:self-start max-sm:self-start"
 					>
 						Перейти в каталог
 					</Link>

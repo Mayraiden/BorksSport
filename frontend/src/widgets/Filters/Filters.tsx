@@ -9,7 +9,12 @@ import type { FilterSection as FilterSectionType } from '@shared/types/filters.t
 
 import './Filters.css'
 
-export const Filters = () => {
+type FiltersProps = {
+	isMobile?: boolean
+	onApply?: () => void
+}
+
+export const Filters = ({ isMobile = false, onApply }: FiltersProps) => {
 	const {
 		filterValues,
 		hasUnsavedChanges,
@@ -198,7 +203,13 @@ export const Filters = () => {
 		// Инициализация уже происходит в useFilters
 	}, [])
 	return (
-		<aside className="sticky top-4 w-70 max-h-[calc(100vh-2rem)] pt-3 p-6 self-start shadow-lg bg-white flex flex-col">
+		<aside
+			className={`${
+				isMobile
+					? 'w-full h-full pt-3 p-4 bg-white flex flex-col'
+					: 'sticky top-4 w-70 max-h-[calc(100vh-2rem)] pt-3 p-6 self-start shadow-lg bg-white flex flex-col max-sm:hidden'
+			}`}
+		>
 			{/* <h2 className="text-xl font-bold mb-6 text-gray-900">ФИЛЬТРЫ</h2> */}
 
 			<div className="flex-1 overflow-y-scroll space-y-2 filters-scroll min-h-0">
@@ -222,7 +233,12 @@ export const Filters = () => {
 			{/* Фиксированные кнопки внизу */}
 			<div className="pt-4 space-y-3 flex-shrink-0 border-t border-gray-200 bg-white">
 				<button
-					onClick={applyFilters}
+					onClick={() => {
+						applyFilters()
+						if (onApply) {
+							onApply()
+						}
+					}}
 					disabled={!hasUnsavedChanges}
 					className={`w-full py-3 px-4 rounded-md transition-colors duration-200 font-medium ${
 						hasUnsavedChanges

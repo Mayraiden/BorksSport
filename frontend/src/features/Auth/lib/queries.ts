@@ -87,3 +87,28 @@ export const useUpdateProfile = () => {
 		},
 	})
 }
+
+export const useDeleteAccount = () => {
+	const jwt = useAuthStore((state) => state.jwt)
+	const logout = useAuthStore((state) => state.logout)
+	const queryClient = useQueryClient()
+
+	return useMutation({
+		mutationFn: () => {
+			if (!jwt) {
+				throw new Error('JWT токен отсутствует')
+			}
+			return strapiAuth.deleteAccount(jwt)
+		},
+		onSuccess: () => {
+			// Очищаем все данные пользователя
+			logout()
+			// Очищаем кэш React Query
+			queryClient.clear()
+		},
+		onError: (error: unknown) => {
+			const errorMessage = getAuthErrorMessage(error)
+			useAuthStore.getState().setError(errorMessage)
+		},
+	})
+}

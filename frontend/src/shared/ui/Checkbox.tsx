@@ -20,14 +20,14 @@ export const Checkbox = ({
 	size = 'md',
 }: CheckboxProps) => {
 	const textSizeClasses = {
-		sm: 'text-xs',
-		md: 'text-sm',
-		lg: 'text-base',
+		sm: 'text-xs max-sm:text-[10px]',
+		md: 'text-sm max-sm:text-xs',
+		lg: 'text-base max-sm:text-sm',
 	}
 
 	return (
 		<label
-			className={`flex items-center space-x-3 cursor-pointer group ${className}`}
+			className={`flex items-center space-x-3 cursor-pointer group max-sm:space-x-2 ${className}`}
 		>
 			<div className="relative flex justify-center items-center">
 				<input

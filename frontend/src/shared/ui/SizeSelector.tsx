@@ -26,16 +26,16 @@ export const SizeSelector = ({
 	if (!sizes.length) return null
 
 	return (
-		<div className={`flex flex-col gap-4 ${className}`}>
-			<label className="text-base font-bold leading-[1.3125] text-[#121212]">
+		<div className={`flex flex-col gap-4 max-sm:gap-3 ${className}`}>
+			<label className="text-base font-bold leading-[1.3125] text-[#121212] max-sm:text-sm">
 				Размер
 			</label>
-			<div className="flex gap-3 flex-wrap">
+			<div className="flex gap-3 flex-wrap max-sm:gap-2">
 				{sizes.map((size) => (
 					<button
 						key={size.id}
 						onClick={() => handleSizeSelect(size.id)}
-						className={`w-[52px] h-10 flex items-center justify-center text-base font-normal leading-[1.3125] rounded-[4px] transition-colors duration-200 ${
+						className={`w-[52px] h-10 flex items-center justify-center text-base font-normal leading-[1.3125] rounded-[4px] transition-colors duration-200 max-sm:w-12 max-sm:h-9 max-sm:text-sm ${
 							selectedId === size.id
 								? 'bg-[#7B1931] text-[#F5F5F5]'
 								: 'bg-white text-[#121212] border border-[rgba(160,164,168,0.25)] hover:bg-gray/10'

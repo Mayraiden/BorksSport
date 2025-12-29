@@ -12,83 +12,176 @@ const API_URL = process.env.NEXT_PUBLIC_STRAPI_URL || process.env.NEXT_STRAPI_UR
 
 // Transform API product to our Product type
 const transformApiProduct = (apiProduct: ApiProduct): Product => {
+	// Изображения уже обработаны на бэкенде, просто конвертируем в формат ProductImage
+	const images = (apiProduct.images || []).map((url, index) => ({
+		id: index.toString(),
+		url: url,
+		alt: apiProduct.name || 'Изображение товара',
+	}))
+
+	// Если нет изображений, добавляем fallback
+	const validImages =
+		images.length > 0
+			? images
+			: [
+					{
+						id: '0',
+						url: '/NoProductImage.jpg',
+						alt: apiProduct.name || 'Изображение товара',
+					},
+				]
+
+	// Собираем уникальные размеры и цвета из вариантов
+	const variants = apiProduct.variants || []
+	const allProducts = [apiProduct, ...variants]
+
+	// Извлекаем уникальные размеры
+	const uniqueSizes = Array.from(
+		new Set(
+			allProducts
+				.map((p) => p.size)
+				.filter((size): size is string => size !== null && size !== undefined)
+		)
+	)
+
+	// Извлекаем уникальные цвета
+	const uniqueColors = Array.from(
+		new Set(
+			allProducts
+				.map((p) => p.color)
+				.filter((color): color is string => color !== null && color !== undefined)
+		)
+	)
+
+	// Создаем массивы для селекторов
+	const sizes: ProductSize[] = uniqueSizes.map((size, index) => ({
+		id: `size-${index}`,
+		name: size,
+		value: size,
+	}))
+
+	const colors: ProductColor[] = uniqueColors.map((color, index) => {
+		// Пробуем определить hex цвет по названию (базовая логика)
+		const colorLower = color.toLowerCase()
+		let hex = '#CCCCCC' // серый по умолчанию
+
+		const colorMap: Record<string, string> = {
+			red: '#FF0000',
+			красный: '#FF0000',
+			blue: '#0000FF',
+			синий: '#0000FF',
+			green: '#008000',
+			зеленый: '#008000',
+			yellow: '#FFFF00',
+			желтый: '#FFFF00',
+			black: '#000000',
+			черный: '#000000',
+			white: '#FFFFFF',
+			белый: '#FFFFFF',
+			gray: '#808080',
+			grey: '#808080',
+			серый: '#808080',
+			brown: '#A52A2A',
+			коричневый: '#A52A2A',
+			orange: '#FFA500',
+			оранжевый: '#FFA500',
+			purple: '#800080',
+			фиолетовый: '#800080',
+			pink: '#FFC0CB',
+			розовый: '#FFC0CB',
+		}
+
+		if (colorMap[colorLower]) {
+			hex = colorMap[colorLower]
+		}
+
+		return {
+			id: `color-${index}`,
+			name: color,
+			hex,
+		}
+	})
+
+	// Трансформируем варианты (без рекурсии - варианты не должны содержать свои варианты)
+	const transformedVariants = variants.map((variant) => {
+		// Используем упрощенную трансформацию для вариантов
+		return {
+			id: variant.id.toString(),
+			article: variant.article || variant.sbisNomNumber || 'Не указано',
+			name: variant.name || 'Без названия',
+			brand: variant.categoryName || 'Не указано',
+			price: variant.price || 0,
+			images: (variant.images || []).map((url, index) => ({
+				id: index.toString(),
+				url: url,
+				alt: variant.name || 'Изображение товара',
+			})),
+			colors: [], // Варианты не содержат свои варианты
+			sizes: [],
+			description: variant.description,
+			characteristics: {
+				Категория: variant.categoryName || 'Не указано',
+				Артикул: variant.article || variant.sbisNomNumber || 'Не указано',
+				Единица: variant.unit || 'шт',
+			},
+			size: variant.size || null,
+			color: variant.color || null,
+			weight: variant.weight || null,
+			length: variant.length || null,
+			width: variant.width || null,
+			height: variant.height || null,
+		}
+	})
+
+	// Формируем характеристики
+	const characteristics: Record<string, string> = {
+		Категория: apiProduct.categoryName || 'Не указано',
+		Артикул: apiProduct.article || apiProduct.sbisNomNumber || 'Не указано',
+		Единица: apiProduct.unit || 'шт',
+		'SBIS ID': apiProduct.sbisId?.toString() || 'Не указано',
+	}
+
+	// Добавляем размер, цвет, вес, габариты в характеристики, если они есть
+	if (apiProduct.size) {
+		characteristics['Размер'] = apiProduct.size
+	}
+	if (apiProduct.color) {
+		characteristics['Цвет'] = apiProduct.color
+	}
+	if (apiProduct.weight) {
+		characteristics['Вес'] = `${apiProduct.weight} г`
+	}
+	if (apiProduct.length || apiProduct.width || apiProduct.height) {
+		const dimensions = [
+			apiProduct.length && `Длина: ${apiProduct.length} мм`,
+			apiProduct.width && `Ширина: ${apiProduct.width} мм`,
+			apiProduct.height && `Высота: ${apiProduct.height} мм`,
+		]
+			.filter(Boolean)
+			.join(', ')
+		if (dimensions) {
+			characteristics['Габариты'] = dimensions
+		}
+	}
+
 	return {
 		id: apiProduct.id.toString(),
 		article: apiProduct.article || apiProduct.sbisNomNumber || 'Не указано',
 		name: apiProduct.name || 'Без названия',
 		brand: apiProduct.categoryName || 'Не указано',
 		price: apiProduct.price || 0,
-		images: (() => {
-			// Extract SBIS photo URLs from the params
-			const validImages = (apiProduct.images || [])
-				.filter((imgUrl) => imgUrl && typeof imgUrl === 'string')
-				.map((imgUrl, index) => {
-					try {
-						// Extract SBIS photo URL from the params
-						const paramsMatch = imgUrl.match(/params=(.+)/)
-						if (paramsMatch) {
-							const rawParams = paramsMatch[1]
-
-							// Try base64 decoding
-							try {
-								const decodedParams = atob(rawParams)
-								const params = JSON.parse(decodedParams)
-
-								if (params.PhotoURL) {
-									return {
-										id: index.toString(),
-										url: params.PhotoURL,
-										alt: apiProduct.name || 'Изображение товара',
-									}
-								}
-							} catch {
-								// Try URL decoding
-								const decodedParams = decodeURIComponent(rawParams)
-								const params = JSON.parse(decodedParams)
-
-								if (params.PhotoURL) {
-									return {
-										id: index.toString(),
-										url: params.PhotoURL,
-										alt: apiProduct.name || 'Изображение товара',
-									}
-								}
-							}
-						}
-					} catch (error) {
-						console.warn('Failed to parse image params:', error)
-					}
-
-					// Fallback to default image
-					return {
-						id: index.toString(),
-						url: '/NoProductImage.jpg',
-						alt: apiProduct.name || 'Изображение товара',
-					}
-				})
-
-			// If no valid images, add a fallback
-			if (validImages.length === 0) {
-				return [
-					{
-						id: '0',
-						url: '/NoProductImage.jpg', // Fallback image
-						alt: apiProduct.name || 'Изображение товара',
-					},
-				]
-			}
-
-			return validImages
-		})(),
-		colors: [], // Not available in current API
-		sizes: [], // Not available in current API
+		images: validImages,
+		colors,
+		sizes,
 		description: apiProduct.description,
-		characteristics: {
-			Категория: apiProduct.categoryName || 'Не указано',
-			Артикул: apiProduct.article || apiProduct.sbisNomNumber || 'Не указано',
-			Единица: apiProduct.unit || 'шт',
-			'SBIS ID': apiProduct.sbisId?.toString() || 'Не указано',
-		},
+		characteristics,
+		variants: transformedVariants.length > 0 ? transformedVariants : undefined,
+		size: apiProduct.size || null,
+		color: apiProduct.color || null,
+		weight: apiProduct.weight || null,
+		length: apiProduct.length || null,
+		width: apiProduct.width || null,
+		height: apiProduct.height || null,
 	}
 }
 

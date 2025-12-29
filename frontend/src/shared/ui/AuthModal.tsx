@@ -34,8 +34,7 @@ export const AuthModal = ({ isOpen, onClose }: AuthModalProps) => {
 					{/* Header */}
 					<div className="flex items-center justify-center mb-4">
 						<div className="flex items-center gap-2">
-							<Image src="/logo.svg" alt="logo" width={20} height={20} />
-							<span className="font-bold text-lg">ПРОФСПОРТ</span>
+							<Image src="/logo.svg" alt="logo" width={140} height={120} />
 						</div>
 					</div>
 

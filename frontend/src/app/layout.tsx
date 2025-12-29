@@ -5,6 +5,7 @@ import { AuthModalProvider } from '@/shared/lib/contexts/AuthModalContext'
 import { SearchProvider } from '@/shared/lib/contexts/SearchContext'
 import { AuthModalWrapper } from '@/shared/ui/AuthModalWrapper'
 import { CookieBanner } from '@/shared/ui/CookieBanner'
+import { MobileBottomNav } from '@/shared/ui/MobileBottomNav'
 
 export const metadata: Metadata = {
 	title: 'BorksSport',
@@ -12,6 +13,14 @@ export const metadata: Metadata = {
 	icons: {
 		icon: '/miniLogo.png',
 		apple: '/miniLogo.png',
+	},
+	viewport: {
+		width: 'device-width',
+		initialScale: 1,
+		maximumScale: 1,
+	},
+	other: {
+		'viewport-fit': 'cover',
 	},
 }
 
@@ -29,6 +38,7 @@ export default function RootLayout({
 							{children}
 							<AuthModalWrapper />
 							<CookieBanner />
+							<MobileBottomNav />
 						</SearchProvider>
 					</AuthModalProvider>
 				</QueryProvider>

@@ -53,14 +53,15 @@ export const Suggesting = ({ title }: ISuggestingProps) => {
 	const isLoop = products.length > 5
 
 	return (
-		<section className="w-full pt-15 relative">
-			<h3 className="pl-20 text-3xl font-bold mb-4">{title}</h3>
-			<div className="w-full h-fit py-4">
+		<section className="w-full pt-15 relative max-sm:pt-4">
+			<h3 className="pl-20 text-3xl font-bold mb-4 max-sm:pl-2 max-sm:text-2xl max-sm:mb-2">
+				{title}
+			</h3>
+			<div className="w-full h-fit py-4 px-20 max-sm:px-2">
 				<Swiper
 					key={products.length}
 					onSwiper={setSwiperRef}
 					spaceBetween={12}
-					slidesPerView={5}
 					loop={isLoop}
 					centeredSlides={false}
 					loopAdditionalSlides={2}
@@ -68,33 +69,32 @@ export const Suggesting = ({ title }: ISuggestingProps) => {
 					navigation
 					style={{
 						overflow: 'visible',
-						paddingLeft: '80px',
-						paddingRight: '80px',
 					}}
 					breakpoints={{
-						640: { slidesPerView: 2 },
-						768: { slidesPerView: 3 },
-						1024: { slidesPerView: 4 },
-						1280: { slidesPerView: 5 },
-						1440: { slidesPerView: 5 },
+						0: { slidesPerView: 1.7, spaceBetween: 12 },
+						640: { slidesPerView: 2, spaceBetween: 12 },
+						768: { slidesPerView: 3, spaceBetween: 12 },
+						1024: { slidesPerView: 4, spaceBetween: 12 },
+						1280: { slidesPerView: 5, spaceBetween: 12 },
+						1440: { slidesPerView: 5, spaceBetween: 12 },
 					}}
 				>
 					{loading ? (
 						// Показываем заглушки во время загрузки
 						Array.from({ length: 5 }).map((_, index) => (
-							<SwiperSlide key={`loading-${index}`} className="max-w-59">
+							<SwiperSlide key={`loading-${index}`}>
 								<ItemCard />
 							</SwiperSlide>
 						))
 					) : products.length > 0 ? (
 						products.map((product) => (
-							<SwiperSlide key={product.id} className="max-w-59">
+							<SwiperSlide key={product.id}>
 								<ItemCard product={product} />
 							</SwiperSlide>
 						))
 					) : (
 						// Если товаров нет, показываем заглушку
-						<SwiperSlide className="max-w-59">
+						<SwiperSlide>
 							<div className="w-full h-64 flex items-center justify-center text-gray-500">
 								Товары не найдены
 							</div>
@@ -105,13 +105,13 @@ export const Suggesting = ({ title }: ISuggestingProps) => {
 
 			<button
 				onClick={goToPrev}
-				className="absolute right-30 top-20 -translate-y-1/2 bg-gray/20 text-black rounded-full w-10 h-10 flex items-center justify-center hover:bg-burgundy hover:text-white transition-colors duration-300"
+				className="absolute right-30 top-20 -translate-y-1/2 bg-gray/20 text-black rounded-full w-10 h-10 flex items-center justify-center hover:bg-burgundy hover:text-white transition-colors duration-300 max-sm:hidden"
 			>
 				<CaretLeftIcon size={30} />
 			</button>
 			<button
 				onClick={goToNext}
-				className="absolute right-15 top-20 -translate-y-1/2 bg-gray/20 text-black rounded-full w-10 h-10 flex items-center justify-center hover:bg-burgundy hover:text-white transition-colors duration-300"
+				className="absolute right-15 top-20 -translate-y-1/2 bg-gray/20 text-black rounded-full w-10 h-10 flex items-center justify-center hover:bg-burgundy hover:text-white transition-colors duration-300 max-sm:hidden"
 			>
 				<CaretRightIcon size={30} />
 			</button>

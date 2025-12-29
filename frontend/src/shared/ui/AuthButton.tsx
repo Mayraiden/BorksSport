@@ -24,7 +24,7 @@ export const AuthButton = ({
 			type={type}
 			onClick={onClick}
 			disabled={disabled || loading}
-			className={`w-full h-14 bg-[#7B1931] text-white rounded-md font-medium text-base hover:bg-[#6a1529] transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${className}`}
+			className={`w-full h-14 bg-[#7B1931] text-white rounded-md font-medium text-base hover:bg-[#6a1529] transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed max-sm:h-12 max-sm:text-sm ${className}`}
 		>
 			{loading ? 'Загрузка...' : children}
 		</button>

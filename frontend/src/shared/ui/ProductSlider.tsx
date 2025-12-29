@@ -33,7 +33,7 @@ export const ProductSlider = ({
 	if (!images.length) {
 		return (
 			<div
-				className={`w-full h-120 bg-gray/20 rounded-[4px] overflow-hidden flex items-center justify-center ${className}`}
+				className={`w-full h-120 bg-gray/20 rounded-[4px] overflow-hidden flex items-center justify-center max-sm:h-64 ${className}`}
 			>
 				<span className="text-gray-500">Нет изображений</span>
 			</div>
@@ -56,7 +56,7 @@ export const ProductSlider = ({
 				slidesPerView={1}
 				loop={true}
 				onSwiper={setSwiperRef}
-				className="w-full h-120 rounded-[4px] overflow-hidden"
+				className="w-full h-120 rounded-[4px] overflow-hidden max-sm:h-64"
 			>
 				{displayImages.map((image, index) => {
 					const isSbisImage = image.url.includes('api.sbis.ru')
@@ -85,17 +85,17 @@ export const ProductSlider = ({
 			{/* Navigation arrows - всегда показываем для infinity scroll */}
 			<button
 				onClick={goToPrev}
-				className="absolute left-6.5 top-1/2 -translate-y-1/2 bg-burgundy text-white rounded-full w-10 h-10 flex items-center justify-center hover:bg-[#7B1931]/90 transition-colors duration-200 z-10 shadow-lg"
+				className="absolute left-6.5 top-1/2 -translate-y-1/2 bg-burgundy text-white rounded-full w-10 h-10 flex items-center justify-center hover:bg-[#7B1931]/90 transition-colors duration-200 z-10 shadow-lg max-sm:left-2 max-sm:w-8 max-sm:h-8"
 				aria-label="Предыдущее изображение"
 			>
-				<CaretLeftIcon size={20} weight="bold" />
+				<CaretLeftIcon size={20} weight="bold" className="max-sm:w-4 max-sm:h-4" />
 			</button>
 			<button
 				onClick={goToNext}
-				className="absolute right-6.5 top-1/2 -translate-y-1/2 bg-burgundy text-white rounded-full w-10 h-10 flex items-center justify-center hover:bg-[#7B1931]/90 transition-colors duration-200 z-10 shadow-lg"
+				className="absolute right-6.5 top-1/2 -translate-y-1/2 bg-burgundy text-white rounded-full w-10 h-10 flex items-center justify-center hover:bg-[#7B1931]/90 transition-colors duration-200 z-10 shadow-lg max-sm:right-2 max-sm:w-8 max-sm:h-8"
 				aria-label="Следующее изображение"
 			>
-				<CaretRightIcon size={20} weight="bold" />
+				<CaretRightIcon size={20} weight="bold" className="max-sm:w-4 max-sm:h-4" />
 			</button>
 		</div>
 	)

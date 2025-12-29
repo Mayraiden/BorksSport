@@ -48,17 +48,22 @@ export const Header = () => {
 
 	return (
 		<>
-			<nav className="h-20 w-full mx-auto px-10 py-5 flex items-center gap-5 bg-white relative z-50">
-				<Link href="/" className="h-10 flex items-center md:w-40">
+			<nav className="h-20 w-full mx-auto px-10 py-5 flex items-center gap-5 bg-white relative z-50 max-sm:px-2">
+				<Link href="/" className="h-10 flex items-center md:w-40 max-sm:w-auto">
 					<Image
 						src="/logo.svg"
 						width={250}
 						height={40}
 						alt="логотип профспорт"
+						className="max-sm:h-8 max-sm:w-auto"
 					/>
 				</Link>
 
-				<DropDownButton isOpen={isCatalogOpen} onClick={toggleCatalog} />
+				<DropDownButton
+					isOpen={isCatalogOpen}
+					onClick={toggleCatalog}
+					className="max-sm:hidden"
+				/>
 				<SearchForm
 					type="text"
 					placeholder="Найти"
@@ -67,10 +72,11 @@ export const Header = () => {
 					value={searchQuery}
 					containerClassName="flex-1 min-w-0"
 				/>
+				{/* Скрываем кнопки навигации на мобильных - они будут в нижней панели */}
 				<Link
 					href="/favorites"
 					onClick={handleAuthClick}
-					className="w-10 h-10 relative flex items-center justify-center bg-gray/20 hover:bg-gray/30 transition-colors duration-200"
+					className="w-10 h-10 relative flex items-center justify-center bg-gray/20 hover:bg-gray/30 transition-colors duration-200 max-sm:hidden"
 				>
 					<HeartStraightIcon size={20} weight="fill" />
 					{isAuthenticated && favoritesCount > 0 && (
@@ -82,7 +88,7 @@ export const Header = () => {
 				<Link
 					href="/cart"
 					onClick={handleAuthClick}
-					className="w-10 h-10 relative flex items-center justify-center bg-gray/20 hover:bg-gray/30 transition-colors duration-200"
+					className="w-10 h-10 relative flex items-center justify-center bg-gray/20 hover:bg-gray/30 transition-colors duration-200 max-sm:hidden"
 				>
 					<ShoppingBagIcon size={20} weight="fill" />
 					{isAuthenticated && cartCount > 0 && (
@@ -94,7 +100,7 @@ export const Header = () => {
 				<Link
 					href="/profile"
 					onClick={handleAuthClick}
-					className="w-10 h-10 flex items-center justify-center bg-gray/20 rounded-full hover:bg-gray/30 transition-colors duration-200"
+					className="w-10 h-10 flex items-center justify-center bg-gray/20 rounded-full hover:bg-gray/30 transition-colors duration-200 max-sm:hidden"
 				>
 					<UserIcon size={20} weight="fill" />
 				</Link>

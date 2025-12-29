@@ -7,7 +7,7 @@ export default function AuthPage() {
 	return (
 		<section className="w-screen min-h-screen bg-[#F0F4F8] flex flex-col">
 			<Header />
-			<div className="flex-1 py-5 px-20">
+			<div className="flex-1 py-5 px-20 max-sm:py-4 max-sm:px-2 flex justify-center items-start">
 				<Suspense fallback={<div>Загрузка...</div>}>
 					<Auth />
 				</Suspense>

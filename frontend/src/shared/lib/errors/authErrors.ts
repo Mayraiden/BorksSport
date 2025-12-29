@@ -32,7 +32,7 @@ export const getAuthErrorMessage = (error: unknown): string => {
 		// Ошибки аутентификации
 		if (strapiError.status === 400) {
 			if (strapiError.message.includes('Invalid identifier or password')) {
-				return 'Неверный email или пароль'
+				return 'Неправильный логин или пароль'
 			}
 			if (strapiError.message.includes('Email already taken')) {
 				return 'Пользователь с таким email уже существует'
@@ -52,10 +52,20 @@ export const getAuthErrorMessage = (error: unknown): string => {
 		return strapiError.message || 'Произошла ошибка'
 	}
 
-	// Если это сетевая ошибка
+	// Если это сетевая ошибка или обычная Error
 	if (error instanceof Error) {
 		if (error.message.includes('fetch')) {
 			return 'Ошибка соединения. Проверьте подключение к интернету'
+		}
+		// Обрабатываем английские сообщения об ошибках
+		if (error.message.includes('Invalid identifier or password')) {
+			return 'Неправильный логин или пароль'
+		}
+		if (error.message.includes('Email already taken')) {
+			return 'Пользователь с таким email уже существует'
+		}
+		if (error.message.includes('Username already taken')) {
+			return 'Пользователь с таким именем уже существует'
 		}
 		return error.message
 	}

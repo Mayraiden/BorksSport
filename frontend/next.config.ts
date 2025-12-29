@@ -15,6 +15,12 @@ const nextConfig: NextConfig = {
 				protocol: 'http',
 				hostname: 'localhost',
 				port: '1337',
+				pathname: '/uploads/**',
+			},
+			{
+				protocol: 'http',
+				hostname: 'localhost',
+				port: '1337',
 				pathname: '/img**',
 			},
 			{
@@ -36,6 +42,11 @@ const nextConfig: NextConfig = {
 			{
 				protocol: 'https',
 				hostname: 'api.sbis.ru',
+				pathname: '/disk/api/v1/**',
+			},
+			{
+				protocol: 'https',
+				hostname: 'disk.sbis.ru',
 				pathname: '/disk/api/v1/**',
 			},
 		],

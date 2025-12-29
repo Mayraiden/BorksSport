@@ -302,19 +302,27 @@ export default factories.createCoreController(
 					})
 				}
 
-				if (!product) {
-					ctx.status = 404
-					ctx.body = {
-						success: false,
-						message: 'Product not found',
-					}
-					return
-				}
-
+			if (!product) {
+				ctx.status = 404
 				ctx.body = {
-					success: true,
-					data: product,
+					success: false,
+					message: 'Product not found',
 				}
+				return
+			}
+
+			// Получаем варианты товара (товары с тем же sbisNomNumber или article)
+			const variants = await strapi
+				.service('api::product.product')
+				.findVariants(product)
+
+			ctx.body = {
+				success: true,
+				data: {
+					...product,
+					variants: variants || [],
+				},
+			}
 			} catch (error) {
 				ctx.status = 500
 				ctx.body = {

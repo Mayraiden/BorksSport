@@ -26,16 +26,16 @@ export const ColorSelector = ({
 	if (!colors.length) return null
 
 	return (
-		<div className={`flex flex-col gap-4 ${className}`}>
-			<label className="text-base font-bold leading-[1.3125] text-[#121212]">
+		<div className={`flex flex-col gap-4 max-sm:gap-3 ${className}`}>
+			<label className="text-base font-bold leading-[1.3125] text-[#121212] max-sm:text-sm">
 				Цвет
 			</label>
-			<div className="flex gap-3">
+			<div className="flex gap-3 max-sm:gap-2">
 				{colors.map((color) => (
 					<button
 						key={color.id}
 						onClick={() => handleColorSelect(color.id)}
-						className={`w-[60px] h-[60px] rounded-[4px] border-2 transition-all duration-200 ${
+						className={`w-[60px] h-[60px] rounded-[4px] border-2 transition-all duration-200 max-sm:w-12 max-sm:h-12 ${
 							selectedId === color.id
 								? 'border-[#7B1931]'
 								: 'border-transparent hover:border-gray/30'

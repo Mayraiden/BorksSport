@@ -15,7 +15,6 @@ export default [
 	{
 		name: 'strapi::cors',
 		config: {
-			enabled: true,
 			origin: process.env.CORS_ORIGIN
 				? process.env.CORS_ORIGIN.split(',').map((origin) => origin.trim())
 				: process.env.NODE_ENV === 'development'
