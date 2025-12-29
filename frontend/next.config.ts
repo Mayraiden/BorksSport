@@ -1,9 +1,11 @@
 import type { NextConfig } from 'next'
 
+const isDevelopment = process.env.NODE_ENV === 'development'
+
 const nextConfig: NextConfig = {
 	// Для деплоя на VPS/Docker - создает standalone версию
-	// Раскомментируйте, если деплоите на свой сервер:
-	output: 'standalone',
+	// Включается только в production режиме
+	...(isDevelopment ? {} : { output: 'standalone' }),
 
 	images: {
 		// Временно отключаем оптимизацию для api.sbis.ru чтобы избежать бесконечных 404 ошибок

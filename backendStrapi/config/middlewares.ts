@@ -17,12 +17,21 @@ export default [
 		config: {
 			enabled: true,
 			origin: process.env.CORS_ORIGIN
-				? process.env.CORS_ORIGIN.split(',')
-				: [
-						'http://localhost:3000',
-						'http://frontend:3000',
-						'http://127.0.0.1:3000',
-					],
+				? process.env.CORS_ORIGIN.split(',').map((origin) => origin.trim())
+				: process.env.NODE_ENV === 'development'
+					? [
+							'http://localhost:3000',
+							'http://127.0.0.1:3000',
+							'http://frontend:3000',
+						]
+					: [
+							'http://borkssport.ru',
+							'http://www.borkssport.ru',
+							'https://borkssport.ru',
+							'https://www.borkssport.ru',
+							'http://api.borkssport.ru',
+							'https://api.borkssport.ru',
+						],
 			headers: ['Content-Type', 'Authorization', 'Origin', 'Accept'],
 			credentials: true,
 		},

@@ -1,30 +1,38 @@
-export default ({ env }) => ({
-	auth: {
-		secret: env('ADMIN_JWT_SECRET'),
-		sessions: {
-			cookie: {
-				secure: true, // ВСЕГДА true за HTTPS
-				httpOnly: true,
-				sameSite: 'lax',
+export default ({ env }) => {
+	const isDevelopment = env('NODE_ENV') === 'development'
+	
+	return {
+		auth: {
+			secret: env('ADMIN_JWT_SECRET'),
+			sessions: {
+				cookie: {
+					// secure: true для HTTPS (production), false для localhost (development)
+					secure: !isDevelopment,
+					httpOnly: true,
+					sameSite: 'lax',
+				},
 			},
 		},
-	},
-	apiToken: {
-		salt: env('API_TOKEN_SALT'),
-	},
-	transfer: {
-		token: {
-			salt: env('TRANSFER_TOKEN_SALT'),
+		apiToken: {
+			salt: env('API_TOKEN_SALT'),
 		},
-	},
-	secrets: {
-		encryptionKey: env('ENCRYPTION_KEY'),
-	},
-	flags: {
-		nps: env.bool('FLAG_NPS', true),
-		promoteEE: env.bool('FLAG_PROMOTE_EE', true),
-	},
-	url: env('PUBLIC_URL', 'https://api.borkssport.ru'),
-	serveAdminPanel: env.bool('SERVE_ADMIN', true),
-	path: '/admin',
-})
+		transfer: {
+			token: {
+				salt: env('TRANSFER_TOKEN_SALT'),
+			},
+		},
+		secrets: {
+			encryptionKey: env('ENCRYPTION_KEY'),
+		},
+		flags: {
+			nps: env.bool('FLAG_NPS', true),
+			promoteEE: env.bool('FLAG_PROMOTE_EE', true),
+		},
+		url: env(
+			'PUBLIC_URL',
+			isDevelopment ? 'http://localhost:1337' : 'https://api.borkssport.ru'
+		),
+		serveAdminPanel: env.bool('SERVE_ADMIN', true),
+		path: '/admin',
+	}
+}
