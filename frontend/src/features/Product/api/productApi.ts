@@ -5,6 +5,8 @@ import type {
 	ProductFilters,
 	PaginationParams,
 	Product,
+	ProductSize,
+	ProductColor,
 	SearchSuggestion,
 } from '@/shared/types'
 

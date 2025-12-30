@@ -9,10 +9,7 @@ export const PopularSports = () => {
 			</h2>
 
 			<ul className="w-full grid lg:grid-cols-5 gap-3 text-[#f5f5f5] md:grid-cols-3 max-sm:grid-cols-2 max-sm:gap-3">
-				{Sports.map((item, index) => {
-					// const isLast = index === Sports.length - 1
-					// const isAloneInRow = Sports.length % 3 === 1 && isLast
-
+				{Sports.map((item) => {
 					return (
 						<li
 							key={item.id}

@@ -1,7 +1,6 @@
 'use client'
 
-import { useState, useMemo, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useMemo } from 'react'
 import type { Product } from '@/shared/types'
 import { ProductSlider } from '@/shared/ui/ProductSlider'
 import { ColorSelector } from '@/shared/ui/ColorSelector'
@@ -17,8 +16,6 @@ type ProductPageProps = {
 }
 
 export const ProductPage = ({ product, className = '' }: ProductPageProps) => {
-	const router = useRouter()
-
 	// Определяем текущий выбранный цвет и размер из самого товара
 	const currentColor = product.color || product.colors[0]?.name
 	const currentSize = product.size || product.sizes[0]?.value

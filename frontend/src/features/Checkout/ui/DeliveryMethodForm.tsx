@@ -201,7 +201,7 @@ export const DeliveryMethodForm = ({
 		}
 	}, [])
 
-	// Извлекаем deliveryAddress с проверкой типа для безопасного доступа
+	// Извлекаем deliveryAddress с проверкой типа для безопасного доступа (для зависимостей useCallback)
 	const currentDeliveryAddress = data.address.type === 'delivery' ? data.address.deliveryAddress : null
 
 	// Расчет стоимости доставки
@@ -248,10 +248,11 @@ export const DeliveryMethodForm = ({
 				setIsCalculating(false)
 			}
 		},
+		// eslint-disable-next-line react-hooks/exhaustive-deps
 		[
 			items.length,
 			data.address.type,
-			currentDeliveryAddress,
+			currentDeliveryAddress, // Используем currentDeliveryAddress вместо data.address.deliveryAddress для корректной работы с union типами
 			cartItems,
 			onChange,
 		]
@@ -263,8 +264,8 @@ export const DeliveryMethodForm = ({
 		data.address.type === 'delivery' &&
 		data.address.deliveryOption === 'door'
 	
-	// Извлекаем deliveryAddress с проверкой типа для безопасного доступа
-	const deliveryAddress = data.address.type === 'delivery' ? data.address.deliveryAddress : null
+	// Используем уже извлеченный currentDeliveryAddress
+	const deliveryAddress = currentDeliveryAddress
 	
 	const deliveryCity = isDeliveryDoor && deliveryAddress ? deliveryAddress.city : null
 	const deliveryStreet = isDeliveryDoor && deliveryAddress ? deliveryAddress.street : null

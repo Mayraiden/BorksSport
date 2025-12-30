@@ -1,17 +1,6 @@
-import type { Product } from '@/shared/types'
+import type { Product, ApiProduct } from '@/shared/types'
 
 const API_URL = process.env.NEXT_PUBLIC_STRAPI_URL || process.env.NEXT_STRAPI_URL || 'http://localhost:1337'
-
-interface ApiProduct {
-	id: number
-	name?: string
-	article?: string | null
-	sbisNomNumber?: string
-	categoryName?: string
-	price?: number
-	description?: string
-	images?: (string | null)[]
-}
 
 interface CartResponse {
 	success: boolean
@@ -22,13 +11,7 @@ interface CartResponse {
 
 export interface CartItem {
 	id: number
-	product: Product & {
-		id: number
-		images: string[]
-		article?: string | null
-		sbisNomNumber?: string
-		categoryName?: string
-	}
+	product: ApiProduct
 	quantity: number
 	createdAt: string
 	updatedAt: string
@@ -44,12 +27,14 @@ export interface CartItemDisplay {
 // Transform API product to our Product type (same as in productApi)
 // Используем упрощенную версию для корзины, так как варианты там не нужны
 const transformApiProduct = (apiProduct: ApiProduct): Product => {
-	// Изображения уже обработаны на бэкенде
-	const images = (apiProduct.images || []).map((url, index) => ({
-		id: index.toString(),
-		url: url,
-		alt: apiProduct.name || 'Изображение товара',
-	}))
+	// Изображения уже обработаны на бэкенде, фильтруем null значения
+	const images = (apiProduct.images || [])
+		.filter((url): url is string => url !== null && url !== undefined)
+		.map((url, index) => ({
+			id: index.toString(),
+			url: url,
+			alt: apiProduct.name || 'Изображение товара',
+		}))
 
 	const validImages =
 		images.length > 0
