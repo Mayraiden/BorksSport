@@ -59,7 +59,10 @@ export const ProductSlider = ({
 				className="w-full h-120 rounded-[4px] overflow-hidden max-sm:h-64"
 			>
 				{displayImages.map((image, index) => {
-					const isSbisImage = image.url.includes('api.sbis.ru')
+					const isSbisImage = 
+						image.url.includes('api.sbis.ru') || 
+						image.url.includes('disk.sbis.ru') ||
+						image.url.startsWith('/img?params=')
 					const hasError = imageErrors.has(image.url)
 					const imageSrc = hasError ? '/NoProductImage.jpg' : image.url
 

@@ -12,14 +12,86 @@ import type {
 
 const API_URL = process.env.NEXT_PUBLIC_STRAPI_URL || process.env.NEXT_STRAPI_URL || 'http://localhost:1337'
 
+/**
+ * Извлекает PhotoURL из строки /img?params=... (на случай, если на бэкенде не была обработана)
+ * Работает только в браузере (использует atob)
+ */
+function extractPhotoURLFromParams(url: string): string | null {
+	if (!url || typeof url !== 'string') {
+		return null
+	}
+
+	// Если это уже полный URL, возвращаем его
+	if (url.startsWith('http://') || url.startsWith('https://')) {
+		return url
+	}
+
+	// Если это относительный путь /img?params=..., пытаемся извлечь PhotoURL
+	if (url.startsWith('/img?params=')) {
+		// Проверяем, что мы в браузере (atob доступен только в браузере)
+		if (typeof window === 'undefined' || typeof atob === 'undefined') {
+			return null
+		}
+
+		try {
+			const paramsMatch = url.match(/params=(.+)/)
+			if (paramsMatch) {
+				const rawParams = paramsMatch[1]
+				
+				// Пробуем base64 декодирование
+				try {
+					const decodedParams = atob(rawParams)
+					const params = JSON.parse(decodedParams)
+					if (params.PhotoURL) {
+						return params.PhotoURL
+					}
+				} catch {
+					// Пробуем URL декодирование
+					try {
+						const decodedParams = decodeURIComponent(rawParams)
+						const params = JSON.parse(decodedParams)
+						if (params.PhotoURL) {
+							return params.PhotoURL
+						}
+					} catch {
+						// Не удалось декодировать
+						return null
+					}
+				}
+			}
+		} catch {
+			return null
+		}
+	}
+
+	return null
+}
+
 // Transform API product to our Product type
 const transformApiProduct = (apiProduct: ApiProduct): Product => {
-	// Изображения уже обработаны на бэкенде, просто конвертируем в формат ProductImage
-	const images = (apiProduct.images || []).map((url, index) => ({
-		id: index.toString(),
-		url: url,
-		alt: apiProduct.name || 'Изображение товара',
-	}))
+	// Изображения могут быть обработаны на бэкенде, но проверяем на всякий случай
+	const images = (apiProduct.images || [])
+		.map((url) => {
+			// Если URL не полный (начинается с /img?params=), пытаемся извлечь PhotoURL
+			const processedUrl = extractPhotoURLFromParams(url) || url
+			return processedUrl
+		})
+		.filter((url): url is string => {
+			// Фильтруем невалидные URL (null, пустые строки, относительные пути без params)
+			if (!url || typeof url !== 'string') {
+				return false
+			}
+			// Если это относительный путь /img?params= и не удалось извлечь PhotoURL, пропускаем
+			if (url.startsWith('/img?params=')) {
+				return false
+			}
+			return true
+		})
+		.map((url, index) => ({
+			id: index.toString(),
+			url: url,
+			alt: apiProduct.name || 'Изображение товара',
+		}))
 
 	// Если нет изображений, добавляем fallback
 	const validImages =

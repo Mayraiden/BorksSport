@@ -112,9 +112,9 @@ export const CatalogContent = memo(
 							</div>
 						</div>
 
-					{/* Filter cloud section - only show if there are active filters */}
-					<FilterCloudWithSeparator />
-				</div>
+						{/* Filter cloud section - only show if there are active filters */}
+						<FilterCloudWithSeparator />
+					</div>
 
 					{/* Products grid with infinite scroll */}
 					<InfiniteProductGrid filters={currentFilters} />

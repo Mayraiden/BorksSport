@@ -11,9 +11,9 @@ export const CatalogFeed = () => {
 	]
 
 	return (
-		<section className="w-screen pt-5 px-15 pb-5 bg-light-blue max-sm:px-2 max-sm:pt-4 max-sm:pb-4">
+		<section className="w-full pt-5 px-15 pb-5 bg-light-blue max-sm:px-2 max-sm:pt-4 max-sm:pb-4">
 			<Breadcrumbs items={breadcrumbItems} className="mb-4 max-sm:mb-2" />
-			<div className="flex gap-4 max-sm:gap-0">
+			<div className="flex gap-4 max-sm:gap-1">
 				<Filters />
 				<CatalogContent />
 			</div>

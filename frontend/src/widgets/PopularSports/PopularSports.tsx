@@ -3,12 +3,12 @@ import { Sports } from '@/shared/helpers/typesOfSport'
 
 export const PopularSports = () => {
 	return (
-		<section className="w-screen px-20 pt-15 max-sm:px-2 max-sm:pt-4">
+		<section className="w-full px-20 pt-15 max-sm:px-2 max-sm:pt-4">
 			<h2 className="text-3xl font-bold mb-5 max-sm:text-2xl">
 				Популярные виды спорта
 			</h2>
 
-			<ul className="w-full grid lg:grid-cols-5 gap-3 text-[#f5f5f5] md:grid-cols-3 max-sm:grid-cols-2 max-sm:gap-3">
+			<ul className="w-full grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 text-[#f5f5f5] max-sm:gap-3">
 				{Sports.map((item) => {
 					return (
 						<li

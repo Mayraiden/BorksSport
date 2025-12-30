@@ -54,8 +54,11 @@ export const ItemCard = memo<ItemCardProps>(
 			[displayProduct.images]
 		)
 
-		// Определяем, нужно ли использовать unoptimized для api.sbis.ru
-		const isSbisImage = mainImage.url.includes('api.sbis.ru')
+		// Определяем, нужно ли использовать unoptimized для api.sbis.ru или disk.sbis.ru
+		const isSbisImage =
+			mainImage.url.includes('api.sbis.ru') ||
+			mainImage.url.includes('disk.sbis.ru') ||
+			mainImage.url.startsWith('/img?params=')
 		const imageSrc = imageError ? '/NoProductImage.jpg' : mainImage.url
 
 		const formattedPrice = useMemo(
@@ -71,7 +74,7 @@ export const ItemCard = memo<ItemCardProps>(
 
 		return (
 			<div
-				className={`w-full min-w-50 flex flex-col bg-white shadow-md hover:shadow-lg transition-shadow duration-200 max-sm:w-59 ${className}`}
+				className={`w-full flex flex-col bg-white shadow-md hover:shadow-lg transition-shadow duration-200 ${className}`}
 			>
 				<Link href={productUrl} onClick={onClick} className="block">
 					<div className="relative">

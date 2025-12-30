@@ -52,7 +52,10 @@ export const OrderCard = ({ order }: OrderCardProps) => {
 			<div className="flex flex-col gap-3">
 				{order.items.slice(0, 3).map((item) => {
 					const hasError = item.image ? imageErrors.has(item.image) : true
-					const isSbisImage = item.image?.includes('api.sbis.ru')
+					const isSbisImage = 
+						item.image?.includes('api.sbis.ru') || 
+						item.image?.includes('disk.sbis.ru') ||
+						item.image?.startsWith('/img?params=')
 					const imageSrc = item.image && !hasError ? item.image : '/NoProductImage.jpg'
 
 					return (

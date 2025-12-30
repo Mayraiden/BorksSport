@@ -30,7 +30,10 @@ export const CartItemCard = ({
 		alt: product.name || 'Изображение товара',
 	}
 
-	const isSbisImage = mainImage.url.includes('api.sbis.ru')
+	const isSbisImage = 
+		mainImage.url.includes('api.sbis.ru') || 
+		mainImage.url.includes('disk.sbis.ru') ||
+		mainImage.url.startsWith('/img?params=')
 	const imageSrc = imageError ? '/NoProductImage.jpg' : mainImage.url
 
 	const formatPrice = (price: number) => {

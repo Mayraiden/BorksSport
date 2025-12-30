@@ -6,7 +6,7 @@ export const PopularBrands = () => {
 			<h2 className="text-3xl font-bold mb-5 max-sm:text-2xl max-sm:mb-2">
 				Популярные бренды
 			</h2>
-			<ul className="grid grid-cols-4 grid-rows-2 gap-3 md:grid-cols-2 max-sm:grid-cols-2 max-sm:grid-rows-4 max-sm:gap-3">
+			<ul className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-3 grid-rows-4 md:grid-rows-2 max-sm:gap-3">
 				<li className="bg-black flex items-center justify-center aspect-square">
 					<Image
 						className="brightness-0 invert"
