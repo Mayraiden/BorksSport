@@ -7,6 +7,19 @@ const nextConfig: NextConfig = {
 	// Включается только в production режиме
 	...(isDevelopment ? {} : { output: 'standalone' }),
 
+	// Явная настройка webpack для правильного разрешения путей
+	webpack: (config, { isServer }) => {
+		// Убеждаемся, что пути из tsconfig.json правильно разрешаются
+		config.resolve.alias = {
+			...config.resolve.alias,
+			'@': require('path').resolve(__dirname, './src'),
+			'@features': require('path').resolve(__dirname, './src/features'),
+			'@widgets': require('path').resolve(__dirname, './src/widgets'),
+			'@shared': require('path').resolve(__dirname, './src/shared'),
+		}
+		return config
+	},
+
 	images: {
 		// Временно отключаем оптимизацию для api.sbis.ru чтобы избежать бесконечных 404 ошибок
 		unoptimized: false,
