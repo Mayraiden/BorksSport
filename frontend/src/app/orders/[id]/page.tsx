@@ -11,9 +11,9 @@ import type { OrderEntity, PaymentEntity } from '@/features/Orders/model/types'
 import { OrderStatusBadge } from '@/features/Orders/ui/OrderStatusBadge'
 
 interface OrderDetailsPageProps {
-	params: {
+	params: Promise<{
 		id: string
-	}
+	}>
 }
 
 const formatCurrency = (value: number) =>
@@ -35,10 +35,7 @@ const formatFullDate = (iso: string) => {
 }
 
 export default function OrderDetailsPage({ params }: OrderDetailsPageProps) {
-	const resolvedParams =
-		typeof (params as { then?: unknown })?.then === 'function'
-			? use(params as unknown as Promise<OrderDetailsPageProps['params']>)
-			: params
+	const resolvedParams = use(params)
 	const { isAuthenticated, jwt } = useAuthStore()
 	const searchParams = useSearchParams()
 	const [order, setOrder] = useState<OrderEntity | null>(null)
