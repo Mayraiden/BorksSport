@@ -1,26 +1,98 @@
+'use client'
+
+import { useMemo } from 'react'
 import Link from 'next/link'
-import { Sports } from '@/shared/helpers/typesOfSport'
+import { useMainCategories } from '@/features/Filters/lib/useCategories'
+import { getCategoryImage } from '@/shared/helpers/categoryImageMap'
 
 export const PopularSports = () => {
+	const { data: categories, isLoading, error } = useMainCategories()
+
+	// Определяем классы контейнера в зависимости от количества категорий
+	const containerClasses = useMemo(() => {
+		if (!categories || categories.length === 0) return ''
+
+		const count = categories.length
+
+		if (count <= 2) {
+			// 1-2 элемента: большие карточки по центру с ограничением ширины
+			return 'flex flex-wrap justify-center gap-3 max-sm:gap-3'
+		} else if (count <= 5) {
+			// 3-5 элементов: адаптивная сетка с оптимальным количеством колонок
+			if (count === 3) {
+				return 'grid grid-cols-1 md:grid-cols-3 gap-3 max-sm:gap-3'
+			} else if (count === 4) {
+				return 'grid grid-cols-2 md:grid-cols-4 gap-3 max-sm:gap-3'
+			} else {
+				// 5 элементов
+				return 'grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 max-sm:gap-3'
+			}
+		} else {
+			// 6+ элементов: стандартная сетка
+			return 'grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 max-sm:gap-3'
+		}
+	}, [categories])
+
+	// Определяем классы карточек в зависимости от количества
+	const cardClasses = useMemo(() => {
+		if (!categories || categories.length === 0) return ''
+
+		const count = categories.length
+		const baseClasses = 'h-59 pb-5 flex bg-center bg-no-repeat bg-cover rounded-lg overflow-hidden transition-transform duration-300 ease-in-out hover:scale-105 max-sm:h-40'
+
+		if (count <= 2) {
+			// 1-2 элемента: большие карточки с ограничением максимальной ширины
+			return `${baseClasses} w-full max-w-[400px]`
+		} else {
+			// 3+ элементов: стандартные карточки
+			return baseClasses
+		}
+	}, [categories])
+
+	if (isLoading) {
+		return (
+			<section className="w-full px-20 pt-15 max-sm:px-2 max-sm:pt-4">
+				<h2 className="text-3xl font-bold mb-5 max-sm:text-2xl">
+					Популярные виды спорта
+				</h2>
+				<div className="w-full grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 max-sm:gap-3">
+					{Array.from({ length: 5 }).map((_, index) => (
+						<div
+							key={index}
+							className="h-59 bg-gray/20 rounded-lg animate-pulse max-sm:h-40"
+						/>
+					))}
+				</div>
+			</section>
+		)
+	}
+
+	if (error || !categories || categories.length === 0) {
+		return null
+	}
+
 	return (
 		<section className="w-full px-20 pt-15 max-sm:px-2 max-sm:pt-4">
 			<h2 className="text-3xl font-bold mb-5 max-sm:text-2xl">
 				Популярные виды спорта
 			</h2>
 
-			<ul className="w-full grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 text-[#f5f5f5] max-sm:gap-3">
-				{Sports.map((item) => {
+			<ul className={`w-full ${containerClasses} text-[#f5f5f5]`}>
+				{categories.map((category) => {
+					const imageUrl = getCategoryImage(category.name)
+					const catalogUrl = `/catalog?sport=${encodeURIComponent(category.name)}`
+
 					return (
 						<li
-							key={item.id}
-							className={`h-59 pb-5 flex bg-center bg-no-repeat bg-[length:110%] hover:bg-size-[305] transition-[background-size] max-sm:h-40`}
-							style={{ backgroundImage: `url('${item.image}')` }}
+							key={category.id}
+							className={cardClasses}
+							style={{ backgroundImage: `url('${imageUrl}')` }}
 						>
 							<Link
-								href="/"
+								href={catalogUrl}
 								className="w-full h-full text-center flex justify-center"
 							>
-								<div className="self-end">{item.title}</div>
+								<div className="self-end">{category.name}</div>
 							</Link>
 						</li>
 					)

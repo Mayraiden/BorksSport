@@ -17,6 +17,14 @@ export default {
    * run jobs, or perform some special logic.
    */
   bootstrap({ strapi }: { strapi: Core.Strapi }) {
+    // Проверяем, что email плагин отключен
+    if (strapi.plugins['email']) {
+      strapi.log.warn('⚠️  ВНИМАНИЕ: Email плагин загружен, хотя должен быть отключен!');
+      strapi.log.warn('   Проверьте config/plugins.ts - email плагин должен быть отключен (enabled: false)');
+    } else {
+      strapi.log.info('✅ Email плагин отключен');
+    }
+
     strapi.plugins['users-permissions'].controllers.auth.register = async (ctx: any) => {
       const pluginStore = await strapi.store({ type: 'plugin', name: 'users-permissions' });
       const settings = (await pluginStore.get({ key: 'advanced' })) as {
@@ -63,12 +71,19 @@ export default {
         return ctx.badRequest('Impossible to find the default role');
       }
 
+      // Проверяем, доступен ли email сервис
+      const emailService = strapi.plugins['email']?.services?.email;
+      const isEmailAvailable = !!emailService;
+      
+      // Если email_confirmation включен, но email сервис недоступен - создаем пользователя как подтвержденного
+      const shouldConfirm = !settings.email_confirmation || !isEmailAvailable;
+
       const userData: Record<string, unknown> = {
         username,
         email: email.toLowerCase(),
         password: await strapi.plugins['users-permissions'].services.user.hashPassword(password),
         role: role.id,
-        confirmed: !settings.email_confirmation,
+        confirmed: shouldConfirm,
       };
 
       if (firstName !== undefined && firstName !== null && firstName !== '') {
@@ -82,23 +97,20 @@ export default {
         .query('plugin::users-permissions.user')
         .create({ data: userData });
 
-      if (settings.email_confirmation) {
+      // Отправляем email только если email_confirmation включен И email сервис доступен
+      if (settings.email_confirmation && isEmailAvailable) {
         try {
-          // Проверяем, что email провайдер настроен корректно перед отправкой
-          const emailService = strapi.plugins['email']?.services?.email;
-          if (emailService) {
-            await strapi.plugins['users-permissions'].services.user.sendConfirmationEmail(user);
-          } else {
-            strapi.log.warn('Email service is not configured. Skipping confirmation email.');
-          }
+          await strapi.plugins['users-permissions'].services.user.sendConfirmationEmail(user);
         } catch (err: any) {
           // Логируем ошибку, но не прерываем процесс регистрации
           strapi.log.error('Error sending confirmation email:', err);
           // Если это ошибка подключения к SMTP, логируем предупреждение
           if (err?.message?.includes('ECONNREFUSED') || err?.message?.includes('timeout') || err?.message?.includes('Authentication failed')) {
-            strapi.log.warn('SMTP connection error detected. Please check email configuration in admin panel.');
+            strapi.log.warn('SMTP connection error detected. Email service may be misconfigured.');
           }
         }
+      } else if (settings.email_confirmation && !isEmailAvailable) {
+        strapi.log.warn('Email confirmation is enabled in settings, but email service is disabled. User was auto-confirmed.');
       }
 
       // Генерируем access token (короткий срок жизни - 15 минут)

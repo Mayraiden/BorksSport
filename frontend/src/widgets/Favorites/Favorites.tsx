@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { ItemCard } from '@/shared/ui/ItemCard'
+import { ProfileDropdown } from '@/shared/ui/ProfileDropdown'
 import { useAuthStore } from '@/features/Auth/model/store'
 import { favoritesApi } from '@/features/Favorites/api/favoritesApi'
 import type { Product } from '@/shared/types'
@@ -59,9 +60,14 @@ export const Favorites = () => {
 
 	if (!isAuthenticated) {
 		return (
-			<section className="flex flex-col gap-5">
-				<h1 className="text-2xl font-bold text-black">Избранное</h1>
-				<p className="text-gray">
+			<section className="flex flex-col gap-5 max-sm:gap-3">
+				<div className="flex items-center justify-between">
+					<h1 className="text-2xl font-bold text-black max-sm:text-xl">
+						Избранное
+					</h1>
+					<ProfileDropdown />
+				</div>
+				<p className="text-gray max-sm:text-sm">
 					Войдите в аккаунт, чтобы видеть избранные товары
 				</p>
 			</section>
@@ -70,38 +76,58 @@ export const Favorites = () => {
 
 	if (isLoading) {
 		return (
-			<section className="flex flex-col gap-5">
-				<h1 className="text-2xl font-bold text-black">Избранное</h1>
-				<p className="text-gray">Загрузка...</p>
+			<section className="flex flex-col gap-5 max-sm:gap-3">
+				<div className="flex items-center justify-between">
+					<h1 className="text-2xl font-bold text-black max-sm:text-xl">
+						Избранное
+					</h1>
+					<ProfileDropdown />
+				</div>
+				<p className="text-gray max-sm:text-sm">Загрузка...</p>
 			</section>
 		)
 	}
 
 	if (error) {
 		return (
-			<section className="flex flex-col gap-5">
-				<h1 className="text-2xl font-bold text-black">Избранное</h1>
-				<p className="text-red-500">{error}</p>
+			<section className="flex flex-col gap-5 max-sm:gap-3">
+				<div className="flex items-center justify-between">
+					<h1 className="text-2xl font-bold text-black max-sm:text-xl">
+						Избранное
+					</h1>
+					<ProfileDropdown />
+				</div>
+				<p className="text-red-500 max-sm:text-sm">{error}</p>
 			</section>
 		)
 	}
 
 	if (products.length === 0) {
 		return (
-			<section className="flex flex-col gap-5">
-				<h1 className="text-2xl font-bold text-black">Избранное</h1>
-				<p className="text-gray">У вас пока нет избранных товаров</p>
+			<section className="flex flex-col gap-5 max-sm:gap-3">
+				<div className="flex items-center justify-between">
+					<h1 className="text-2xl font-bold text-black max-sm:text-xl">
+						Избранное
+					</h1>
+					<ProfileDropdown />
+				</div>
+				<p className="text-gray max-sm:text-sm">
+					У вас пока нет избранных товаров
+				</p>
 			</section>
 		)
 	}
 
 	return (
-		<section className="flex flex-col gap-5">
-			<h1 className="text-2xl font-bold text-black">
-				Избранное ({products.length})
-			</h1>
+		<section className="flex flex-col gap-5 max-sm:gap-3">
+			<div className="flex items-center justify-between">
+				<h1 className="text-2xl font-bold text-black max-sm:text-xl">
+					Избранное ({products.length})
+				</h1>
+				<ProfileDropdown />
+			</div>
 
-			<div className="grid grid-cols-4 gap-3">
+			<div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 max-sm:gap-3 md:gap-4 min-w-0">
 				{products.map((product) => (
 					<ItemCard
 						key={product.id}

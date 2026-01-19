@@ -37,11 +37,13 @@ const mapRemoteStatusToLocal = (remoteStatus: string): {
 	paymentStatus: PaymentStatus
 	orderStatus?: 'awaiting_payment' | 'paid' | 'payment_failed'
 } => {
-	switch (remoteStatus.toLowerCase()) {
+	const normalizedStatus = remoteStatus.toLowerCase()
+	switch (normalizedStatus) {
 		case 'paid':
 		case 'succeeded':
 		case 'success':
 		case 'completed':
+		case 'approved': // Статус APPROVED от Точки банка означает успешную оплату
 			return { paymentStatus: 'paid', orderStatus: 'paid' }
 		case 'cancelled':
 		case 'canceled':
@@ -401,10 +403,20 @@ export default factories.createCoreController(
 					}))
 					: []
 
+				// Создаем уникальный paymentLinkId для Точки банка
+				// Используем orderNumber + ID заказа для гарантии уникальности
+				// Это нужно, чтобы избежать конфликтов, если заказ был удален из нашей БД,
+				// но Точка банк его еще помнит
+				const uniquePaymentLinkId = `${order.orderNumber}-${order.id}`
+				
+				// Точка банк проверяет уникальность по orderNumber, поэтому добавляем ID заказа
+				// чтобы гарантировать уникальность даже если заказ был удален и создан заново
+				const uniqueOrderNumber = `${order.orderNumber}-${order.id}`
+
 				const session = await tochkaPayService.createPaymentSession({
-					orderNumber: order.orderNumber,
+					orderNumber: uniqueOrderNumber, // Уникальный номер для Точки банка (с ID заказа)
 					amount,
-					description: `Оплата заказа ${order.orderNumber}`,
+					description: `Оплата заказа ${order.orderNumber}`, // Оригинальный номер для пользователя
 					currency: 'RUB',
 					customer: {
 						name: customerData?.name || (order as any).user?.username,
@@ -415,7 +427,7 @@ export default factories.createCoreController(
 						orderId,
 						userId,
 						paymentModes,
-						paymentLinkId: order.orderNumber,
+						paymentLinkId: uniquePaymentLinkId,
 						redirectUrl: successRedirectUrl,
 						failRedirectUrl,
 						ttl: Number(process.env.TOCHKA_PAY_TTL || 10080),
@@ -537,20 +549,43 @@ export default factories.createCoreController(
 
 				const event = tochkaPayService.mapWebhookEvent(body)
 				const payload = event.payload || {}
+				
+				// Логируем весь webhook для отладки
+				if (process.env.TOCHKA_PAY_DEBUG === 'true') {
+					strapi.log.info('Tochka Pay webhook received', {
+						eventType: event.eventType,
+						payload,
+						headers: {
+							'x-request-signature': ctx.request.headers['x-request-signature'],
+							'x-signature': ctx.request.headers['x-signature'],
+						},
+					})
+				}
+
+				// Пытаемся найти идентификатор платежа из разных полей
 				const invoiceId = (payload.invoice_id as string) ||
 					(payload.invoiceId as string) ||
+					(payload.operationId as string) ||
+					(payload.operation_id as string) ||
+					(payload.sessionId as string) ||
+					(payload.session_id as string) ||
 					(payload.id as string) ||
-					(payload.order_number as string)
+					(payload.order_number as string) ||
+					(payload.paymentLinkId as string) ||
+					(payload.payment_link_id as string)
 
 				if (!invoiceId) {
 					strapi.log.warn('Tochka Pay webhook received without invoice id', {
 						payload,
+						eventType: event.eventType,
 					})
 					ctx.body = { success: true }
 					return
 				}
 
-				const payments = await strapi.entityService.findMany(
+				// Ищем платеж по разным идентификаторам
+				// Сначала по paymentId (externalId)
+				let payments = await strapi.entityService.findMany(
 					'api::payment.payment',
 					{
 						filters: { paymentId: invoiceId },
@@ -558,19 +593,85 @@ export default factories.createCoreController(
 					}
 				)
 
+				// Если не нашли, ищем по sessionId
+				if (!payments.length) {
+					payments = await strapi.entityService.findMany(
+						'api::payment.payment',
+						{
+							filters: { sessionId: invoiceId },
+							populate: ['order'],
+						}
+					)
+				}
+
+				// Если не нашли, ищем по externalId
+				if (!payments.length) {
+					payments = await strapi.entityService.findMany(
+						'api::payment.payment',
+						{
+							filters: { externalId: invoiceId },
+							populate: ['order'],
+						}
+					)
+				}
+
+				// Если не нашли, пытаемся найти по orderNumber из payload
+				if (!payments.length && payload.order_number) {
+					const orderNumber = payload.order_number as string
+					// Убираем ID заказа из конца, если есть (формат: YYYYMMDD-XXXX-ID)
+					const baseOrderNumber = orderNumber.split('-').slice(0, -1).join('-')
+					
+					const orders = await strapi.entityService.findMany('api::order.order', {
+						filters: {
+							$or: [
+								{ orderNumber: orderNumber },
+								{ orderNumber: { $startsWith: baseOrderNumber } },
+							],
+						},
+					})
+
+					if (orders.length > 0) {
+						const order = orders[0]
+						// Ищем платежи по orderId
+						const orderPayments = await strapi.entityService.findMany(
+							'api::payment.payment',
+							{
+								filters: { order: { id: { $eq: order.id } } } as any,
+								populate: ['order'],
+								sort: 'createdAt:desc',
+								limit: 1,
+							}
+						)
+						
+						if (orderPayments.length > 0) {
+							payments = orderPayments
+						}
+					}
+				}
+
 				if (!payments.length) {
 					strapi.log.warn('Tochka Pay webhook for unknown payment', {
 						invoiceId,
 						payload,
+						searchedFields: ['paymentId', 'sessionId', 'externalId', 'orderNumber'],
 					})
 					ctx.body = { success: true }
 					return
 				}
 
 				const payment = payments[0]
-				const { paymentStatus, orderStatus } = mapRemoteStatusToLocal(
-					(String(payload.status || payload.payment_status || 'pending'))
-				)
+				const remoteStatus = String(payload.status || payload.payment_status || payload.Status || 'pending')
+				const { paymentStatus, orderStatus } = mapRemoteStatusToLocal(remoteStatus)
+
+				// Логируем обновление статуса
+				strapi.log.info('Tochka Pay webhook: updating payment status', {
+					paymentId: payment.id,
+					oldStatus: payment.status,
+					newStatus: paymentStatus,
+					remoteStatus,
+					orderId: (payment as any).order?.id,
+					orderStatus,
+				})
 
 				const previousWebhookData = (
 					payment.paymentData ?? {}
@@ -606,6 +707,11 @@ export default factories.createCoreController(
 							data: { status: orderStatus },
 						}
 					)
+					strapi.log.info('Tochka Pay webhook: order status updated', {
+						orderId: paymentOrder.id,
+						oldStatus: paymentOrder.status,
+						newStatus: orderStatus,
+					})
 				}
 
 				ctx.body = { success: true }
@@ -650,7 +756,10 @@ export default factories.createCoreController(
 					return
 				}
 
-				if (!payment.paymentId) {
+				// Для получения статуса используем sessionId (operationId), если нет - используем paymentId (externalId)
+				const statusIdentifier = payment.sessionId || payment.paymentId
+				
+				if (!statusIdentifier) {
 					ctx.status = 400
 					ctx.body = {
 						success: false,
@@ -660,8 +769,18 @@ export default factories.createCoreController(
 				}
 
 				const tochkaPayService = strapi.service('api::payment.tochka-pay')
+				
+				// Логируем для отладки
+				strapi.log.info('Tochka Pay: getting payment status', {
+					paymentId: payment.id,
+					statusIdentifier,
+					sessionId: payment.sessionId,
+					externalId: payment.externalId,
+					paymentIdField: payment.paymentId,
+				})
+				
 				const statusResponse = await tochkaPayService.getPaymentStatus(
-					payment.paymentId
+					statusIdentifier
 				)
 				const paymentStatusResponse = String(
 					statusResponse.status ?? 'pending'
@@ -690,13 +809,22 @@ export default factories.createCoreController(
 				const paymentOrder = (payment as any)?.order
 
 				if (orderStatus && paymentOrder) {
-					await strapi.entityService.update(
-						'api::order.order',
-						paymentOrder.id,
-						{
-							data: { status: orderStatus },
-						}
-					)
+					const currentOrderStatus = paymentOrder.status
+					if (currentOrderStatus !== orderStatus) {
+						await strapi.entityService.update(
+							'api::order.order',
+							paymentOrder.id,
+							{
+								data: { status: orderStatus },
+							}
+						)
+						strapi.log.info('Tochka Pay status check: order status updated', {
+							orderId: paymentOrder.id,
+							oldStatus: currentOrderStatus,
+							newStatus: orderStatus,
+							paymentStatus: paymentStatus,
+						})
+					}
 				}
 
 				ctx.body = {

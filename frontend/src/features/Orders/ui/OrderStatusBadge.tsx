@@ -42,7 +42,7 @@ export const OrderStatusBadge = ({ status }: OrderStatusBadgeProps) => {
 	const config = STATUS_CONFIGS[status] || STATUS_CONFIGS.pending
 	return (
 		<span
-			className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold ${config.className}`}
+			className={`inline-flex items-center gap-1 max-sm:gap-0.5 rounded-full px-3 max-sm:px-2 py-1 max-sm:py-0.5 text-xs max-sm:text-[10px] font-semibold ${config.className}`}
 		>
 			{config.label}
 		</span>

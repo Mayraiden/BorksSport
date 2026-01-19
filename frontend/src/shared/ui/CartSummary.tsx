@@ -40,31 +40,31 @@ export const CartSummary = ({
 
 	return (
 		<div
-			className={`flex flex-col gap-3 bg-white rounded-[4px] p-5 ${className}`}
+			className={`flex flex-col gap-3 max-sm:gap-2 bg-white rounded-[4px] p-5 max-sm:p-4 ${className}`}
 		>
 			{/* Заголовок */}
-			<h2 className="text-xl font-bold leading-[1.05] text-[#000000]">
+			<h2 className="text-xl font-bold leading-[1.05] text-[#000000] max-sm:text-lg">
 				Ваша корзина:
 			</h2>
 
 			{/* Сводка */}
-			<div className="flex flex-col gap-3">
+			<div className="flex flex-col gap-3 max-sm:gap-2">
 				{/* Количество товаров */}
 				<div className="flex justify-between items-center">
-					<span className="text-base font-normal leading-[1.3125] text-[#000000]">
+					<span className="text-base font-normal leading-[1.3125] text-[#000000] max-sm:text-sm">
 						Количество товаров:
 					</span>
-					<span className="text-base font-bold leading-[1.3125] text-[#000000] text-right">
+					<span className="text-base font-bold leading-[1.3125] text-[#000000] text-right max-sm:text-sm">
 						{totalQuantity} шт.
 					</span>
 				</div>
 
 				{/* Сумма заказа */}
 				<div className="flex justify-between items-center">
-					<span className="text-base font-normal leading-[1.3125] text-[#000000]">
+					<span className="text-base font-normal leading-[1.3125] text-[#000000] max-sm:text-sm">
 						Сумма заказа:
 					</span>
-					<span className="text-base font-bold leading-[1.3125] text-[#000000] text-right">
+					<span className="text-base font-bold leading-[1.3125] text-[#000000] text-right max-sm:text-sm">
 						{formatPrice(orderTotal)}
 					</span>
 				</div>
@@ -72,10 +72,10 @@ export const CartSummary = ({
 				{/* Скидка (показываем только если есть) */}
 				{discountAmount > 0 && (
 					<div className="flex justify-between items-center">
-						<span className="text-base font-normal leading-[1.3125] text-[#000000]">
+						<span className="text-base font-normal leading-[1.3125] text-[#000000] max-sm:text-sm">
 							Скидка:
 						</span>
-						<span className="text-base font-bold leading-[1.3125] text-[#E76F51] text-right">
+						<span className="text-base font-bold leading-[1.3125] text-[#E76F51] text-right max-sm:text-sm">
 							- {formatPrice(discountAmount)}
 						</span>
 					</div>
@@ -84,10 +84,10 @@ export const CartSummary = ({
 				{/* Доставка (показываем только если есть стоимость) */}
 				{deliveryCost > 0 && (
 					<div className="flex justify-between items-center">
-						<span className="text-base font-normal leading-[1.3125] text-[#000000]">
+						<span className="text-base font-normal leading-[1.3125] text-[#000000] max-sm:text-sm">
 							Доставка:
 						</span>
-						<span className="text-base font-bold leading-[1.3125] text-[#000000] text-right">
+						<span className="text-base font-bold leading-[1.3125] text-[#000000] text-right max-sm:text-sm">
 							{formatPrice(deliveryCost)}
 						</span>
 					</div>
@@ -95,14 +95,14 @@ export const CartSummary = ({
 			</div>
 
 			{/* Разделитель */}
-			<div className="w-full h-[2px] bg-[#F0F4F8] my-2" />
+			<div className="w-full h-[2px] bg-[#F0F4F8] my-2 max-sm:my-1" />
 
 			{/* Итого */}
 			<div className="flex justify-between items-center">
-				<span className="text-base font-bold leading-[1.3125] text-[#000000]">
+				<span className="text-base font-bold leading-[1.3125] text-[#000000] max-sm:text-sm">
 					Итого:
 				</span>
-				<span className="text-base font-bold leading-[1.3125] text-[#2A7D5A] text-right">
+				<span className="text-base font-bold leading-[1.3125] text-[#2A7D5A] text-right max-sm:text-sm">
 					{formatPrice(total)}
 				</span>
 			</div>
@@ -112,16 +112,16 @@ export const CartSummary = ({
 				<button
 					onClick={onCheckout}
 					disabled={cartItems.length === 0}
-					className="w-full h-[56px] flex items-center justify-center bg-[#7B1931] text-[#F5F5F5] rounded-[4px] hover:bg-[#6a1529] transition-colors disabled:opacity-50 disabled:cursor-not-allowed mt-4"
+					className="w-full h-[56px] max-sm:h-[48px] flex items-center justify-center bg-[#7B1931] text-[#F5F5F5] rounded-[4px] hover:bg-[#6a1529] transition-colors disabled:opacity-50 disabled:cursor-not-allowed mt-4 max-sm:mt-3"
 				>
-					<span className="text-base font-normal leading-[1.3125]">
+					<span className="text-base font-normal leading-[1.3125] max-sm:text-sm">
 						Перейти к оформлению
 					</span>
 				</button>
 			)}
 
 			{/* Информационный текст */}
-			<p className="text-xs font-normal leading-[1.4] text-[#A0A4A8] mt-2">
+			<p className="text-xs font-normal leading-[1.4] text-[#A0A4A8] mt-2 max-sm:text-[10px] max-sm:mt-1">
 				Доступные способы оплаты и доставки можно выбрать при оформлении заказа
 			</p>
 		</div>

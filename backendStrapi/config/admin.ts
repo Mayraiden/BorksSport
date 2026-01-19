@@ -25,8 +25,12 @@ export default ({ env }) => {
 			encryptionKey: env('ENCRYPTION_KEY'),
 		},
 		flags: {
-			nps: env.bool('FLAG_NPS', true),
-			promoteEE: env.bool('FLAG_PROMOTE_EE', true),
+			nps: env.bool('FLAG_NPS', false), // Отключаем NPS опросы
+			promoteEE: env.bool('FLAG_PROMOTE_EE', false), // Отключаем рекламу Enterprise версии
+		},
+		// Отключаем телеметрию Strapi
+		telemetry: {
+			disabled: env.bool('STRAPI_TELEMETRY_DISABLED', true),
 		},
 		url: env(
 			'PUBLIC_URL',

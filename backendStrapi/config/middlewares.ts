@@ -15,6 +15,8 @@ export default [
 	{
 		name: 'strapi::cors',
 		config: {
+			// Если установлена переменная CORS_ORIGIN, она будет использоваться вместо дефолтных значений
+			// Для доступа с телефона убедитесь, что CORS_ORIGIN включает http://192.168.0.18:3000
 			origin: process.env.CORS_ORIGIN
 				? process.env.CORS_ORIGIN.split(',').map((origin) => origin.trim())
 				: process.env.NODE_ENV === 'development'

@@ -205,11 +205,11 @@ const PaymentPageContent = () => {
 
 	if (!orderId || !paymentId) {
 		return (
-			<div className="max-w-3xl mx-auto mt-10 bg-white rounded-md p-6">
-				<h1 className="text-2xl font-bold text-black mb-4">
+			<div className="max-w-3xl max-sm:max-w-full mx-auto mt-10 max-sm:mt-4 bg-white rounded-md p-6 max-sm:p-4">
+				<h1 className="text-2xl max-sm:text-xl font-bold text-black mb-4 max-sm:mb-3">
 					Не удалось определить данные платежа
 				</h1>
-				<p className="text-base text-gray-600">
+				<p className="text-base max-sm:text-sm text-gray-600">
 					Проверьте ссылку или вернитесь в{' '}
 					<Link className="text-blue underline" href="/cart">
 						корзину
@@ -221,24 +221,24 @@ const PaymentPageContent = () => {
 	}
 
 	return (
-		<div className="max-w-3xl mx-auto mt-10 bg-white rounded-md p-6 shadow-sm">
-			<div className="flex flex-col gap-4">
-				<h1 className="text-2xl font-bold text-black">
+		<div className="max-w-3xl max-sm:max-w-full mx-auto mt-10 max-sm:mt-4 bg-white rounded-md p-6 max-sm:p-4 shadow-sm">
+			<div className="flex flex-col gap-4 max-sm:gap-3">
+				<h1 className="text-2xl max-sm:text-xl font-bold text-black">
 					Оплата заказа №{session?.orderNumber || orderId}
 				</h1>
-				<p className="text-sm text-gray-500">
+				<p className="text-sm max-sm:text-xs text-gray-500">
 					Пожалуйста, завершите оплату. После успешной оплаты мы автоматически
 					перенаправим вас в детали заказа.
 				</p>
 
-				<div className="bg-gray-50 border border-gray-200 rounded-md p-4 flex flex-col gap-2">
-					<div className="flex justify-between text-sm text-gray-700">
+				<div className="bg-gray-50 border border-gray-200 rounded-md p-4 max-sm:p-3 flex flex-col gap-2 max-sm:gap-1.5">
+					<div className="flex justify-between text-sm max-sm:text-xs text-gray-700">
 						<span>Сумма к оплате</span>
 						<span className="font-semibold text-black">
 							{formatCurrency(session?.totalAmount)}
 						</span>
 					</div>
-					<div className="flex justify-between text-sm text-gray-700">
+					<div className="flex justify-between text-sm max-sm:text-xs text-gray-700">
 						<span>Статус</span>
 						<span
 							className={`font-semibold ${
@@ -256,16 +256,16 @@ const PaymentPageContent = () => {
 									: 'Ожидает оплаты'}
 						</span>
 					</div>
-					{error && <p className="text-sm text-red-600">{error}</p>}
+					{error && <p className="text-sm max-sm:text-xs text-red-600">{error}</p>}
 				</div>
 
 				{status === 'pending' && (
-					<div className="flex flex-col md:flex-row gap-3 mt-4">
+					<div className="flex flex-col md:flex-row gap-3 max-sm:gap-2 mt-4 max-sm:mt-3">
 						<button
 							type="button"
 							onClick={handleOpenPayment}
 							disabled={!session?.paymentUrl}
-							className={`flex-1 py-3 px-4 rounded-md text-white text-sm transition-colors ${
+							className={`flex-1 py-3 max-sm:py-2.5 px-4 max-sm:px-3 rounded-md text-white text-sm max-sm:text-xs transition-colors ${
 								session?.paymentUrl
 									? 'bg-[#7B1931] hover:bg-[#6a1529]'
 									: 'bg-gray-300 cursor-not-allowed'
@@ -277,7 +277,7 @@ const PaymentPageContent = () => {
 							type="button"
 							onClick={refreshStatus}
 							disabled={isRefreshing || !isAuthenticated}
-							className={`flex-1 py-3 px-4 rounded-md text-sm transition-colors border ${
+							className={`flex-1 py-3 max-sm:py-2.5 px-4 max-sm:px-3 rounded-md text-sm max-sm:text-xs transition-colors border ${
 								isRefreshing
 									? 'border-gray-200 text-gray-400 bg-gray-100 cursor-wait'
 									: 'border-[#7B1931] text-[#7B1931] hover:bg-[#f8f0f2]'
@@ -289,24 +289,24 @@ const PaymentPageContent = () => {
 				)}
 
 				{status === 'failed' && (
-					<div className="mt-4 bg-red-50 border border-red-200 text-red-700 p-4 rounded-md text-sm">
+					<div className="mt-4 max-sm:mt-3 bg-red-50 border border-red-200 text-red-700 p-4 max-sm:p-3 rounded-md text-sm max-sm:text-xs">
 						<p className="font-semibold">Оплата не прошла.</p>
-						<p className="mt-1">
+						<p className="mt-1 max-sm:mt-0.5">
 							Попробуйте запустить оплату ещё раз или выберите другой способ
 							получения заказа.
 						</p>
 					</div>
 				)}
 
-				<div className="mt-6 flex flex-col md:flex-row gap-3 text-sm">
+				<div className="mt-6 max-sm:mt-4 flex flex-col md:flex-row gap-3 max-sm:gap-2 text-sm max-sm:text-xs">
 					<Link
-						className="flex-1 text-center py-3 px-4 rounded-md border border-gray-200 hover:bg-gray-50"
+						className="flex-1 text-center py-3 max-sm:py-2.5 px-4 max-sm:px-3 rounded-md border border-gray-200 hover:bg-gray-50"
 						href="/cart"
 					>
 						Вернуться в корзину
 					</Link>
 					<Link
-						className="flex-1 text-center py-3 px-4 rounded-md border border-gray-200 hover:bg-gray-50"
+						className="flex-1 text-center py-3 max-sm:py-2.5 px-4 max-sm:px-3 rounded-md border border-gray-200 hover:bg-gray-50"
 						href={`/orders/${orderId}`}
 					>
 						К деталям заказа
@@ -319,7 +319,7 @@ const PaymentPageContent = () => {
 
 const PaymentPage = () => {
 	return (
-		<Suspense fallback={<div className="max-w-3xl mx-auto mt-10 bg-white rounded-md p-6">Загрузка...</div>}>
+		<Suspense fallback={<div className="max-w-3xl max-sm:max-w-full mx-auto mt-10 max-sm:mt-4 bg-white rounded-md p-6 max-sm:p-4">Загрузка...</div>}>
 			<PaymentPageContent />
 		</Suspense>
 	)

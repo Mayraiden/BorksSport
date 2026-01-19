@@ -42,6 +42,13 @@ jobs:
             
             cd ~/sportmagazine
             
+            # Сохраняем .env файлы перед обновлением
+            echo "💾 Backing up .env files..."
+            if [ -f backendStrapi/.env ]; then
+              cp backendStrapi/.env backendStrapi/.env.backup || true
+              echo "✅ .env file backed up"
+            fi
+            
             # Очистка диска перед обновлением кода
             echo "🧹 Cleaning up disk space before deployment..."
             df -h
@@ -58,6 +65,16 @@ jobs:
             git fetch origin --prune || true
             git checkout release || git checkout -b release origin/release || true
             git pull origin release || git reset --hard origin/release || true
+            
+            # Восстанавливаем .env файлы если они были удалены
+            echo "🔄 Restoring .env files..."
+            if [ -f backendStrapi/.env.backup ] && [ ! -f backendStrapi/.env ]; then
+              mv backendStrapi/.env.backup backendStrapi/.env
+              echo "✅ .env file restored"
+            elif [ -f backendStrapi/.env.backup ]; then
+              rm backendStrapi/.env.backup
+              echo "✅ .env file already exists, backup removed"
+            fi
             
             # Переходим в папку backendStrapi
             cd backendStrapi

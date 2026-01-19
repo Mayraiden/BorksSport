@@ -99,7 +99,7 @@ export const CatalogContent = memo(
 							</button>
 
 							{/* Sort controls */}
-							<div className="flex items-center gap-3 flex-1 justify-end">
+							<div className="flex items-center gap-3 flex-1 justify-start md:justify-start max-sm:justify-end">
 								<span className="text-sm font-medium text-gray-700">
 									Сортировка:
 								</span>

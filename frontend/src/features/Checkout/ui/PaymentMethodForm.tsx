@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect } from 'react'
 import { SectionHeader } from '@/shared/ui/SectionHeader'
 import type { PaymentData, PaymentProvider } from '../model/types'
 
@@ -35,14 +36,14 @@ const PaymentCard = ({ provider, isSelected, onSelect }: PaymentCardProps) => {
 		<button
 			type="button"
 			onClick={onSelect}
-			className={`w-[160px] h-[90px] bg-gray-100 rounded border transition-all ${
+			className={`w-[160px] max-sm:w-full h-[90px] max-sm:h-[70px] bg-gray-100 rounded border transition-all ${
 				isSelected
 					? 'border-[#7B1931] border-2'
 					: 'border-gray-200 hover:border-gray-300'
 			}`}
 		>
 			<div className="w-full h-full flex items-center justify-center">
-				<span className="text-xs text-gray-500">{getProviderLabel()}</span>
+				<span className="text-xs max-sm:text-[10px] text-gray-500">{getProviderLabel()}</span>
 			</div>
 		</button>
 	)
@@ -64,14 +65,14 @@ const CashOnDeliveryCard = ({
 		<button
 			type="button"
 			onClick={onSelect}
-			className={`w-[160px] h-[90px] bg-gray-100 rounded border transition-all ${
+			className={`w-[160px] max-sm:w-full h-[90px] max-sm:h-[70px] bg-gray-100 rounded border transition-all ${
 				isSelected
 					? 'border-[#7B1931] border-2'
 					: 'border-gray-200 hover:border-gray-300'
 			}`}
 		>
 			<div className="w-full h-full flex items-center justify-center">
-				<span className="text-xs text-gray-500">
+				<span className="text-xs max-sm:text-[10px] text-gray-500">
 					{method === 'cash' ? 'Наличные' : 'Картой'}
 				</span>
 			</div>
@@ -102,7 +103,7 @@ export const PaymentMethodForm = ({
 	const handleOnlineProviderChange = (provider: OnlinePaymentProvider) => {
 		// Маппинг для отправки в API
 		const apiProvider: PaymentProvider =
-			provider === 'sbp' ? 'sbp' : provider === 'tpay' ? 'tochka' : 'card'
+			provider === 'sbp' ? 'sbp' : 'card'
 		onChange({
 			provider: apiProvider,
 		})
@@ -114,24 +115,26 @@ export const PaymentMethodForm = ({
 		})
 	}
 
-	// Определяем выбранный онлайн провайдер для отображения (unused, kept for future use)
-	// const getSelectedOnlineProvider = (): OnlinePaymentProvider => {
-	// 	if (data.provider === 'sbp') return 'sbp'
-	// 	if (data.provider === 'tochka') return 'tpay'
-	// 	return 'card'
-	// }
+	// Если выбран tochka (старый вариант), сбрасываем на sbp
+	useEffect(() => {
+		if (data.type === 'online' && data.provider === 'tochka') {
+			onChange({
+				provider: 'sbp',
+			})
+		}
+	}, [data.type, data.provider, onChange])
 
 	return (
-		<div className="bg-white rounded-md p-5 flex flex-col gap-10">
+		<div className="bg-white rounded-md p-5 max-sm:p-4 flex flex-col gap-10 max-sm:gap-5">
 			{/* Заголовок секции */}
 			<SectionHeader number={3} title="Способ оплаты" />
 
 			{/* Кнопки выбора способа оплаты */}
-			<div className="flex gap-3">
+			<div className="flex gap-3 max-sm:gap-2">
 				<button
 					type="button"
 					onClick={() => handlePaymentTypeChange('online')}
-					className={`px-[18px] py-3 rounded-md text-xs font-normal leading-[1.75] transition-colors ${
+					className={`px-[18px] max-sm:px-4 py-3 max-sm:py-2.5 rounded-md text-xs max-sm:text-[10px] font-normal leading-[1.75] transition-colors ${
 						data.type === 'online'
 							? 'bg-[#7B1931] text-[#F5F5F5]'
 							: 'bg-[#F2E8EA] text-black'
@@ -142,7 +145,7 @@ export const PaymentMethodForm = ({
 				<button
 					type="button"
 					onClick={() => handlePaymentTypeChange('cash_on_delivery')}
-					className={`px-[18px] py-3 rounded-md text-xs font-normal leading-[1.75] transition-colors ${
+					className={`px-[18px] max-sm:px-4 py-3 max-sm:py-2.5 rounded-md text-xs max-sm:text-[10px] font-normal leading-[1.75] transition-colors ${
 						data.type === 'cash_on_delivery'
 							? 'bg-[#7B1931] text-[#F5F5F5]'
 							: 'bg-[#F2E8EA] text-black'
@@ -154,16 +157,11 @@ export const PaymentMethodForm = ({
 
 			{/* Карточки выбора способа оплаты */}
 			{data.type === 'online' && (
-				<div className="flex gap-3">
+				<div className="flex gap-3 max-sm:gap-2 max-sm:flex-col">
 					<PaymentCard
 						provider="sbp"
 						isSelected={data.provider === 'sbp'}
 						onSelect={() => handleOnlineProviderChange('sbp')}
-					/>
-					<PaymentCard
-						provider="tpay"
-						isSelected={data.provider === 'tochka'}
-						onSelect={() => handleOnlineProviderChange('tpay')}
 					/>
 					<PaymentCard
 						provider="card"
@@ -175,7 +173,7 @@ export const PaymentMethodForm = ({
 
 			{/* Карточки выбора способа оплаты при получении */}
 			{data.type === 'cash_on_delivery' && (
-				<div className="flex gap-3">
+				<div className="flex gap-3 max-sm:gap-2 max-sm:flex-col">
 					<CashOnDeliveryCard
 						method="cash"
 						isSelected={data.cashOnDeliveryMethod === 'cash'}

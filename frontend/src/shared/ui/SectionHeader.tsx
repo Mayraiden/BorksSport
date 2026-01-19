@@ -12,16 +12,16 @@ export const SectionHeader = ({
 	className = '',
 }: SectionHeaderProps) => {
 	return (
-		<div className={`flex items-center gap-2 ${className}`}>
+		<div className={`flex items-center gap-2 max-sm:gap-1.5 ${className}`}>
 			{/* Черный кружок с цифрой */}
-			<div className="w-5 h-5 flex items-center justify-center flex-shrink-0">
-				<div className="w-5 h-5 rounded-full bg-black border-[1.5px] border-white flex items-center justify-center">
-					<span className="text-[10px] font-normal text-white leading-none">
+			<div className="w-5 h-5 max-sm:w-4 max-sm:h-4 flex items-center justify-center flex-shrink-0">
+				<div className="w-5 h-5 max-sm:w-4 max-sm:h-4 rounded-full bg-black border-[1.5px] max-sm:border border-white flex items-center justify-center">
+					<span className="text-[10px] max-sm:text-[8px] font-normal text-white leading-none">
 						{number}
 					</span>
 				</div>
 			</div>
-			<h3 className="text-base font-bold leading-[1.3125] text-black">{title}</h3>
+			<h3 className="text-base max-sm:text-sm font-bold leading-[1.3125] text-black">{title}</h3>
 		</div>
 	)
 }

@@ -1,7 +1,6 @@
 import type { OrderEntity, PaymentEntity } from '../model/types'
 import type { OrderStatus, PaymentType, PaymentProvider, ShippingAddress } from '@/features/Checkout/model/types'
-
-const API_URL = process.env.NEXT_PUBLIC_STRAPI_URL || process.env.NEXT_STRAPI_URL || 'http://localhost:1337'
+import { fetchWithAuth } from '@/shared/lib/apiClient'
 
 interface ApiResponse<T> {
 	success: boolean
@@ -104,10 +103,9 @@ const mapPayment = (raw: RawPayment): PaymentEntity => ({
 
 export const ordersApi = {
 	async getOrders(token: string): Promise<OrderEntity[]> {
-		const response = await fetch(`${API_URL}/api/orders`, {
-			headers: {
-				Authorization: `Bearer ${token}`,
-			},
+		const response = await fetchWithAuth('/api/orders', {
+			method: 'GET',
+			accessToken: token,
 		})
 
 		if (!response.ok) {
@@ -123,10 +121,9 @@ export const ordersApi = {
 	},
 
 	async getOrderById(orderId: number, token: string): Promise<OrderEntity> {
-		const response = await fetch(`${API_URL}/api/orders/${orderId}`, {
-			headers: {
-				Authorization: `Bearer ${token}`,
-			},
+		const response = await fetchWithAuth(`/api/orders/${orderId}`, {
+			method: 'GET',
+			accessToken: token,
 		})
 
 		if (!response.ok) {
@@ -142,14 +139,10 @@ export const ordersApi = {
 	},
 
 	async getPaymentsForOrder(orderId: number, token: string): Promise<PaymentEntity[]> {
-		const response = await fetch(
-			`${API_URL}/api/payments?orderId=${orderId}`,
-			{
-				headers: {
-					Authorization: `Bearer ${token}`,
-				},
-			}
-		)
+		const response = await fetchWithAuth(`/api/payments?orderId=${orderId}`, {
+			method: 'GET',
+			accessToken: token,
+		})
 
 		if (!response.ok) {
 			throw new Error('Не удалось получить платежи заказа')

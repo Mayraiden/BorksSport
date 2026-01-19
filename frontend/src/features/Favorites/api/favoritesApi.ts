@@ -1,6 +1,5 @@
 import type { Product } from '@/shared/types'
-
-const API_URL = process.env.NEXT_PUBLIC_STRAPI_URL || process.env.NEXT_STRAPI_URL || 'http://localhost:1337'
+import { fetchWithAuth } from '@/shared/lib/apiClient'
 
 interface ApiProduct {
 	id: number
@@ -42,11 +41,9 @@ export const favoritesApi = {
 	 */
 	async getFavorites(token: string): Promise<Product[]> {
 		try {
-			const response = await fetch(`${API_URL}/api/favorites`, {
-				headers: {
-					Authorization: `Bearer ${token}`,
-					'Content-Type': 'application/json',
-				},
+			const response = await fetchWithAuth('/api/favorites', {
+				method: 'GET',
+				accessToken: token,
 			})
 
 			if (!response.ok) {
@@ -159,15 +156,10 @@ export const favoritesApi = {
 	 */
 		async checkFavorite(productId: string, token: string): Promise<boolean> {
 			try {
-				const response = await fetch(
-					`${API_URL}/api/favorites/check/${productId}`,
-					{
-						headers: {
-							Authorization: `Bearer ${token}`,
-							'Content-Type': 'application/json',
-						},
-					}
-				)
+				const response = await fetchWithAuth(`/api/favorites/check/${productId}`, {
+					method: 'GET',
+					accessToken: token,
+				})
 
 				if (!response.ok) {
 					if (response.status === 401 || response.status === 403) {
@@ -190,12 +182,9 @@ export const favoritesApi = {
 	 */
 		async toggleFavorite(productId: string, token: string): Promise<boolean> {
 			try {
-				const response = await fetch(`${API_URL}/api/favorites/toggle`, {
+				const response = await fetchWithAuth('/api/favorites/toggle', {
 					method: 'POST',
-					headers: {
-						Authorization: `Bearer ${token}`,
-						'Content-Type': 'application/json',
-					},
+					accessToken: token,
 					body: JSON.stringify({ productId }),
 				})
 
@@ -226,12 +215,9 @@ export const favoritesApi = {
 	 */
 	async addFavorite(productId: string, token: string): Promise<void> {
 		try {
-			const response = await fetch(`${API_URL}/api/favorites`, {
+			const response = await fetchWithAuth('/api/favorites', {
 				method: 'POST',
-				headers: {
-					Authorization: `Bearer ${token}`,
-					'Content-Type': 'application/json',
-				},
+				accessToken: token,
 				body: JSON.stringify({ productId }),
 			})
 
@@ -270,12 +256,9 @@ export const favoritesApi = {
 	 */
 	async removeFavorite(favoriteId: number, token: string): Promise<void> {
 		try {
-			const response = await fetch(`${API_URL}/api/favorites/${favoriteId}`, {
+			const response = await fetchWithAuth(`/api/favorites/${favoriteId}`, {
 				method: 'DELETE',
-				headers: {
-					Authorization: `Bearer ${token}`,
-					'Content-Type': 'application/json',
-				},
+				accessToken: token,
 			})
 
 			if (!response.ok) {

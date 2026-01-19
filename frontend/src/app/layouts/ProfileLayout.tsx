@@ -31,10 +31,10 @@ export const ProfileLayout = ({ children }: ProfileLayoutProps) => {
 	return (
 		<section className="w-screen min-h-screen bg-[#F0F4F8] flex flex-col">
 			<Header />
-			<div className="flex-1 flex flex-col py-10 px-15">
+			<div className="flex-1 flex flex-col py-10 px-15 max-sm:py-4 max-sm:px-2">
 				{/* Breadcrumbs над всем контентом */}
-				<Breadcrumbs items={breadcrumbItems} className="mb-5" />
-				<div className="flex gap-5">
+				<Breadcrumbs items={breadcrumbItems} className="mb-5 max-sm:mb-2" />
+				<div className="flex gap-5 max-sm:flex-col">
 					<IProfileSideBar />
 					<div className="flex-1">{children}</div>
 				</div>

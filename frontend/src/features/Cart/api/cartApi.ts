@@ -1,6 +1,5 @@
 import type { Product, ApiProduct } from '@/shared/types'
-
-const API_URL = process.env.NEXT_PUBLIC_STRAPI_URL || process.env.NEXT_STRAPI_URL || 'http://localhost:1337'
+import { fetchWithAuth } from '@/shared/lib/apiClient'
 
 interface CartResponse {
 	success: boolean
@@ -73,11 +72,9 @@ export const cartApi = {
 	 */
 	async getCart(token: string): Promise<CartItemDisplay[]> {
 		try {
-			const response = await fetch(`${API_URL}/api/cart-items`, {
-				headers: {
-					Authorization: `Bearer ${token}`,
-					'Content-Type': 'application/json',
-				},
+			const response = await fetchWithAuth('/api/cart-items', {
+				method: 'GET',
+				accessToken: token,
 			})
 
 			if (!response.ok) {
@@ -127,12 +124,9 @@ export const cartApi = {
 		token: string
 	): Promise<CartItemDisplay> {
 		try {
-			const response = await fetch(`${API_URL}/api/cart-items`, {
+			const response = await fetchWithAuth('/api/cart-items', {
 				method: 'POST',
-				headers: {
-					Authorization: `Bearer ${token}`,
-					'Content-Type': 'application/json',
-				},
+				accessToken: token,
 				body: JSON.stringify({ productId, quantity }),
 			})
 
@@ -174,12 +168,9 @@ export const cartApi = {
 		token: string
 	): Promise<CartItemDisplay> {
 		try {
-			const response = await fetch(`${API_URL}/api/cart-items/${cartItemId}`, {
+			const response = await fetchWithAuth(`/api/cart-items/${cartItemId}`, {
 				method: 'PUT',
-				headers: {
-					Authorization: `Bearer ${token}`,
-					'Content-Type': 'application/json',
-				},
+				accessToken: token,
 				body: JSON.stringify({ quantity }),
 			})
 
@@ -222,12 +213,9 @@ export const cartApi = {
 	 */
 	async removeFromCart(cartItemId: number, token: string): Promise<void> {
 		try {
-			const response = await fetch(`${API_URL}/api/cart-items/${cartItemId}`, {
+			const response = await fetchWithAuth(`/api/cart-items/${cartItemId}`, {
 				method: 'DELETE',
-				headers: {
-					Authorization: `Bearer ${token}`,
-					'Content-Type': 'application/json',
-				},
+				accessToken: token,
 			})
 
 			if (!response.ok) {
@@ -258,12 +246,9 @@ export const cartApi = {
 	 */
 	async clearCart(token: string): Promise<void> {
 		try {
-			const response = await fetch(`${API_URL}/api/cart-items`, {
+			const response = await fetchWithAuth('/api/cart-items', {
 				method: 'DELETE',
-				headers: {
-					Authorization: `Bearer ${token}`,
-					'Content-Type': 'application/json',
-				},
+				accessToken: token,
 			})
 
 			if (!response.ok) {

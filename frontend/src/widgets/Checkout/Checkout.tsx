@@ -240,9 +240,9 @@ export const Checkout = () => {
 
 	if (!isAuthenticated) {
 		return (
-			<div className="bg-white rounded-md p-5 flex flex-col items-center gap-5">
-				<h2 className="text-xl font-bold">Необходимо войти в аккаунт</h2>
-				<p className="text-base text-center">
+			<div className="bg-white rounded-md p-5 max-sm:p-4 flex flex-col items-center gap-5 max-sm:gap-3">
+				<h2 className="text-xl font-bold max-sm:text-lg">Необходимо войти в аккаунт</h2>
+				<p className="text-base text-center max-sm:text-sm">
 					Войдите в аккаунт для оформления заказа.
 				</p>
 			</div>
@@ -251,17 +251,17 @@ export const Checkout = () => {
 
 	if (isLoading) {
 		return (
-			<div className="bg-white rounded-md p-5 flex items-center justify-center">
-				<span className="text-base text-gray-400">Загрузка...</span>
+			<div className="bg-white rounded-md p-5 max-sm:p-4 flex items-center justify-center">
+				<span className="text-base max-sm:text-sm text-gray-400">Загрузка...</span>
 			</div>
 		)
 	}
 
 	if (cartItems.length === 0) {
 		return (
-			<div className="bg-white rounded-md p-5 flex flex-col items-center gap-5">
-				<h2 className="text-xl font-bold">Корзина пуста</h2>
-				<p className="text-base text-center">
+			<div className="bg-white rounded-md p-5 max-sm:p-4 flex flex-col items-center gap-5 max-sm:gap-3">
+				<h2 className="text-xl font-bold max-sm:text-lg">Корзина пуста</h2>
+				<p className="text-base text-center max-sm:text-sm">
 					Добавьте товары в корзину для оформления заказа.
 				</p>
 			</div>
@@ -269,19 +269,19 @@ export const Checkout = () => {
 	}
 
 	return (
-		<form onSubmit={handleSubmit} className="flex flex-col gap-5">
+		<form onSubmit={handleSubmit} className="flex flex-col gap-5 max-sm:gap-3">
 			{/* Заголовок */}
-			<h1 className="text-2xl font-bold leading-[0.875] text-black">
+			<h1 className="text-2xl font-bold leading-[0.875] text-black max-sm:text-xl">
 				Оформление заказа
 			</h1>
 
 			{/* Основной контент: форма слева, корзина справа */}
-			<div className="flex gap-5">
+			<div className="flex flex-col lg:flex-row gap-5 max-sm:gap-3">
 				{/* Левая колонка: форма */}
-				<div className="flex-1 flex flex-col gap-5">
+				<div className="flex-1 flex flex-col gap-5 max-sm:gap-3">
 					{/* Общая ошибка */}
 					{errors.general && (
-						<div className="bg-red-50 border border-red-200 rounded-md p-4 text-red-700">
+						<div className="bg-red-50 border border-red-200 rounded-md p-4 max-sm:p-3 text-red-700 max-sm:text-sm">
 							{errors.general}
 						</div>
 					)}
@@ -313,16 +313,16 @@ export const Checkout = () => {
 					/>
 
 					{/* Согласия и кнопка подтверждения */}
-					<div className="bg-white rounded-md p-5 flex flex-col gap-5">
+					<div className="bg-white rounded-md p-5 max-sm:p-4 flex flex-col gap-5 max-sm:gap-3">
 						{/* Чекбоксы согласий */}
-						<div className="flex flex-col gap-3">
+						<div className="flex flex-col gap-3 max-sm:gap-2">
 							<Checkbox
 								checked={formData.agreements.publicOffer}
 								onChange={(checked) =>
 									handleAgreementChange('publicOffer', checked)
 								}
 							>
-								<span className="text-xs leading-[1.333]">
+								<span className="text-xs leading-[1.333] max-sm:text-[10px]">
 									Я согласен(-на) с условиями{' '}
 									<a
 										href="/public-offer"
@@ -348,7 +348,7 @@ export const Checkout = () => {
 									handleAgreementChange('personalData', checked)
 								}
 							>
-								<span className="text-xs leading-[1.333]">
+								<span className="text-xs leading-[1.333] max-sm:text-[10px]">
 									Я ознакомлен с условиями и даю согласие на обработку
 									Персональных данных
 								</span>
@@ -359,7 +359,7 @@ export const Checkout = () => {
 						<button
 							type="submit"
 							disabled={isSubmitting}
-							className={`w-full py-4 px-6 rounded-md text-base font-normal leading-[1.3125] transition-colors ${
+							className={`w-full py-4 max-sm:py-3 px-6 max-sm:px-4 rounded-md text-base max-sm:text-sm font-normal leading-[1.3125] transition-colors ${
 								isSubmitting
 									? 'bg-gray-300 text-gray-500 cursor-not-allowed'
 									: 'bg-[#7B1931] text-[#F5F5F5] hover:bg-[#6a1529]'
@@ -371,7 +371,7 @@ export const Checkout = () => {
 				</div>
 
 				{/* Правая колонка: корзина */}
-				<div className="w-[440px] flex-shrink-0">
+				<div className="w-full lg:w-[440px] lg:flex-shrink-0">
 					<CartSummary
 						cartItems={cartItems}
 						onCheckout={() => {}} // Не нужна кнопка в корзине на странице checkout

@@ -17,7 +17,6 @@ interface TochkaPayConfig {
 	failureCallbackUrl?: string
 	webhookSecret?: string
 	timeout: number
-	isSandbox: boolean
 	useReceiptPayload: boolean
 }
 
@@ -104,10 +103,8 @@ function createHttpClient(config: TochkaPayConfig): AxiosInstance {
 		headers['X-Client-Id'] = config.clientId
 	}
 
-	if (!config.isSandbox) {
-		if (config.apiKey) {
-			headers['X-API-KEY'] = config.apiKey
-		}
+	if (config.apiKey) {
+		headers['X-API-KEY'] = config.apiKey
 	}
 
 	return axios.create({
@@ -150,54 +147,39 @@ function normalizePhone(phone?: string | null): string {
 }
 
 export default ({ strapi }: { strapi: Core.Strapi }) => {
-	const isSandbox = process.env.TOCHKA_PAY_SANDBOX !== 'false'
-
-	const defaultSandboxMerchantId = '200000000001056'
-	const defaultSandboxCustomerCode = '300000092'
-	const defaultSandboxConsumerId = 'fedac807-078d-45ac-a43b-5c01c57edbf8'
-	const defaultSandboxPaymentModes = ['sbp', 'card', 'tinkoff', 'dolyame']
-
 	const config: TochkaPayConfig = {
 		baseUrl:
-			process.env.TOCHKA_PAY_BASE_URL ||
-			(isSandbox ? 'https://enter.tochka.com/sandbox/v2' : 'https://enter.tochka.com/uapi'),
+			process.env.TOCHKA_PAY_BASE_URL || 'https://enter.tochka.com/uapi',
 		createPaymentEndpoint:
 			process.env.TOCHKA_PAY_CREATE_PAYMENT_PATH ||
-			(isSandbox
-				? process.env.TOCHKA_PAY_USE_RECEIPT === 'true'
-					? '/acquiring/v1.0/payments_with_receipt'
-					: '/acquiring/v1.0/payments'
+			(process.env.TOCHKA_PAY_USE_RECEIPT === 'true'
+				? '/acquiring/v1.0/payments_with_receipt'
 				: '/acquiring/v1.0/payments'),
 		statusEndpoint:
 			process.env.TOCHKA_PAY_STATUS_PATH ||
-			(isSandbox
-				? '/acquiring/v1.0/payments/{operationId}'
-				: '/acquiring/v1.0/payments/{operationId}'),
+			'/acquiring/v1.0/payments/{operationId}',
 		apiKey: process.env.TOCHKA_PAY_API_KEY || undefined,
 		authToken:
 			process.env.TOCHKA_PAY_AUTH_TOKEN ||
 			process.env.TOCHKA_PAY_API_KEY ||
 			process.env.TOCHKA_JWT_KEY ||
-			(isSandbox ? 'sandbox.jwt.token' : undefined),
+			undefined,
 		secretKey:
 			process.env.TOCHKA_PAY_SECRET_KEY ||
 			process.env.TOCHKA_JWT_KEY ||
-			(isSandbox ? 'sandbox.jwt.token' : undefined),
-		merchantId:
-			process.env.TOCHKA_PAY_MERCHANT_ID ||
-			(isSandbox ? defaultSandboxMerchantId : undefined),
-		terminalId: process.env.TOCHKA_PAY_TERMINAL_ID || (isSandbox ? 'sandbox-terminal' : undefined),
+			'',
+		merchantId: process.env.TOCHKA_PAY_MERCHANT_ID || '',
+		terminalId: process.env.TOCHKA_PAY_TERMINAL_ID || '',
 		clientId: process.env.TOCHKA_CLIENT_ID || process.env.TOCHKA_PAY_CLIENT_ID,
 		successCallbackUrl: process.env.TOCHKA_PAY_SUCCESS_URL,
 		failureCallbackUrl: process.env.TOCHKA_PAY_FAILURE_URL,
 		webhookSecret:
 			process.env.TOCHKA_PAY_WEBHOOK_SECRET ||
-			(process.env.TOCHKA_PAY_SECRET_KEY || (isSandbox ? 'sandbox.jwt.token' : '')),
+			process.env.TOCHKA_PAY_SECRET_KEY ||
+			process.env.TOCHKA_JWT_KEY ||
+			'',
 		timeout: Number(process.env.TOCHKA_PAY_TIMEOUT || 20000),
-		isSandbox,
-		customerCode:
-			process.env.TOCHKA_PAY_CUSTOMER_CODE ||
-			(isSandbox ? defaultSandboxCustomerCode : ''),
+		customerCode: process.env.TOCHKA_PAY_CUSTOMER_CODE || '',
 		useReceiptPayload: process.env.TOCHKA_PAY_USE_RECEIPT === 'true',
 	}
 
@@ -210,10 +192,6 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 		| null = null
 
 	const fetchRetailer = async () => {
-		if (config.isSandbox) {
-			return null
-		}
-
 		try {
 			const response = await http.get('/acquiring/v1.0/retailers')
 			const raw = response.data as Record<string, unknown>
@@ -254,10 +232,6 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 	}
 
 	const ensureRetailerContext = async () => {
-		if (config.isSandbox) {
-			return
-		}
-
 		if (config.merchantId && config.customerCode) {
 			return
 		}
@@ -266,7 +240,24 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 			retailerPromise = fetchRetailer()
 		}
 
-		await retailerPromise
+		const result = await retailerPromise
+		
+		// Логируем результат получения retailer данных
+		if (process.env.TOCHKA_PAY_DEBUG === 'true') {
+			strapi.log.info('Tochka Pay: retailer context', {
+				merchantId: config.merchantId || 'not set',
+				customerCode: config.customerCode || 'not set',
+				fetched: result,
+			})
+		}
+		
+		// Если не удалось получить через API, но есть в переменных окружения - используем их
+		if (!config.merchantId && process.env.TOCHKA_PAY_MERCHANT_ID) {
+			config.merchantId = process.env.TOCHKA_PAY_MERCHANT_ID
+		}
+		if (!config.customerCode && process.env.TOCHKA_PAY_CUSTOMER_CODE) {
+			config.customerCode = process.env.TOCHKA_PAY_CUSTOMER_CODE
+		}
 	}
 
 	return {
@@ -300,54 +291,38 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 				...(options.metadata || {}),
 			}
 
-			const useSampleDefaults =
-				config.isSandbox && process.env.TOCHKA_PAY_FORCE_SAMPLE === 'true'
-			const basePaymentModes = useSampleDefaults
-				? defaultSandboxPaymentModes
-				: ['sbp', 'card', 'tinkoff', 'dolyame']
+			const basePaymentModes = ['sbp', 'card', 'tinkoff', 'dolyame']
 			const metadataPaymentModes = Array.isArray(metadata.paymentModes)
 				? (metadata.paymentModes as string[])
 				: Array.isArray(metadata.paymentMode)
 				? ([metadata.paymentMode].flat() as string[])
 				: undefined
 			const paymentModes =
-				metadataPaymentModes && metadataPaymentModes.length && !useSampleDefaults
+				metadataPaymentModes && metadataPaymentModes.length
 					? metadataPaymentModes
 					: basePaymentModes
 
-			const customerCode = useSampleDefaults
-				? defaultSandboxCustomerCode
-				: String(
-						(metadata.customerCode as string | number | undefined) ||
-							config.customerCode
-				  )
-			const merchantIdCandidate = useSampleDefaults
-				? defaultSandboxMerchantId
-				: (metadata.merchantId as string | number | undefined) || config.merchantId
+			const customerCode = String(
+				(metadata.customerCode as string | number | undefined) ||
+					config.customerCode
+			)
+			const merchantIdCandidate = (metadata.merchantId as string | number | undefined) || config.merchantId
 			const merchantId =
 				merchantIdCandidate !== undefined && merchantIdCandidate !== null
 					? String(merchantIdCandidate)
 					: undefined
 			const normalizedMerchantId =
 				merchantId && /^\d+$/.test(merchantId) ? merchantId : undefined
-			const ttl = useSampleDefaults ? 10080 : Number(metadata.ttl || 10080)
-			const redirectUrl = useSampleDefaults
-				? 'https://example.com'
-				: (metadata.redirectUrl as string | undefined) ||
-				  config.successCallbackUrl
-			const failRedirectUrl = useSampleDefaults
-				? 'https://example.com/fail'
-				: (metadata.failRedirectUrl as string | undefined) ||
-				  config.failureCallbackUrl
-			const paymentLinkId = useSampleDefaults
-				? 'string'
-				: (metadata.paymentLinkId as string | undefined) ||
-				  options.orderNumber
-			const consumerId = useSampleDefaults
-				? defaultSandboxConsumerId
-				: (metadata.consumerId as string | undefined) ||
-				  customerCode ||
-				  externalId
+			const ttl = Number(metadata.ttl || 10080)
+			const redirectUrl = (metadata.redirectUrl as string | undefined) ||
+				config.successCallbackUrl
+			const failRedirectUrl = (metadata.failRedirectUrl as string | undefined) ||
+				config.failureCallbackUrl
+			const paymentLinkId = (metadata.paymentLinkId as string | undefined) ||
+				options.orderNumber
+			const consumerId = (metadata.consumerId as string | undefined) ||
+				customerCode ||
+				externalId
 
 			const clientName =
 				options.customer?.name ||
@@ -408,49 +383,36 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 							},
 					  ]
 
-			const sandboxData: Record<string, unknown> = {
+			const paymentData: Record<string, unknown> = {
 				customerCode,
-				amount: useSampleDefaults
-					? '1234.00'
-					: formatAmount(options.amount),
-				purpose: useSampleDefaults
-					? 'Перевод за оказанные услуги'
-					: options.description ||
-					  `Оплата заказа ${options.orderNumber}`,
+				amount: formatAmount(options.amount),
+				purpose: options.description || `Оплата заказа ${options.orderNumber}`,
 				redirectUrl: redirectUrl || undefined,
 				failRedirectUrl: failRedirectUrl || undefined,
 				paymentMode: paymentModes,
-				saveCard: useSampleDefaults
-					? true
-					: Boolean(metadata.saveCard),
+				saveCard: Boolean(metadata.saveCard),
 				consumerId,
 				merchantId: normalizedMerchantId,
-				preAuthorization: useSampleDefaults
-					? true
-					: Boolean(metadata.preAuthorization),
+				preAuthorization: Boolean(metadata.preAuthorization),
 				ttl,
 				paymentLinkId,
-				taxSystemCode: useSampleDefaults
-					? undefined
-					: metadata.taxSystemCode || 'osn',
-				Client: useSampleDefaults
-					? undefined
-					: {
-							name: clientName,
-							email: clientEmail,
-							phone: clientPhone,
-					  },
+				taxSystemCode: metadata.taxSystemCode || 'osn',
+				Client: {
+					name: clientName,
+					email: clientEmail,
+					phone: clientPhone,
+				},
 			}
 
-			Object.keys(sandboxData).forEach((key) => {
-				if (sandboxData[key] === undefined) {
-					delete sandboxData[key]
+			Object.keys(paymentData).forEach((key) => {
+				if (paymentData[key] === undefined) {
+					delete paymentData[key]
 				}
 			})
 
 			if (config.useReceiptPayload) {
-				sandboxData.Items = itemsPayload
-				sandboxData.Supplier =
+				paymentData.Items = itemsPayload
+				paymentData.Supplier =
 					metadata.Supplier ||
 					{
 						phone: supplierInfo.phone,
@@ -459,18 +421,14 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 					}
 			}
 
-			const sandboxPayload = { Data: sandboxData }
-
-			const payload = sandboxPayload
+			const payload = { Data: paymentData }
 
 			try {
 				const headers: Record<string, string> = {
 					'X-Request-ID': externalId,
 				}
 
-				if (!config.isSandbox && config.apiKey) {
-					headers['X-API-KEY'] = config.apiKey
-				} else if (config.isSandbox && config.apiKey) {
+				if (config.apiKey) {
 					headers['X-API-KEY'] = config.apiKey
 				}
 
@@ -549,27 +507,76 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 			const headers: Record<string, string> = {
 				'X-Request-ID': randomUUID(),
 			}
-			if (config.isSandbox) {
-				headers.Authorization = 'Bearer sandbox.jwt.token'
-			} else {
+			if (config.apiKey) {
 				headers['X-API-KEY'] = config.apiKey
+			}
+
+			if (process.env.TOCHKA_PAY_DEBUG === 'true') {
+				strapi.log.info('Tochka Pay status request', {
+					endpoint,
+					invoiceId,
+					headers: {
+						'X-Request-ID': headers['X-Request-ID'],
+						'X-API-KEY': headers['X-API-KEY'] ? '***' : undefined,
+						Authorization: config.authToken ? 'Bearer ***' : undefined,
+						'X-Client-Id': config.clientId || undefined,
+					},
+					config: {
+						baseUrl: config.baseUrl,
+						merchantId: config.merchantId || 'not set',
+						customerCode: config.customerCode || 'not set',
+					},
+				})
 			}
 
 			const response = await http.get(endpoint, { headers })
 			const rawResponse = response.data as Record<string, unknown>
 			const data = (rawResponse?.Data as Record<string, unknown>) || rawResponse
+			
+			// Статус может быть в разных местах в зависимости от формата ответа
+			let status = 'unknown'
+			
+			// Проверяем Operation массив (новый формат)
+			if (Array.isArray(data?.Operation) && data.Operation.length > 0) {
+				const operation = (data.Operation as Array<Record<string, unknown>>)[0]
+				status = (operation?.status as string) || 'unknown'
+			}
+			// Проверяем напрямую в data
+			else if (data?.status) {
+				status = data.status as string
+			}
+			// Проверяем в корне ответа
+			else if (rawResponse?.status) {
+				status = rawResponse.status as string
+			}
+			
 			return {
-				status: (data?.status as string) || 'unknown',
+				status: status,
 				raw: rawResponse,
 			}
 		} catch (error: any) {
+			const errorDetails = error.response?.data || error.message
+			const errorMessage = error.response?.data?.message || 
+				error.response?.data?.error?.message ||
+				error.response?.data?.Errors?.[0]?.message ||
+				error.message ||
+				'Что-то пошло не так'
+
 			strapi.log.error('Tochka Pay: failed to get payment status', {
-				error: error.response?.data || error.message,
+				error: errorDetails,
 				invoiceId,
+				endpoint,
+				statusCode: error.response?.status,
+				config: {
+					baseUrl: config.baseUrl,
+					merchantId: config.merchantId || 'not set',
+					customerCode: config.customerCode || 'not set',
+					hasAuthToken: !!config.authToken,
+					hasClientId: !!config.clientId,
+					hasApiKey: !!config.apiKey,
+				},
 			})
-			throw new Error(
-				`Tochka Pay status error: ${error.response?.data?.message || error.message}`
-			)
+			throw new Error(`Tochka Pay status error: ${errorMessage}`)
 		}
 	},
 

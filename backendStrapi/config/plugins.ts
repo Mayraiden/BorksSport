@@ -11,19 +11,10 @@ export default ({ env }) => {
 				},
 			},
 		},
+		// Email плагин явно отключен, чтобы предотвратить попытки отправки через SMTP
+		// Strapi может загружать email плагин автоматически, поэтому нужно явно отключить его
 		email: {
-			config: {
-				provider: 'sendmail',
-				providerOptions: {
-					// Используем sendmail без SMTP сервера
-					// Это предотвратит попытки подключения к внешним SMTP серверам
-					path: '/usr/sbin/sendmail',
-				},
-				settings: {
-					defaultFrom: env('EMAIL_FROM', 'noreply@borkssport.ru'),
-					defaultReplyTo: env('EMAIL_REPLY_TO', 'noreply@borkssport.ru'),
-				},
-			},
+			enabled: false, // Явно отключаем email плагин
 		},
 	}
 }

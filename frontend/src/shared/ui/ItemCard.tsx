@@ -74,12 +74,12 @@ export const ItemCard = memo<ItemCardProps>(
 
 		return (
 			<div
-				className={`w-full flex flex-col bg-white shadow-md hover:shadow-lg transition-shadow duration-200 ${className}`}
+				className={`w-full min-w-0 flex flex-col bg-white shadow-md hover:shadow-lg transition-shadow duration-200 ${className}`}
 			>
 				<Link href={productUrl} onClick={onClick} className="block">
-					<div className="relative">
+					<div className="relative overflow-hidden h-64">
 						<Image
-							className="w-full h-64 object-contain"
+							className="w-full h-full object-cover"
 							src={imageSrc}
 							width={236}
 							height={256}
@@ -97,7 +97,7 @@ export const ItemCard = memo<ItemCardProps>(
 						/>
 					</div>
 				</Link>
-				<div className="w-full flex flex-col gap-1 p-3 flex-1">
+				<div className="w-full min-w-0 flex flex-col gap-1 p-3 flex-1">
 					{/* Название товара - всегда фиксированная высота */}
 					<Link
 						href={productUrl}
@@ -112,9 +112,9 @@ export const ItemCard = memo<ItemCardProps>(
 					<p className="text-gray text-sm">{displayProduct.brand}</p>
 					{/* Цена - всегда на одном месте */}
 					<p className="text-base font-normal text-black">{formattedPrice}</p>
-					<div className="w-full flex justify-between items-center mt-auto">
+					<div className="w-full min-w-0 flex justify-between items-center mt-auto gap-2">
 						<BuyButton
-							className="w-30 h-8 flex items-center justify-center rounded-sm text-white bg-burgundy cursor-pointer"
+							className="w-30 h-8 flex items-center justify-center rounded-sm text-white bg-burgundy cursor-pointer flex-shrink-0"
 							type="button"
 							text="В корзину"
 							productId={displayProduct.id}

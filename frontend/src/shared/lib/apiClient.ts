@@ -13,6 +13,10 @@ const API_URL =
 	process.env.NEXT_STRAPI_URL ||
 	'http://localhost:1337'
 
+// Флаг для предотвращения множественных одновременных попыток обновления токена
+let isRefreshing = false
+let refreshPromise: Promise<string> | null = null
+
 /**
  * Выполняет fetch запрос с автоматическим обновлением токена при 401 ошибке
  */
@@ -41,12 +45,55 @@ export async function fetchWithAuth(
 	// Если получили 401, пытаемся обновить токен
 	if (response.status === 401 && accessToken) {
 		try {
-			// Пытаемся обновить access token
-			const refreshResult = await strapiAuth.refreshToken()
-			const newAccessToken = refreshResult.jwt
+			// Если уже идет обновление токена, ждем его завершения
+			if (isRefreshing && refreshPromise) {
+				const newAccessToken = await refreshPromise
+				// Повторяем оригинальный запрос с новым токеном
+				headers.set('Authorization', `Bearer ${newAccessToken}`)
+				const retryResponse = await fetch(`${API_URL}${url}`, {
+					...fetchOptions,
+					headers,
+					credentials: 'include',
+				})
+				return retryResponse
+			}
 
-			// Обновляем токен в store
-			useAuthStore.getState().setJwt(newAccessToken)
+			// Начинаем обновление токена
+			isRefreshing = true
+			refreshPromise = (async () => {
+				try {
+					if (process.env.NODE_ENV === 'development') {
+						console.log('[fetchWithAuth] Refreshing token due to 401 error')
+					}
+					
+					// Пытаемся обновить access token
+					const refreshResult = await strapiAuth.refreshToken()
+					const newAccessToken = refreshResult.jwt
+
+					if (!newAccessToken) {
+						throw new Error('Refresh token response missing jwt')
+					}
+
+					// Обновляем токен в store
+					useAuthStore.getState().setJwt(newAccessToken)
+
+					if (process.env.NODE_ENV === 'development') {
+						console.log('[fetchWithAuth] Token refreshed successfully')
+					}
+
+					return newAccessToken
+				} catch (error) {
+					// Если refresh token тоже невалиден, разлогиниваем пользователя
+					console.warn('[fetchWithAuth] Failed to refresh token:', error)
+					useAuthStore.getState().logout()
+					throw new Error('Сессия истекла. Пожалуйста, войдите снова.')
+				} finally {
+					isRefreshing = false
+					refreshPromise = null
+				}
+			})()
+
+			const newAccessToken = await refreshPromise
 
 			// Повторяем оригинальный запрос с новым токеном
 			headers.set('Authorization', `Bearer ${newAccessToken}`)
@@ -57,10 +104,9 @@ export async function fetchWithAuth(
 			})
 
 			return retryResponse
-		} catch {
-			// Если refresh token тоже невалиден, разлогиниваем пользователя
-			useAuthStore.getState().logout()
-			throw new Error('Сессия истекла. Пожалуйста, войдите снова.')
+		} catch (error) {
+			// Если обновление токена не удалось, пробрасываем ошибку дальше
+			throw error
 		}
 	}
 

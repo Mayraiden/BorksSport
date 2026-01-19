@@ -18,6 +18,44 @@ import {
 } from '@/shared/lib/validations/auth'
 import { useAuthStore } from '../model/store'
 
+// Функция для форматирования телефона с маской +7
+const formatPhoneNumber = (value: string): string => {
+	// Удаляем все нецифровые символы
+	const digits = value.replace(/\D/g, '')
+	
+	// Если начинается с 7 или 8, заменяем на 7
+	let phoneDigits = digits
+	if (phoneDigits.startsWith('8')) {
+		phoneDigits = '7' + phoneDigits.slice(1)
+	} else if (phoneDigits.startsWith('7')) {
+		phoneDigits = phoneDigits
+	} else if (phoneDigits.length > 0) {
+		// Если не начинается с 7 или 8, добавляем 7
+		phoneDigits = '7' + phoneDigits
+	}
+	
+	// Ограничиваем до 11 цифр (7 + 10 цифр номера)
+	phoneDigits = phoneDigits.slice(0, 11)
+	
+	// Форматируем в +7 (XXX) XXX-XX-XX
+	if (phoneDigits.length === 0) {
+		return '+7'
+	}
+	
+	const code = phoneDigits.slice(1, 4)
+	const part1 = phoneDigits.slice(4, 7)
+	const part2 = phoneDigits.slice(7, 9)
+	const part3 = phoneDigits.slice(9, 11)
+	
+	let formatted = '+7'
+	if (code) formatted += ` (${code}`
+	if (part1) formatted += `) ${part1}`
+	if (part2) formatted += `-${part2}`
+	if (part3) formatted += `-${part3}`
+	
+	return formatted
+}
+
 //component
 export const RegisterForm = () => {
 	//react-hook-form
@@ -29,9 +67,11 @@ export const RegisterForm = () => {
 		watch,
 	} = useForm<RegisterFormData>({
 		resolver: zodResolver(registerSchema),
+		mode: 'onSubmit', // Валидация только при отправке формы
+		reValidateMode: 'onSubmit', // Повторная валидация только при отправке
 		defaultValues: {
 			name: '',
-			phone: '',
+			phone: '+7',
 			email: '',
 			password: '',
 			confirmPassword: '',
@@ -47,6 +87,7 @@ export const RegisterForm = () => {
 
 	const agreement = watch('agreement')
 	const privacy = watch('privacy')
+	const phoneValue = watch('phone')
 
 	const handleRegister = (data: RegisterFormData) => {
 		registerUser(data, {
@@ -79,8 +120,19 @@ export const RegisterForm = () => {
 				<IInput
 					{...register('phone')}
 					type="tel"
+					value={phoneValue || '+7'}
 					placeholder="+7 (987) 654-32-10"
 					className="bg-transparent text-base text-black outline-none"
+					onChange={(e) => {
+						const formatted = formatPhoneNumber(e.target.value)
+						setValue('phone', formatted, { shouldValidate: false })
+					}}
+					onFocus={(e) => {
+						// Если поле пустое или только +7, выделяем все для удобства замены
+						if (!e.target.value || e.target.value === '+7') {
+							e.target.setSelectionRange(2, 2)
+						}
+					}}
 				/>
 			</FormField>
 

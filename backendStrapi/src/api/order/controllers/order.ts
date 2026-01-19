@@ -1,5 +1,91 @@
 import { factories } from '@strapi/strapi'
 
+/**
+ * Генерирует номер заказа в формате Ozon: YYYYMMDD-XXXX
+ * Где YYYYMMDD - дата создания заказа, XXXX - последовательный номер за день
+ */
+async function generateOrderNumber(strapi: any, maxRetries = 10): Promise<string> {
+	const today = new Date()
+	const dateStr = `${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, '0')}${String(today.getDate()).padStart(2, '0')}`
+	
+	// Начало и конец дня для фильтрации
+	const startOfDay = new Date(today)
+	startOfDay.setHours(0, 0, 0, 0)
+	const endOfDay = new Date(today)
+	endOfDay.setHours(23, 59, 59, 999)
+
+	let baseNumber = 1
+
+	// Сначала получим базовый номер из последнего заказа
+	try {
+		const todayOrders = await strapi.entityService.findMany('api::order.order', {
+			filters: {
+				orderNumber: {
+					$startsWith: dateStr,
+				},
+				createdAt: {
+					$gte: startOfDay.toISOString(),
+					$lte: endOfDay.toISOString(),
+				},
+			},
+			sort: 'createdAt:desc',
+			limit: 1,
+		})
+
+		if (todayOrders.length > 0) {
+			const lastOrderNumber = todayOrders[0].orderNumber as string
+			// Извлечь номер из формата YYYYMMDD-XXXX
+			const match = lastOrderNumber.match(/^(\d{8})-(\d+)$/)
+			if (match && match[2]) {
+				const lastNumber = parseInt(match[2], 10)
+				if (!isNaN(lastNumber)) {
+					baseNumber = lastNumber + 1
+				}
+			}
+		}
+	} catch (error: any) {
+		strapi.log.warn('Error getting base order number, starting from 1:', error)
+	}
+
+	// Теперь попробуем найти свободный номер
+	for (let attempt = 0; attempt < maxRetries; attempt++) {
+		try {
+			const nextNumber = baseNumber + attempt
+			const orderNumber = `${dateStr}-${String(nextNumber).padStart(4, '0')}`
+
+			// Проверить уникальность (на случай параллельных запросов)
+			const existingOrder = await strapi.entityService.findMany('api::order.order', {
+				filters: {
+					orderNumber,
+				},
+				limit: 1,
+			})
+
+			if (existingOrder.length === 0) {
+				return orderNumber
+			}
+
+			// Если номер уже существует, попробуем следующий
+			if (attempt < maxRetries - 1) {
+				strapi.log.warn(`Order number ${orderNumber} already exists, trying next...`)
+			}
+		} catch (error: any) {
+			strapi.log.error('Error checking order number uniqueness:', error)
+			if (attempt === maxRetries - 1) {
+				// Если все попытки исчерпаны, использовать fallback с timestamp
+				const fallbackNumber = `${dateStr}-${Date.now().toString().slice(-4)}`
+				strapi.log.warn(`Using fallback order number: ${fallbackNumber}`)
+				return fallbackNumber
+			}
+		}
+	}
+
+	// Финальный fallback - используем timestamp для гарантии уникальности
+	const fallbackNumber = `${dateStr}-${Date.now().toString().slice(-4)}`
+	strapi.log.warn(`Max retries reached, using fallback order number: ${fallbackNumber}`)
+	return fallbackNumber
+}
+
 export default factories.createCoreController(
 	'api::order.order',
 	({ strapi }) => ({
@@ -131,8 +217,8 @@ export default factories.createCoreController(
 					totalAmount += deliveryCostValue
 				}
 
-				// Generate order number
-				const orderNumber = `ORD-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+				// Generate order number in Ozon format: YYYYMMDD-XXXX
+				const orderNumber = await generateOrderNumber(strapi)
 
 				// Determine delivery type (default to 'door' if not specified)
 				const orderDeliveryType = deliveryType || 'door'

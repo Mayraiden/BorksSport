@@ -17,10 +17,13 @@ export type MainCategory = {
 export const categoryApi = {
 	/**
 	 * Получить главные категории (level = 0) - Виды спорта
+	 * Запрашивает с populate children для получения подкатегорий (включая вложенные)
 	 */
 	async getMainCategories(): Promise<MainCategory[]> {
 		try {
-			const response = await fetch(`${API_URL}/api/categories/main`)
+			const response = await fetch(
+				`${API_URL}/api/categories/main?populate[children][populate]=children`
+			)
 
 			if (!response.ok) {
 				throw new Error(`API error: ${response.status}`)

@@ -42,6 +42,17 @@ jobs:
             
             cd ~/sportmagazine
             
+            # Сохраняем .env файлы перед обновлением
+            echo "💾 Backing up .env files..."
+            if [ -f frontend/.env ]; then
+              cp frontend/.env frontend/.env.backup || true
+              echo "✅ .env file backed up"
+            fi
+            if [ -f frontend/.env.local ]; then
+              cp frontend/.env.local frontend/.env.local.backup || true
+              echo "✅ .env.local file backed up"
+            fi
+            
             # Очистка диска перед обновлением кода
             echo "🧹 Cleaning up disk space before deployment..."
             df -h
@@ -59,6 +70,23 @@ jobs:
             git fetch origin --prune || true
             git checkout release || git checkout -b release origin/release || true
             git pull origin release || git reset --hard origin/release || true
+            
+            # Восстанавливаем .env файлы если они были удалены
+            echo "🔄 Restoring .env files..."
+            if [ -f frontend/.env.backup ] && [ ! -f frontend/.env ]; then
+              mv frontend/.env.backup frontend/.env
+              echo "✅ .env file restored"
+            elif [ -f frontend/.env.backup ]; then
+              rm frontend/.env.backup
+              echo "✅ .env file already exists, backup removed"
+            fi
+            if [ -f frontend/.env.local.backup ] && [ ! -f frontend/.env.local ]; then
+              mv frontend/.env.local.backup frontend/.env.local
+              echo "✅ .env.local file restored"
+            elif [ -f frontend/.env.local.backup ]; then
+              rm frontend/.env.local.backup
+              echo "✅ .env.local file already exists, backup removed"
+            fi
             
             # Переходим в папку frontend
             cd frontend

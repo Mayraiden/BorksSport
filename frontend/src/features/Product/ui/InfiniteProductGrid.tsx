@@ -55,7 +55,7 @@ export const InfiniteProductGrid = memo<{
 
 	// Loading skeleton
 	const LoadingSkeleton = memo(() => (
-		<div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 max-sm:gap-3 md:gap-4">
+		<div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 max-sm:gap-3 md:gap-4 min-w-0">
 			{Array.from({ length: 8 }).map((_, index) => (
 				<div key={index} className="animate-pulse">
 					<div className="w-full h-64 bg-gray/20 rounded-lg mb-3"></div>
@@ -120,8 +120,8 @@ export const InfiniteProductGrid = memo<{
 	}
 
 	return (
-		<div className={className}>
-			<div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 max-sm:gap-3 md:gap-4">
+		<div className={`min-w-0 ${className}`}>
+			<div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 max-sm:gap-3 md:gap-4 min-w-0">
 				{allProducts.map((product, index) => (
 					<ItemCard
 						key={`${product.id}-${index}`}

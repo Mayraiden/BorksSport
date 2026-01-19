@@ -16,6 +16,7 @@ import {
 	ProfileFormData,
 } from '@/shared/lib/validations/profile'
 import { DeleteAccountModal } from '@/shared/ui/DeleteAccountModal'
+import { ProfileDropdown } from '@/shared/ui/ProfileDropdown'
 
 export const ProfileInfo = () => {
 	const [isEditMode, setIsEditMode] = useState(false)
@@ -143,17 +144,20 @@ export const ProfileInfo = () => {
 	return (
 		<div className="w-full">
 			{/* Заголовок страницы */}
-			<div className="mb-5">
-				<h1 className="text-3xl font-bold text-black">Профиль</h1>
+			<div className="mb-5 flex items-center justify-between">
+				<h1 className="text-3xl font-bold text-black max-sm:text-2xl">
+					Профиль
+				</h1>
+				<ProfileDropdown />
 			</div>
 
 			{/* Форма с данными пользователя */}
-			<div className="w-full bg-white rounded-md p-10">
+			<div className="w-full bg-white rounded-md p-10 max-sm:p-4">
 				<div className="max-w-4xl">
 					{/* Сообщение об успешном сохранении */}
 					{saveSuccess && (
-						<div className="mb-5 p-3 bg-green-100 border border-green-400 text-green-700 rounded-md flex items-center gap-2">
-							<svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+						<div className="mb-5 max-sm:mb-3 p-3 max-sm:p-2 bg-green-100 border border-green-400 text-green-700 rounded-md flex items-center gap-2 text-sm max-sm:text-xs">
+							<svg className="w-5 h-5 max-sm:w-4 max-sm:h-4 shrink-0" fill="currentColor" viewBox="0 0 20 20">
 								<path
 									fillRule="evenodd"
 									d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
@@ -166,7 +170,7 @@ export const ProfileInfo = () => {
 
 					{/* Сообщение об ошибке */}
 					{updateProfileMutation.isError && (
-						<div className="mb-5 p-3 bg-red-100 border border-red-400 text-red-700 rounded-md">
+						<div className="mb-5 max-sm:mb-3 p-3 max-sm:p-2 bg-red-100 border border-red-400 text-red-700 rounded-md text-sm max-sm:text-xs">
 							{updateProfileMutation.error instanceof Error
 								? updateProfileMutation.error.message
 								: 'Произошла ошибка при обновлении профиля'}
@@ -174,17 +178,17 @@ export const ProfileInfo = () => {
 					)}
 
 					{/* Поля ввода */}
-					<div className="max-w-[460px] space-y-3 mb-5">
+					<div className="max-w-[460px] space-y-3 max-sm:space-y-2 mb-5 max-sm:mb-4">
 						{/* Имя */}
-						<div className="relative h-13 bg-[#F0F4F8] rounded-md">
-							<label className="absolute top-2 left-3 text-xs text-[#A0A4A8] font-normal">
+						<div className="relative h-13 max-sm:h-12 bg-[#F0F4F8] rounded-md">
+							<label className="absolute top-2 left-3 text-xs max-sm:text-[10px] text-[#A0A4A8] font-normal">
 								Имя
 							</label>
 							<input
 								{...register('name')}
 								type="text"
 								disabled={!isEditMode}
-								className="absolute top-6 left-3 right-3 bg-transparent text-base text-black outline-none disabled:cursor-not-allowed"
+								className="absolute top-6 max-sm:top-5 left-3 right-3 bg-transparent text-base max-sm:text-sm text-black outline-none disabled:cursor-not-allowed"
 								placeholder="Введите ваше имя"
 							/>
 							{errors.name && (
@@ -195,15 +199,15 @@ export const ProfileInfo = () => {
 						</div>
 
 						{/* Телефон */}
-						<div className="relative h-13 bg-[#F0F4F8] rounded-md">
-							<label className="absolute top-2 left-3 text-xs text-[#A0A4A8] font-normal">
+						<div className="relative h-13 max-sm:h-12 bg-[#F0F4F8] rounded-md">
+							<label className="absolute top-2 left-3 text-xs max-sm:text-[10px] text-[#A0A4A8] font-normal">
 								Телефон
 							</label>
 							<input
 								{...register('phone')}
 								type="tel"
 								disabled={!isEditMode}
-								className="absolute top-6 left-3 right-3 bg-transparent text-base text-black outline-none disabled:cursor-not-allowed"
+								className="absolute top-6 max-sm:top-5 left-3 right-3 bg-transparent text-base max-sm:text-sm text-black outline-none disabled:cursor-not-allowed"
 								placeholder="+7 (999) 000-00-00"
 							/>
 							{errors.phone && (
@@ -214,15 +218,15 @@ export const ProfileInfo = () => {
 						</div>
 
 						{/* Email */}
-						<div className="relative h-13 bg-[#F0F4F8] rounded-md">
-							<label className="absolute top-2 left-3 text-xs text-[#A0A4A8] font-normal">
+						<div className="relative h-13 max-sm:h-12 bg-[#F0F4F8] rounded-md">
+							<label className="absolute top-2 left-3 text-xs max-sm:text-[10px] text-[#A0A4A8] font-normal">
 								Email
 							</label>
 							<input
 								{...register('email')}
 								type="email"
 								disabled={true}
-								className="absolute top-6 left-3 right-3 bg-transparent text-base text-black outline-none disabled:cursor-not-allowed"
+								className="absolute top-6 max-sm:top-5 left-3 right-3 bg-transparent text-base max-sm:text-sm text-black outline-none disabled:cursor-not-allowed"
 								placeholder="ваш.email@example.com"
 							/>
 							{errors.email && (
@@ -234,14 +238,14 @@ export const ProfileInfo = () => {
 					</div>
 
 					{/* Кнопки действий */}
-					<div className="flex justify-between items-end">
+					<div className="flex flex-col max-sm:flex-col gap-4 max-sm:gap-3 md:flex-row md:justify-between md:items-end">
 						{/* Кнопка Редактировать/Сохранить/Отмена */}
-						<div className="flex gap-3">
+						<div className="flex flex-col max-sm:flex-col gap-3 md:flex-row">
 							<button
 								type="button"
 								onClick={handleEditToggle}
 								disabled={isSubmitting || isLoadingUser}
-								className={`w-40 h-12 px-6 py-4 flex items-center justify-center gap-2  rounded-md transition-colors duration-200 ${
+								className={`w-full max-sm:w-full md:w-40 h-12 px-6 py-4 flex items-center justify-center gap-2 rounded-md transition-colors duration-200 ${
 									isEditMode
 										? 'bg-[#2A7D5A] text-white hover:bg-[#1f5f47] disabled:opacity-50 disabled:cursor-not-allowed'
 										: 'bg-[#193B7B] text-white hover:bg-[#1a4a8f] disabled:opacity-50 disabled:cursor-not-allowed'
@@ -259,7 +263,7 @@ export const ProfileInfo = () => {
 									type="button"
 									onClick={handleCancel}
 									disabled={isSubmitting}
-									className="w-32 h-12 px-6 py-4 flex items-center justify-center gap-2 bg-[#F0F4F8] text-black rounded-md hover:bg-[#e8edf2] transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+									className="w-full max-sm:w-full md:w-32 h-12 px-6 py-4 flex items-center justify-center gap-2 bg-[#F0F4F8] text-black rounded-md hover:bg-[#e8edf2] transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
 								>
 									Отмена
 								</button>
@@ -267,11 +271,11 @@ export const ProfileInfo = () => {
 						</div>
 
 						{/* Кнопки Выйти и Удалить */}
-						<div className="flex items-center gap-5">
+						<div className="flex flex-col max-sm:flex-col gap-3 md:flex-row md:items-center md:gap-5">
 							<button
 								type="button"
 								onClick={handleLogout}
-								className="flex items-center gap-2 px-4 py-2 bg-[#F0F4F8] text-black rounded-md hover:bg-[#e8edf2] transition-colors duration-200"
+								className="w-full max-sm:w-full md:w-auto flex items-center justify-center gap-2 px-4 py-2 bg-[#F0F4F8] text-black rounded-md hover:bg-[#e8edf2] transition-colors duration-200"
 							>
 								<SignOutIcon size={16} />
 								Выйти из аккаунта
@@ -280,7 +284,7 @@ export const ProfileInfo = () => {
 							<button
 								type="button"
 								onClick={handleDeleteAccount}
-								className="flex items-center gap-2 px-4 py-2 bg-[#7B1931] text-white rounded-md hover:bg-[#6a1529] transition-colors duration-200"
+								className="w-full max-sm:w-full md:w-auto flex items-center justify-center gap-2 px-4 py-2 bg-[#7B1931] text-white rounded-md hover:bg-[#6a1529] transition-colors duration-200"
 							>
 								<TrashIcon size={16} />
 								Удалить аккаунт

@@ -363,16 +363,16 @@ export const DeliveryMethodForm = ({
 	}
 
 	return (
-		<div className="bg-white rounded-md p-5 flex flex-col gap-10">
+		<div className="bg-white rounded-md p-5 max-sm:p-4 flex flex-col gap-10 max-sm:gap-5">
 			{/* Заголовок секции */}
 			<SectionHeader number={2} title="Способ получения" />
 
 			{/* Кнопки выбора способа получения */}
-			<div className="flex gap-3">
+			<div className="flex gap-3 max-sm:gap-2">
 				<button
 					type="button"
 					onClick={() => handleDeliveryTypeChange('pickup')}
-					className={`px-[18px] py-3 rounded-md text-xs font-normal leading-[1.75] transition-colors ${
+					className={`px-[18px] max-sm:px-4 py-3 max-sm:py-2.5 rounded-md text-xs max-sm:text-[10px] font-normal leading-[1.75] transition-colors ${
 						data.type === 'pickup'
 							? 'bg-[#7B1931] text-[#F5F5F5]'
 							: 'bg-[#F2E8EA] text-black'
@@ -383,7 +383,7 @@ export const DeliveryMethodForm = ({
 				<button
 					type="button"
 					onClick={() => handleDeliveryTypeChange('delivery')}
-					className={`px-[18px] py-3 rounded-md text-xs font-normal leading-[1.75] transition-colors ${
+					className={`px-[18px] max-sm:px-4 py-3 max-sm:py-2.5 rounded-md text-xs max-sm:text-[10px] font-normal leading-[1.75] transition-colors ${
 						data.type === 'delivery'
 							? 'bg-[#7B1931] text-[#F5F5F5]'
 							: 'bg-[#F2E8EA] text-black'
@@ -396,13 +396,13 @@ export const DeliveryMethodForm = ({
 
 			{/* Контент в зависимости от выбранного способа */}
 			{data.type === 'pickup' && (
-				<div className="flex flex-col gap-3">
-					<p className="text-base font-bold leading-[1.3125] text-black">
+				<div className="flex flex-col gap-3 max-sm:gap-2">
+					<p className="text-base font-bold leading-[1.3125] text-black max-sm:text-sm">
 						{data.address.type === 'pickup'
 							? data.address.pickupAddress.address
 							: ''}
 					</p>
-					<p className="text-base font-normal leading-[1.3125] text-black">
+					<p className="text-base font-normal leading-[1.3125] text-black max-sm:text-sm">
 						{data.address.type === 'pickup'
 							? data.address.pickupAddress.workingHours
 							: ''}
@@ -412,9 +412,9 @@ export const DeliveryMethodForm = ({
 			)}
 
 			{data.type === 'delivery' && (
-				<div className="flex flex-col gap-3">
+				<div className="flex flex-col gap-3 max-sm:gap-2">
 					{/* Радио-кнопки для вариантов доставки */}
-					<div className="flex flex-col gap-3">
+					<div className="flex flex-col gap-3 max-sm:gap-2">
 						<Checkbox
 							checked={
 								data.address.type === 'delivery' &&
@@ -446,7 +446,7 @@ export const DeliveryMethodForm = ({
 					{/* Альтернативный выбор ПВЗ через API */}
 					{data.address.type === 'delivery' &&
 					data.address.deliveryOption === 'pickup_point' ? (
-						<div className="flex flex-col gap-3">
+						<div className="flex flex-col gap-3 max-sm:gap-2">
 							{/* Поиск города */}
 							<FormField label="Город">
 								<div className="relative city-search-container">
@@ -497,22 +497,22 @@ export const DeliveryMethodForm = ({
 
 							{/* Карта и список ПВЗ */}
 							{selectedCityCode && (
-								<div className="flex flex-col gap-3">
+								<div className="flex flex-col gap-3 max-sm:gap-2">
 									{isLoadingPvz ? (
-										<p className="text-sm text-gray-500">
+										<p className="text-sm max-sm:text-xs text-gray-500">
 											Загрузка списка ПВЗ...
 										</p>
 									) : pvzList.length > 0 ? (
 										<>
 											{/* Карта с ПВЗ */}
-											<div className="border border-gray-200 rounded-md overflow-hidden">
+											<div className="border border-gray-200 rounded-md overflow-hidden h-[400px] max-sm:h-[250px]">
 												<YandexMap
 													center={{
 														lat: pvzList[0]?.latitude || 55.7558,
 														lon: pvzList[0]?.longitude || 37.6173,
 													}}
 													zoom={12}
-													height="400px"
+													height="100%"
 													markers={pvzList.map((pvz) => ({
 														id: pvz.code,
 														latitude: pvz.latitude,
@@ -528,30 +528,30 @@ export const DeliveryMethodForm = ({
 											</div>
 
 											{/* Список ПВЗ */}
-											<div className="max-h-[300px] overflow-y-auto border border-gray-200 rounded-md">
+											<div className="max-h-[300px] max-sm:max-h-[200px] overflow-y-auto border border-gray-200 rounded-md">
 												{pvzList.map((pvz) => (
 													<button
 														key={pvz.code}
 														type="button"
 														onClick={() => handlePvzSelect(pvz)}
-														className={`w-full p-3 text-left border-b border-gray-100 last:border-b-0 hover:bg-gray-50 transition-colors ${
+														className={`w-full p-3 max-sm:p-2 text-left border-b border-gray-100 last:border-b-0 hover:bg-gray-50 transition-colors ${
 															data.address.type === 'delivery' &&
 															data.address.selectedPvz?.code === pvz.code
 																? 'bg-[#F2E8EA] border-[#7B1931]'
 																: ''
 														}`}
 													>
-														<p className="text-sm font-bold">{pvz.name}</p>
-														<p className="text-xs text-gray-600 mt-1">
+														<p className="text-sm max-sm:text-xs font-bold">{pvz.name}</p>
+														<p className="text-xs max-sm:text-[10px] text-gray-600 mt-1 max-sm:mt-0.5">
 															{pvz.addressFull || pvz.address}
 														</p>
 														{pvz.workTime && (
-															<p className="text-xs text-gray-500 mt-1">
+															<p className="text-xs max-sm:text-[10px] text-gray-500 mt-1 max-sm:mt-0.5">
 																Время работы: {pvz.workTime}
 															</p>
 														)}
 														{pvz.phones && pvz.phones.length > 0 && (
-															<p className="text-xs text-gray-500">
+															<p className="text-xs max-sm:text-[10px] text-gray-500">
 																Телефон:{' '}
 																{pvz.phones.map((p) => p.number).join(', ')}
 															</p>
@@ -566,36 +566,36 @@ export const DeliveryMethodForm = ({
 								</div>
 							)}
 							{data.address.selectedPvz && (
-								<div className="p-3 bg-gray-50 rounded-md">
-									<p className="text-sm font-bold">
+								<div className="p-3 max-sm:p-2 bg-gray-50 rounded-md">
+									<p className="text-sm max-sm:text-xs font-bold">
 										Выбран ПВЗ: {data.address.selectedPvz.name}
 									</p>
-									<p className="text-sm text-gray-600">
+									<p className="text-sm max-sm:text-xs text-gray-600">
 										{data.address.selectedPvz.address}
 									</p>
 									{data.deliveryCost && (
-										<p className="text-sm font-bold mt-2">
+										<p className="text-sm max-sm:text-xs font-bold mt-2 max-sm:mt-1">
 											Стоимость доставки: {data.deliveryCost} руб.
 										</p>
 									)}
 									{data.deliveryDate && (
-										<p className="text-sm text-gray-600">
+										<p className="text-sm max-sm:text-xs text-gray-600">
 											Дата доставки: {data.deliveryDate}
 										</p>
 									)}
 								</div>
 							)}
 							{isCalculating && (
-								<p className="text-sm text-gray-500">
+								<p className="text-sm max-sm:text-xs text-gray-500">
 									Расчет стоимости доставки...
 								</p>
 							)}
 							{calculationError && (
-								<p className="text-sm text-red-500">{calculationError}</p>
+								<p className="text-sm max-sm:text-xs text-red-500">{calculationError}</p>
 							)}
 						</div>
 					) : (
-						<div className="flex flex-col gap-3">
+						<div className="flex flex-col gap-3 max-sm:gap-2">
 							<FormField label="Город" error={errors?.city}>
 								<IInput
 									type="text"
@@ -624,7 +624,7 @@ export const DeliveryMethodForm = ({
 								/>
 							</FormField>
 
-							<div className="flex gap-3">
+							<div className="flex gap-3 max-sm:gap-2">
 								<FormField label="Дом" error={errors?.house} className="flex-1">
 									<IInput
 										type="text"
@@ -662,29 +662,29 @@ export const DeliveryMethodForm = ({
 
 							{/* Информация о стоимости доставки */}
 							{data.deliveryCost && (
-								<div className="p-3 bg-gray-50 rounded-md">
-									<p className="text-sm font-bold">
+								<div className="p-3 max-sm:p-2 bg-gray-50 rounded-md">
+									<p className="text-sm max-sm:text-xs font-bold">
 										Стоимость доставки: {data.deliveryCost} руб.
 									</p>
 									{data.deliveryDate && (
-										<p className="text-sm text-gray-600 mt-1">
+										<p className="text-sm max-sm:text-xs text-gray-600 mt-1 max-sm:mt-0.5">
 											Дата доставки: {data.deliveryDate}
 										</p>
 									)}
 									{data.deliveryTime && (
-										<p className="text-sm text-gray-600">
+										<p className="text-sm max-sm:text-xs text-gray-600">
 											Срок доставки: {data.deliveryTime}
 										</p>
 									)}
 								</div>
 							)}
 							{isCalculating && (
-								<p className="text-sm text-gray-500">
+								<p className="text-sm max-sm:text-xs text-gray-500">
 									Расчет стоимости доставки...
 								</p>
 							)}
 							{calculationError && (
-								<p className="text-sm text-red-500">{calculationError}</p>
+								<p className="text-sm max-sm:text-xs text-red-500">{calculationError}</p>
 							)}
 						</div>
 					)}

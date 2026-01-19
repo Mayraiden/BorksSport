@@ -181,16 +181,66 @@ export default factories.createCoreController(
 					('category' in query.filters || 
 					 (typeof query.filters === 'object' && Object.keys(query.filters).some(key => key.includes('category'))))
 
-				const products = await strapi.entityService.findMany(
-					'api::product.product',
-					{
-						filters,
-						sort: query.sort || 'name:asc',
-						start,
-						limit,
-						populate: needsCategoryPopulate ? ['category'] : undefined,
+				// Исправляем сортировку по цене: товары с ценой 0 или NULL должны быть в конце при сортировке по убыванию
+				const sortParam = query.sort || 'name:asc'
+				let products: any[] = []
+				
+				if (sortParam === 'price:desc') {
+					// При сортировке по убыванию цены сначала получаем товары с ценой > 0, потом с ценой 0 или NULL
+					const filtersWithPrice = {
+						...filters,
+						price: {
+							$gt: 0,
+						},
 					}
-				)
+					
+					// Для товаров с ценой 0 или NULL используем фильтр по цене = 0
+					// NULL значения будут обработаны отдельно
+					const filtersWithZeroPrice = {
+						...filters,
+						price: {
+							$eq: 0,
+						},
+					}
+					
+					// Получаем товары с ценой > 0, отсортированные по убыванию
+					const productsWithPrice = await strapi.entityService.findMany(
+						'api::product.product',
+						{
+							filters: filtersWithPrice,
+							sort: 'price:desc',
+							populate: needsCategoryPopulate ? ['category'] : undefined,
+						}
+					)
+					
+					// Получаем товары с ценой 0 или NULL
+					const productsWithZeroPrice = await strapi.entityService.findMany(
+						'api::product.product',
+						{
+							filters: filtersWithZeroPrice,
+							sort: 'name:asc', // Сортируем по имени для товаров с нулевой ценой
+							populate: needsCategoryPopulate ? ['category'] : undefined,
+						}
+					)
+					
+					// Объединяем: сначала товары с ценой > 0, потом с ценой 0
+					const allProducts = [...productsWithPrice, ...productsWithZeroPrice]
+					
+					// Применяем пагинацию к объединенному списку
+					products = allProducts.slice(start, start + limit)
+				} else {
+					// Для остальных видов сортировки используем стандартную логику
+					products = await strapi.entityService.findMany(
+						'api::product.product',
+						{
+							filters,
+							sort: sortParam,
+							start,
+							limit,
+							populate: needsCategoryPopulate ? ['category'] : undefined,
+						}
+					)
+				}
 
 				// Логирование результатов
 				if (products.length > 0) {
@@ -218,6 +268,7 @@ export default factories.createCoreController(
 					)
 				}
 
+				// Подсчитываем общее количество товаров с примененными фильтрами
 				const total = await strapi.entityService.count('api::product.product', {
 					filters,
 				})

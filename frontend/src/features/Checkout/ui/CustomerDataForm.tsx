@@ -21,12 +21,12 @@ export const CustomerDataForm = ({
 	onChange,
 }: CustomerDataFormProps) => {
 	return (
-		<div className="bg-white rounded-md p-5 flex flex-col gap-10">
+		<div className="bg-white rounded-md p-5 max-sm:p-4 flex flex-col gap-10 max-sm:gap-5">
 			{/* Заголовок секции */}
 			<SectionHeader number={1} title="Данные покупателя" />
 
 			{/* Поля формы */}
-			<div className="flex flex-col gap-3">
+			<div className="flex flex-col gap-3 max-sm:gap-2">
 				<FormField label="Имя" error={errors?.name}>
 					<IInput
 						type="text"
