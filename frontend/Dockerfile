@@ -30,13 +30,6 @@ ENV NEXT_PUBLIC_STRAPI_URL=$NEXT_PUBLIC_STRAPI_URL
 # Устанавливаем переменные окружения для сборки
 ENV NEXT_TELEMETRY_DISABLED 1
 
-# Отладочная проверка: убеждаемся, что файлы скопированы правильно
-RUN echo "Checking if files exist..." && \
-    ls -la src/features/Auth/ui/ && \
-    ls -la src/shared/ui/ProfileDropdown.tsx && \
-    ls -la src/shared/helpers/categoryImageMap.ts && \
-    echo "Files check completed"
-
 # Собираем приложение (используем next build напрямую без Turbopack для стабильности в Docker)
 # Turbopack может иметь проблемы с разрешением путей в Docker окружении
 RUN npx next build
