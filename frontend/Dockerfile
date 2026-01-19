@@ -19,6 +19,12 @@ RUN \
 FROM base AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
+# Копируем конфигурационные файлы сначала для лучшего кеширования
+COPY tsconfig.json next.config.ts package.json yarn.lock ./
+# Копируем исходный код
+COPY src ./src
+COPY public ./public
+# Копируем остальные конфигурационные файлы
 COPY . .
 
 # Принимаем build аргументы для переменных окружения
@@ -28,8 +34,9 @@ ENV NEXT_PUBLIC_STRAPI_URL=$NEXT_PUBLIC_STRAPI_URL
 # Устанавливаем переменные окружения для сборки
 ENV NEXT_TELEMETRY_DISABLED 1
 
-# Собираем приложение
-RUN yarn build
+# Собираем приложение (используем next build напрямую без Turbopack для стабильности в Docker)
+# Turbopack может иметь проблемы с разрешением путей в Docker окружении
+RUN npx next build
 
 # Production образ
 FROM base AS runner
