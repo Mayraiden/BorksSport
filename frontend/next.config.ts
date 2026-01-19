@@ -17,6 +17,11 @@ const nextConfig: NextConfig = {
 			'@widgets': require('path').resolve(__dirname, './src/widgets'),
 			'@shared': require('path').resolve(__dirname, './src/shared'),
 		}
+		// Улучшаем разрешение модулей для SSR импортов
+		config.resolve.extensionAlias = {
+			'.js': ['.js', '.ts', '.tsx'],
+			'.jsx': ['.jsx', '.tsx'],
+		}
 		return config
 	},
 
