@@ -19,11 +19,13 @@ export type IUserStoreType = {
 
 	isAuthenticated: boolean
 	isLoading: boolean
+	isRestoring: boolean
 	error: string | null
 
 	setUser: (user: IUserType | null) => void
 	setJwt: (jwt: string | null) => void
 	setLoading: (loading: boolean) => void
+	setRestoring: (isRestoring: boolean) => void
 	setError: (error: string | null) => void
 	logout: () => void
 }

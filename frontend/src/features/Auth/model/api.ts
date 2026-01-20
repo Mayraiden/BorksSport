@@ -158,4 +158,38 @@ export const strapiAuth = {
 			throw error
 		}
 	},
+
+	/**
+	 * Обновляет access token используя refresh token из cookie
+	 * POST /api/auth/refresh
+	 */
+	refreshToken: async (): Promise<{ jwt: string }> => {
+		try {
+			// credentials: 'include' отправляет cookies (включая refreshToken)
+			const response = await fetch(`${API_URL}/api/auth/refresh`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				credentials: 'include', // Важно для отправки cookies
+			})
+
+			const result = await response.json()
+
+			if (!response.ok || isStrapiError(result)) {
+				const error = isStrapiError(result)
+					? result
+					: {
+							error: {
+								status: response.status,
+								message: result.message || 'Не удалось обновить токен',
+							},
+					  }
+				throw error
+			}
+
+			// Возвращаем объект с jwt
+			return { jwt: result.jwt }
+		} catch (error) {
+			throw error
+		}
+	},
 }

@@ -9,6 +9,7 @@ export const useAuthStore = create<IUserStoreType>()(
 			jwt: null, // Access token - хранится только в памяти, не в localStorage
 			isAuthenticated: false,
 			isLoading: false,
+			isRestoring: false, // Флаг восстановления сессии
 			error: null,
 
 			setUser: (user) => {
@@ -29,6 +30,7 @@ export const useAuthStore = create<IUserStoreType>()(
 				}
 			},
 			setLoading: (isLoading: boolean) => set({ isLoading }),
+			setRestoring: (isRestoring: boolean) => set({ isRestoring }),
 			setError: (error: string | null) => set({ error }),
 			logout: () => {
 				// Гарантируем полную очистку всех данных
@@ -36,6 +38,7 @@ export const useAuthStore = create<IUserStoreType>()(
 					user: null, 
 					jwt: null, 
 					isAuthenticated: false,
+					isRestoring: false,
 					error: null
 				})
 			},

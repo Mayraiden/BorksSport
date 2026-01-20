@@ -138,13 +138,8 @@ class SessionManager {
 			return null
 		}
 
-		// Если нет refreshToken в store, но есть user - все равно пытаемся восстановить
-		// refreshToken может быть в HTTP-only cookie
-		if (!store.refreshToken) {
-			if (process.env.NODE_ENV === 'development') {
-				console.log('[SessionManager] No refreshToken in store, but trying restore with cookie')
-			}
-		}
+		// refreshToken хранится в HTTP-only cookie, поэтому не проверяем его в store
+		// просто пытаемся восстановить сессию через API
 
 		// Устанавливаем флаг восстановления
 		this.isRestoringFlag = true

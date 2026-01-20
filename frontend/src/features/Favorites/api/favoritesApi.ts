@@ -136,6 +136,7 @@ export const favoritesApi = {
 				const apiProduct = item.product as unknown as ApiProduct
 				// Transform images using the same logic as productApi
 				const images = (apiProduct.images || [])
+					.filter((url): url is string => url !== null && typeof url === 'string')
 					.map((url) => {
 						// Если URL не полный (начинается с /img?params=), пытаемся извлечь PhotoURL
 						const processedUrl = extractPhotoURLFromParams(url) || url
