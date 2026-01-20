@@ -13,11 +13,10 @@ export const Favorites = () => {
 	const [isLoading, setIsLoading] = useState(true)
 	const [error, setError] = useState<string | null>(null)
 	const { isAuthenticated } = useAuthStore()
-	const { jwt, isRestoring } = useJwtWithRestore()
+	const { jwt } = useJwtWithRestore()
 
 	// Функция для обновления списка избранного после удаления
 	const refreshFavorites = async () => {
-		// Используем jwt из хука компонента, который автоматически восстанавливает сессию
 		if (!jwt) return
 		try {
 			const favorites = await favoritesApi.getFavorites(jwt)
@@ -29,21 +28,9 @@ export const Favorites = () => {
 
 	useEffect(() => {
 		const loadFavorites = async () => {
-			// Если идет восстановление сессии, ждем его завершения
-			if (isRestoring) {
-				return
-			}
-
-			// Если пользователь не авторизован, показываем ошибку
-			if (!isAuthenticated) {
-				setError('Необходимо войти в аккаунт')
+			// Если пользователь не авторизован или нет jwt, не загружаем избранное
+			if (!isAuthenticated || !jwt) {
 				setIsLoading(false)
-				return
-			}
-
-			// Если пользователь авторизован, но JWT еще не восстановлен, ждем
-			if (!jwt) {
-				setIsLoading(true)
 				return
 			}
 
@@ -71,7 +58,7 @@ export const Favorites = () => {
 		}
 
 		loadFavorites()
-	}, [isAuthenticated, jwt, isRestoring])
+	}, [isAuthenticated, jwt])
 
 	if (!isAuthenticated) {
 		return (

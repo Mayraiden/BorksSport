@@ -1,11 +1,12 @@
 'use client'
 
-import { ReactNode } from 'react'
-import { usePathname } from 'next/navigation'
+import { ReactNode, useEffect } from 'react'
+import { usePathname, useRouter } from 'next/navigation'
 import { Header } from '@/widgets/Header/Header'
 import { Footer } from '@/widgets/Footer/Footer'
 import { IProfileSideBar } from '@/shared/ui/IProfileSideBar'
 import { Breadcrumbs } from '@/shared/ui/Breadcrumbs'
+import { useAuthStore } from '@/features/Auth/model/store'
 
 interface ProfileLayoutProps {
 	children: ReactNode
@@ -21,12 +22,26 @@ const pageTitles: Record<string, string> = {
 
 export const ProfileLayout = ({ children }: ProfileLayoutProps) => {
 	const pathname = usePathname()
+	const router = useRouter()
+	const { isAuthenticated, user } = useAuthStore()
 	const pageTitle = pageTitles[pathname] || 'Профиль'
+
+	// Защита профиля - редирект если не авторизован
+	useEffect(() => {
+		if (!isAuthenticated) {
+			router.push('/')
+		}
+	}, [isAuthenticated, router])
 
 	const breadcrumbItems = [
 		{ label: 'Главная', href: '/' },
 		{ label: pageTitle },
 	]
+
+	// Если не авторизован, не рендерим контент
+	if (!isAuthenticated) {
+		return null
+	}
 
 	return (
 		<section className="w-screen min-h-screen bg-[#F0F4F8] flex flex-col">

@@ -12,6 +12,62 @@ interface ApiProduct {
 	images?: (string | null)[]
 }
 
+/**
+ * Извлекает PhotoURL из строки /img?params=... (на случай, если на бэкенде не была обработана)
+ * Работает только в браузере (использует atob)
+ * Используется та же логика, что и в productApi.ts
+ */
+function extractPhotoURLFromParams(url: string): string | null {
+	if (!url || typeof url !== 'string') {
+		return null
+	}
+
+	// Если это уже полный URL, возвращаем его
+	if (url.startsWith('http://') || url.startsWith('https://')) {
+		return url
+	}
+
+	// Если это относительный путь /img?params=..., пытаемся извлечь PhotoURL
+	if (url.startsWith('/img?params=')) {
+		// Проверяем, что мы в браузере (atob доступен только в браузере)
+		if (typeof window === 'undefined' || typeof atob === 'undefined') {
+			return null
+		}
+
+		try {
+			const paramsMatch = url.match(/params=(.+)/)
+			if (paramsMatch) {
+				const rawParams = paramsMatch[1]
+				
+				// Пробуем base64 декодирование
+				try {
+					const decodedParams = atob(rawParams)
+					const params = JSON.parse(decodedParams)
+					if (params.PhotoURL) {
+						return params.PhotoURL
+					}
+				} catch {
+					// Пробуем URL декодирование
+					try {
+						const decodedParams = decodeURIComponent(rawParams)
+						const params = JSON.parse(decodedParams)
+						if (params.PhotoURL) {
+							return params.PhotoURL
+						}
+					} catch {
+						// Не удалось декодировать
+						return null
+					}
+				}
+			}
+		} catch {
+			return null
+		}
+	}
+
+	return null
+}
+
 interface FavoriteResponse {
 	success: boolean
 	data?: FavoriteItem[]
@@ -67,50 +123,45 @@ export const favoritesApi = {
 			}
 
 			// Transform favorite items to products (using same image transformation as productApi)
-			return data.data.map((item: FavoriteItem) => {
+			// Фильтруем элементы с null product (если продукт был удален из базы)
+			const validItems = data.data.filter((item: FavoriteItem) => {
+				const hasProduct = item.product !== null && item.product !== undefined
+				if (!hasProduct && process.env.NODE_ENV === 'development') {
+					console.warn(`[favoritesApi] Favorite item ${item.id} has null product, filtering out`)
+				}
+				return hasProduct
+			})
+
+			return validItems.map((item: FavoriteItem) => {
 				const apiProduct = item.product as unknown as ApiProduct
 				// Transform images using the same logic as productApi
-				const transformImages = () => {
-					const validImages = (apiProduct.images || [])
-						.filter((imgUrl): imgUrl is string => imgUrl !== null && typeof imgUrl === 'string')
-						.map((imgUrl: string, index: number) => {
-							try {
-								const paramsMatch = imgUrl.match(/params=(.+)/)
-								if (paramsMatch) {
-									const rawParams = paramsMatch[1]
-									try {
-										const decodedParams = atob(rawParams)
-										const params = JSON.parse(decodedParams)
-										if (params.PhotoURL) {
-											return {
-												id: index.toString(),
-												url: params.PhotoURL,
-												alt: apiProduct.name || 'Изображение товара',
-											}
-										}
-									} catch {
-										try {
-											const decodedParams = decodeURIComponent(rawParams)
-											const params = JSON.parse(decodedParams)
-											if (params.PhotoURL) {
-												return {
-													id: index.toString(),
-													url: params.PhotoURL,
-													alt: apiProduct.name || 'Изображение товара',
-												}
-											}
-										} catch {}
-									}
-								}
-							} catch {}
-							return {
-								id: index.toString(),
-								url: '/NoProductImage.jpg',
-								alt: apiProduct.name || 'Изображение товара',
-							}
-						})
-					return validImages.length > 0
-						? validImages
+				const images = (apiProduct.images || [])
+					.map((url) => {
+						// Если URL не полный (начинается с /img?params=), пытаемся извлечь PhotoURL
+						const processedUrl = extractPhotoURLFromParams(url) || url
+						return processedUrl
+					})
+					.filter((url): url is string => {
+						// Фильтруем невалидные URL (null, пустые строки, относительные пути без params)
+						if (!url || typeof url !== 'string') {
+							return false
+						}
+						// Если это относительный путь /img?params= и не удалось извлечь PhotoURL, пропускаем
+						if (url.startsWith('/img?params=')) {
+							return false
+						}
+						return true
+					})
+					.map((url, index) => ({
+						id: index.toString(),
+						url: url,
+						alt: apiProduct.name || 'Изображение товара',
+					}))
+
+				// Если нет изображений, добавляем fallback
+				const validImages =
+					images.length > 0
+						? images
 						: [
 								{
 									id: '0',
@@ -118,7 +169,6 @@ export const favoritesApi = {
 									alt: apiProduct.name || 'Изображение товара',
 								},
 							]
-				}
 
 				return {
 					id: apiProduct.id.toString(),
@@ -127,7 +177,7 @@ export const favoritesApi = {
 						apiProduct.article || apiProduct.sbisNomNumber || 'Не указано',
 					brand: apiProduct.categoryName || 'Не указано',
 					price: apiProduct.price || 0,
-					images: transformImages(),
+					images: validImages,
 					colors: [],
 					sizes: [],
 					description: apiProduct.description,

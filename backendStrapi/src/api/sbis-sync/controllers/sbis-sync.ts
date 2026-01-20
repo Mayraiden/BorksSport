@@ -1,8 +1,25 @@
 import type { Core } from '@strapi/strapi'
+import { verifyAdminJWT } from '../../../shared/helpers/verifyAdminJWT'
 
 export default ({ strapi }: { strapi: Core.Strapi }) => ({
 	async syncProducts(ctx) {
 		try {
+			// Проверка авторизации админа через JWT токен из Authorization header или cookie
+			// Токен может быть отправлен из Local Storage через Authorization header
+			const adminUser = await verifyAdminJWT(strapi, ctx)
+			
+			if (!adminUser) {
+				ctx.status = 401
+				ctx.body = { 
+					success: false, 
+					message: 'Unauthorized: Admin authentication required. Please log in to the admin panel.' 
+				}
+				return
+			}
+			
+			// Устанавливаем admin user в state для дальнейшего использования
+			ctx.state.admin = adminUser
+
 			const result = await strapi
 				.service('api::sbis-sync.sbis-sync')
 				.syncProducts()

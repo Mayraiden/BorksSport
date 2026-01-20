@@ -7,23 +7,14 @@ export default ({ env }) => {
 		app: {
 			keys: env.array('APP_KEYS'),
 		},
-		webhooks: {
-			populateRelations: env.bool('WEBHOOKS_POPULATE_RELATIONS', false),
-		},
-		// proxy: true для production (за reverse proxy), false для development
-		proxy: !isDevelopment,
-		url: env(
-			'PUBLIC_URL',
-			isDevelopment ? 'http://localhost:1337' : 'https://api.borkssport.ru'
-		),
-		allowedHosts: isDevelopment
-			? [
-					'localhost',
-					'127.0.0.1',
-					'api.borkssport.ru',
-					'borkssport.ru',
-					'www.borkssport.ru',
-				]
-			: ['api.borkssport.ru', 'borkssport.ru', 'www.borkssport.ru'],
+		// Настройки для production (за reverse proxy)
+		// В development не используем proxy, чтобы не было проблем с cookie и сессиями
+		...(isDevelopment
+			? {}
+			: {
+					proxy: true,
+					url: env('PUBLIC_URL', 'https://api.borkssport.ru'),
+					allowedHosts: ['api.borkssport.ru', 'borkssport.ru', 'www.borkssport.ru'],
+				}),
 	}
 }

@@ -37,8 +37,7 @@ export const strapiAuth = {
 				throw result
 			}
 
-			// Refresh token устанавливается сервером в HTTP-only cookie
-			// Access token (jwt) возвращается в ответе
+			// Strapi возвращает jwt и user в ответе
 			return result
 		} catch (error) {
 			throw error
@@ -65,8 +64,7 @@ export const strapiAuth = {
 				throw result
 			}
 
-			// Refresh token устанавливается сервером в HTTP-only cookie
-			// Access token (jwt) возвращается в ответе
+			// Strapi возвращает jwt и user в ответе
 			return result
 		} catch (error) {
 			// Если это сетевая ошибка или другая ошибка
@@ -74,33 +72,6 @@ export const strapiAuth = {
 		}
 	},
 
-	/**
-	 * Обновляет access token используя refresh token из cookie
-	 */
-	refreshToken: async (): Promise<{ jwt: string }> => {
-		try {
-			// credentials: 'include' автоматически отправляет refresh token из HTTP-only cookie
-			const response = await fetch(`${API_URL}/api/auth/refresh`, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				credentials: 'include',
-			})
-
-			if (!response.ok) {
-				throw new Error('Не удалось обновить токен')
-			}
-
-			const result = await response.json()
-
-			if (isStrapiError(result)) {
-				throw new Error(result.error?.message || 'Ошибка обновления токена')
-			}
-
-			return result
-		} catch (error) {
-			throw error
-		}
-	},
 
 	getMe: async (jwt: string): Promise<IUserType> => {
 		try {

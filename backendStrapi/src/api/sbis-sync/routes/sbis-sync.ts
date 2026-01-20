@@ -4,13 +4,25 @@ export default {
 			method: 'POST',
 			path: '/sbis-sync/sync-products',
 			handler: 'sbis-sync.syncProducts',
-			config: { auth: false, policies: [], middlewares: [] },
+			config: { 
+				// Отключаем стандартную проверку auth, проверяем вручную в контроллере
+				// Это позволяет использовать JWT токен из Authorization header
+				auth: false,
+				policies: [],
+				middlewares: [] 
+			},
 		},
 		{
 			method: 'GET',
 			path: '/sbis-sync/sync-products',
 			handler: 'sbis-sync.syncProducts',
-			config: { auth: false, policies: [], middlewares: [] },
+			config: { 
+				// Отключаем стандартную проверку auth, проверяем вручную в контроллере
+				// Это позволяет использовать JWT токен из Authorization header
+				auth: false,
+				policies: [],
+				middlewares: [] 
+			},
 		},
 		{
 			method: 'GET',

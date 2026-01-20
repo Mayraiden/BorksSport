@@ -1,11 +1,8 @@
 /**
- * API Client с автоматическим обновлением токенов
- * 
- * Эта утилита перехватывает 401 ошибки и автоматически обновляет access token
- * используя refresh token из HTTP-only cookie
+ * API Client для выполнения запросов с JWT токеном
+ * Обрабатывает 401 ошибки (истекший токен) - разлогинивает и уведомляет пользователя
  */
 
-import { strapiAuth } from '@/features/Auth/model/api'
 import { useAuthStore } from '@/features/Auth/model/store'
 
 const API_URL =
@@ -13,12 +10,11 @@ const API_URL =
 	process.env.NEXT_STRAPI_URL ||
 	'http://localhost:1337'
 
-// Флаг для предотвращения множественных одновременных попыток обновления токена
-let isRefreshing = false
-let refreshPromise: Promise<string> | null = null
+// Флаг для предотвращения множественных одновременных обработок 401
+let isHandling401 = false
 
 /**
- * Выполняет fetch запрос с автоматическим обновлением токена при 401 ошибке
+ * Выполняет fetch запрос с JWT токеном в заголовках
  */
 export async function fetchWithAuth(
 	url: string,
@@ -39,74 +35,33 @@ export async function fetchWithAuth(
 	const response = await fetch(`${API_URL}${url}`, {
 		...fetchOptions,
 		headers,
-		credentials: 'include', // Отправляем cookies (refresh token)
+		credentials: 'include',
 	})
 
-	// Если получили 401, пытаемся обновить токен
+	// Если получили 401 (токен истек или невалидный)
 	if (response.status === 401 && accessToken) {
-		try {
-			// Если уже идет обновление токена, ждем его завершения
-			if (isRefreshing && refreshPromise) {
-				const newAccessToken = await refreshPromise
-				// Повторяем оригинальный запрос с новым токеном
-				headers.set('Authorization', `Bearer ${newAccessToken}`)
-				const retryResponse = await fetch(`${API_URL}${url}`, {
-					...fetchOptions,
-					headers,
-					credentials: 'include',
-				})
-				return retryResponse
+		// Предотвращаем множественные обработки
+		if (!isHandling401) {
+			isHandling401 = true
+
+			// Разлогиниваем пользователя
+			const store = useAuthStore.getState()
+			store.logout()
+
+			// Показываем уведомление пользователю
+			if (typeof window !== 'undefined') {
+				alert('Ваша сессия истекла. Пожалуйста, войдите в аккаунт снова.')
+				
+				// Редиректим на страницу логина
+				if (window.location.pathname !== '/auth') {
+					window.location.href = '/auth'
+				}
 			}
 
-			// Начинаем обновление токена
-			isRefreshing = true
-			refreshPromise = (async () => {
-				try {
-					if (process.env.NODE_ENV === 'development') {
-						console.log('[fetchWithAuth] Refreshing token due to 401 error')
-					}
-					
-					// Пытаемся обновить access token
-					const refreshResult = await strapiAuth.refreshToken()
-					const newAccessToken = refreshResult.jwt
-
-					if (!newAccessToken) {
-						throw new Error('Refresh token response missing jwt')
-					}
-
-					// Обновляем токен в store
-					useAuthStore.getState().setJwt(newAccessToken)
-
-					if (process.env.NODE_ENV === 'development') {
-						console.log('[fetchWithAuth] Token refreshed successfully')
-					}
-
-					return newAccessToken
-				} catch (error) {
-					// Если refresh token тоже невалиден, разлогиниваем пользователя
-					console.warn('[fetchWithAuth] Failed to refresh token:', error)
-					useAuthStore.getState().logout()
-					throw new Error('Сессия истекла. Пожалуйста, войдите снова.')
-				} finally {
-					isRefreshing = false
-					refreshPromise = null
-				}
-			})()
-
-			const newAccessToken = await refreshPromise
-
-			// Повторяем оригинальный запрос с новым токеном
-			headers.set('Authorization', `Bearer ${newAccessToken}`)
-			const retryResponse = await fetch(`${API_URL}${url}`, {
-				...fetchOptions,
-				headers,
-				credentials: 'include',
-			})
-
-			return retryResponse
-		} catch (error) {
-			// Если обновление токена не удалось, пробрасываем ошибку дальше
-			throw error
+			// Сбрасываем флаг через небольшую задержку
+			setTimeout(() => {
+				isHandling401 = false
+			}, 1000)
 		}
 	}
 

@@ -10,6 +10,7 @@ import {
 	NotePencilIcon,
 } from '@phosphor-icons/react/ssr'
 import { useAuthStore } from '@/features/Auth/model/store'
+import { useJwtWithRestore } from '@/features/Auth/lib/useJwtWithRestore'
 import { useGetMe, useUpdateProfile, useDeleteAccount } from '@/features/Auth/lib/queries'
 import {
 	profileSchema,
@@ -24,11 +25,26 @@ export const ProfileInfo = () => {
 	const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
 
 	// Получаем данные из store
-	const { user, logout } = useAuthStore()
+	const { user, logout, isAuthenticated } = useAuthStore()
+	const { jwt } = useJwtWithRestore()
 	const router = useRouter()
 
 	// Загружаем актуальные данные пользователя
 	const { isLoading: isLoadingUser } = useGetMe()
+
+	// Проверка наличия данных пользователя
+	useEffect(() => {
+		// Если авторизован, но нет данных пользователя и нет jwt, разлогиниваем
+		if (isAuthenticated && !user && !jwt) {
+			logout()
+			router.push('/')
+		}
+	}, [isAuthenticated, user, jwt, logout, router])
+
+	// Если нет данных пользователя, не рендерим компонент
+	if (!user) {
+		return null
+	}
 
 	// Мутация для обновления профиля
 	const updateProfileMutation = useUpdateProfile()

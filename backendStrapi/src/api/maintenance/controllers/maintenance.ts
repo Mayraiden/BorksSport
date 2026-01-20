@@ -3,6 +3,7 @@ import type { Core } from '@strapi/strapi'
 export default ({ strapi }: { strapi: Core.Strapi }) => ({
 	async clearByUid(ctx) {
 		try {
+
 			const rawUid = ctx.params.uid
 			const uid = decodeURIComponent(rawUid)
 

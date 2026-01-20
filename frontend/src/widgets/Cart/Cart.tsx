@@ -16,11 +16,10 @@ export const Cart = () => {
 	const [isLoading, setIsLoading] = useState(true)
 	const [error, setError] = useState<string | null>(null)
 	const { isAuthenticated } = useAuthStore()
-	const { jwt, isRestoring } = useJwtWithRestore()
+	const { jwt } = useJwtWithRestore()
 
 	// Функция для обновления списка корзины
 	const refreshCart = async () => {
-		// Используем jwt из хука компонента, который автоматически восстанавливает сессию
 		if (!jwt) return
 		try {
 			const items = await cartApi.getCart(jwt)
@@ -32,21 +31,9 @@ export const Cart = () => {
 
 	useEffect(() => {
 		const loadCart = async () => {
-			// Если идет восстановление сессии, ждем его завершения
-			if (isRestoring) {
-				return
-			}
-
-			// Если пользователь не авторизован, показываем ошибку
-			if (!isAuthenticated) {
-				setError('Необходимо войти в аккаунт')
+			// Если пользователь не авторизован или нет jwt, не загружаем корзину
+			if (!isAuthenticated || !jwt) {
 				setIsLoading(false)
-				return
-			}
-
-			// Если пользователь авторизован, но JWT еще не восстановлен, ждем
-			if (!jwt) {
-				setIsLoading(true)
 				return
 			}
 
@@ -73,7 +60,7 @@ export const Cart = () => {
 		}
 
 		loadCart()
-	}, [isAuthenticated, jwt, isRestoring])
+	}, [isAuthenticated, jwt])
 
 	const handleCheckout = () => {
 		// Переход к оформлению заказа (используем router.push для сохранения состояния)
