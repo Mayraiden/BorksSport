@@ -30,7 +30,7 @@ export const PasswordInput = forwardRef<HTMLInputElement, PasswordInputProps>(
 					onChange={onChange}
 					onBlur={onBlur}
 					name={name}
-					className={`bg-transparent text-base text-black outline-none disabled:cursor-not-allowed pr-20 max-sm:pr-16 max-sm:text-sm ${className} ${
+					className={`bg-transparent text-base text-black outline-none disabled:cursor-not-allowed pr-20 max-sm:pr-16 ${className} ${
 						error ? 'text-red-500' : ''
 					}`}
 				/>

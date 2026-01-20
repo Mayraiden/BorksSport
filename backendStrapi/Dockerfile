@@ -9,17 +9,17 @@ WORKDIR /app
 RUN npm config set fetch-retries 5 && \
     npm config set fetch-retry-mintimeout 20000 && \
     npm config set fetch-retry-maxtimeout 120000 && \
-    npm config set progress true && \
-    npm config set loglevel info
+    npm config set progress false && \
+    npm config set loglevel error
 
 # Копируем файлы зависимостей
 COPY package*.json ./
 
-# Устанавливаем зависимости с подробным выводом прогресса
+# Устанавливаем зависимости
 # Используем npm ci для production (быстрее и надежнее, требует package-lock.json)
 # Если npm ci не работает (нет lock файла), fallback на npm install
-RUN npm ci --loglevel=info --progress=true || \
-    npm install --loglevel=info --progress=true
+RUN npm ci --loglevel=error --progress=false || \
+    npm install --loglevel=error --progress=false
 
 # Копируем исходный код
 COPY . .

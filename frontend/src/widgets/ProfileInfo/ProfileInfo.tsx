@@ -32,20 +32,6 @@ export const ProfileInfo = () => {
 	// Загружаем актуальные данные пользователя
 	const { isLoading: isLoadingUser } = useGetMe()
 
-	// Проверка наличия данных пользователя
-	useEffect(() => {
-		// Если авторизован, но нет данных пользователя и нет jwt, разлогиниваем
-		if (isAuthenticated && !user && !jwt) {
-			logout()
-			router.push('/')
-		}
-	}, [isAuthenticated, user, jwt, logout, router])
-
-	// Если нет данных пользователя, не рендерим компонент
-	if (!user) {
-		return null
-	}
-
 	// Мутация для обновления профиля
 	const updateProfileMutation = useUpdateProfile()
 
@@ -67,6 +53,15 @@ export const ProfileInfo = () => {
 		},
 	})
 
+	// Проверка наличия данных пользователя
+	useEffect(() => {
+		// Если авторизован, но нет данных пользователя и нет jwt, разлогиниваем
+		if (isAuthenticated && !user && !jwt) {
+			logout()
+			router.push('/')
+		}
+	}, [isAuthenticated, user, jwt, logout, router])
+
 	// Загружаем данные пользователя при монтировании компонента и после обновления
 	useEffect(() => {
 		if (user) {
@@ -77,6 +72,11 @@ export const ProfileInfo = () => {
 			})
 		}
 	}, [user, reset])
+
+	// Если нет данных пользователя, не рендерим компонент
+	if (!user) {
+		return null
+	}
 
 	// Обработка сохранения формы
 	const onSubmit = async (data: ProfileFormData) => {

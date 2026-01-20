@@ -23,7 +23,7 @@ const pageTitles: Record<string, string> = {
 export const ProfileLayout = ({ children }: ProfileLayoutProps) => {
 	const pathname = usePathname()
 	const router = useRouter()
-	const { isAuthenticated, user } = useAuthStore()
+	const { isAuthenticated } = useAuthStore()
 	const pageTitle = pageTitles[pathname] || 'Профиль'
 
 	// Защита профиля - редирект если не авторизован

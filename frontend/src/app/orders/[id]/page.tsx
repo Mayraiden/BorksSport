@@ -1,6 +1,6 @@
 'use client'
 
-import { use, useEffect, useMemo, useState } from 'react'
+import { use, useEffect, useMemo, useState, useCallback } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { useAuthStore } from '@/features/Auth/model/store'
@@ -46,7 +46,7 @@ export default function OrderDetailsPage({ params }: OrderDetailsPageProps) {
 	const orderId = Number(resolvedParams.id)
 	const paymentSuccess = searchParams?.get('payment') === 'success'
 
-	const loadOrder = async () => {
+	const loadOrder = useCallback(async () => {
 		if (!isAuthenticated || !jwt || Number.isNaN(orderId)) {
 			setIsLoading(false)
 			return
@@ -68,11 +68,11 @@ export default function OrderDetailsPage({ params }: OrderDetailsPageProps) {
 		} finally {
 			setIsLoading(false)
 		}
-	}
+	}, [isAuthenticated, jwt, orderId])
 
 	useEffect(() => {
 		loadOrder()
-	}, [isAuthenticated, jwt, orderId])
+	}, [loadOrder])
 
 	// Автоматическая проверка статуса платежа при возврате после оплаты
 	useEffect(() => {
@@ -104,7 +104,7 @@ export default function OrderDetailsPage({ params }: OrderDetailsPageProps) {
 		const timeout = setTimeout(checkPaymentStatus, 3000)
 		
 		return () => clearTimeout(timeout)
-	}, [paymentSuccess, isAuthenticated, jwt, order, payments, isLoading])
+	}, [paymentSuccess, isAuthenticated, jwt, order, payments, isLoading, loadOrder])
 
 	const pendingPayment = useMemo(
 		() => payments.find((payment) => payment.status === 'pending'),

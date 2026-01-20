@@ -7,6 +7,7 @@
 
 import { strapiAuth } from '../model/api'
 import { useAuthStore } from '../model/store'
+import type { IUserType } from '../model/types'
 
 // Типы ошибок для правильной обработки
 export enum ErrorType {
@@ -23,7 +24,7 @@ interface RestoreError extends Error {
 }
 
 class SessionManager {
-	private restorePromise: Promise<{ jwt: string; user: any } | null> | null = null
+	private restorePromise: Promise<{ jwt: string; user: IUserType } | null> | null = null
 	private isRestoringFlag = false
 
 	/**
@@ -39,7 +40,7 @@ class SessionManager {
 	private classifyError(error: unknown): RestoreError {
 		if (error instanceof Error) {
 			const message = error.message.toLowerCase()
-			const status = (error as any).status
+			const status = (error as Error & { status?: number }).status
 
 			// Авторизационные ошибки (401/403)
 			if (
@@ -120,7 +121,7 @@ class SessionManager {
 	 * @param maxRetries - максимальное количество попыток (по умолчанию 3)
 	 * @returns Promise с jwt и user или null если восстановление не удалось
 	 */
-	async restoreSession(maxRetries: number = 3): Promise<{ jwt: string; user: any } | null> {
+	async restoreSession(maxRetries: number = 3): Promise<{ jwt: string; user: IUserType } | null> {
 		// Если уже идет восстановление, возвращаем существующий promise
 		if (this.restorePromise) {
 			return this.restorePromise
@@ -165,7 +166,7 @@ class SessionManager {
 	/**
 	 * Выполняет восстановление сессии с retry логикой
 	 */
-	private async performRestore(maxRetries: number): Promise<{ jwt: string; user: any } | null> {
+	private async performRestore(maxRetries: number): Promise<{ jwt: string; user: IUserType } | null> {
 		const store = useAuthStore.getState()
 
 		for (let attempt = 1; attempt <= maxRetries; attempt++) {
@@ -244,7 +245,7 @@ class SessionManager {
 	/**
 	 * Загружает данные пользователя с retry логикой
 	 */
-	private async loadUserData(jwt: string, maxRetries: number = 3): Promise<any | null> {
+	private async loadUserData(jwt: string, maxRetries: number = 3): Promise<IUserType | null> {
 		for (let attempt = 1; attempt <= maxRetries; attempt++) {
 			try {
 				const user = await strapiAuth.getMe(jwt)
