@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { ItemCard } from '@/shared/ui/ItemCard'
 import { ProfileDropdown } from '@/shared/ui/ProfileDropdown'
 import { useAuthStore } from '@/features/Auth/model/store'
+import { useJwtWithRestore } from '@/features/Auth/lib/useJwtWithRestore'
 import { favoritesApi } from '@/features/Favorites/api/favoritesApi'
 import type { Product } from '@/shared/types'
 
@@ -11,10 +12,12 @@ export const Favorites = () => {
 	const [products, setProducts] = useState<Product[]>([])
 	const [isLoading, setIsLoading] = useState(true)
 	const [error, setError] = useState<string | null>(null)
-	const { isAuthenticated, jwt } = useAuthStore()
+	const { isAuthenticated } = useAuthStore()
+	const { jwt, isRestoring } = useJwtWithRestore()
 
 	// Функция для обновления списка избранного после удаления
 	const refreshFavorites = async () => {
+		// Используем jwt из хука компонента, который автоматически восстанавливает сессию
 		if (!jwt) return
 		try {
 			const favorites = await favoritesApi.getFavorites(jwt)
@@ -26,9 +29,21 @@ export const Favorites = () => {
 
 	useEffect(() => {
 		const loadFavorites = async () => {
-			if (!isAuthenticated || !jwt) {
+			// Если идет восстановление сессии, ждем его завершения
+			if (isRestoring) {
+				return
+			}
+
+			// Если пользователь не авторизован, показываем ошибку
+			if (!isAuthenticated) {
 				setError('Необходимо войти в аккаунт')
 				setIsLoading(false)
+				return
+			}
+
+			// Если пользователь авторизован, но JWT еще не восстановлен, ждем
+			if (!jwt) {
+				setIsLoading(true)
 				return
 			}
 
@@ -56,7 +71,7 @@ export const Favorites = () => {
 		}
 
 		loadFavorites()
-	}, [isAuthenticated, jwt])
+	}, [isAuthenticated, jwt, isRestoring])
 
 	if (!isAuthenticated) {
 		return (
