@@ -98,6 +98,8 @@ export const MobileBottomNav = () => {
 				className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-200 shadow-lg md:hidden safe-area-bottom"
 				style={{
 					paddingBottom: 'max(8px, env(safe-area-inset-bottom))',
+					WebkitBackfaceVisibility: 'visible',
+					backfaceVisibility: 'visible',
 				}}
 			>
 				<ul className="flex items-center justify-around h-16 px-2">

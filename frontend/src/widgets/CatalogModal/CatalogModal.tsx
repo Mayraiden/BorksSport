@@ -73,9 +73,9 @@ export const CatalogModal = ({ isOpen, onClose }: ICatalogModalProps) => {
 	return (
 		<>
 			{/* Overlay для закрытия по клику вне модала */}
-			<div className="fixed inset-0 bg-black/20 z-40" onClick={handleClose} />
+			<div className="fixed inset-0 bg-black/20 z-[100]" onClick={handleClose} style={{ WebkitBackfaceVisibility: 'visible', backfaceVisibility: 'visible' }} />
 
-			<aside className="absolute left-0 top-20 w-screen min-h-3/4 p-5 flex flex-col justify-between bg-white shadow-lg z-50">
+			<aside className="fixed left-0 top-20 w-screen min-h-3/4 p-5 flex flex-col justify-between bg-white shadow-lg z-[101]" style={{ WebkitBackfaceVisibility: 'visible', backfaceVisibility: 'visible' }}>
 				<div className="h-full grid grid-cols-6 border border-gray/20">
 					{isLoading ? (
 						<div className="col-span-6 p-5 text-center text-gray">

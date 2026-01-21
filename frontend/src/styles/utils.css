@@ -35,11 +35,12 @@
 		image-rendering: crisp-edges;
 	}
 	
-	/* Предотвращение размытия при трансформациях */
-	* {
+	/* Предотвращение размытия при трансформациях - применяем только к элементам с transform */
+	[class*="transform"],
+	[class*="scale"],
+	[class*="rotate"],
+	[class*="translate"] {
 		-webkit-backface-visibility: hidden;
 		backface-visibility: hidden;
-		-webkit-perspective: 1000;
-		perspective: 1000;
 	}
 }

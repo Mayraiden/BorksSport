@@ -28,7 +28,7 @@ export const CookieBanner = () => {
 	if (!isVisible) return null
 
 	return (
-		<div className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-200 shadow-lg p-4 md:p-6">
+		<div className="fixed bottom-0 left-0 right-0 z-[60] bg-white border-t border-gray-200 shadow-lg p-4 md:p-6" style={{ WebkitBackfaceVisibility: 'visible', backfaceVisibility: 'visible' }}>
 			<div className="max-w-[1040px] mx-auto flex flex-col md:flex-row items-start md:items-center gap-4">
 				<div className="flex-1">
 					<p className="text-sm text-gray-700 mb-2">

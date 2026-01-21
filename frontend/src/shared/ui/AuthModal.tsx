@@ -26,10 +26,10 @@ export const AuthModal = ({ isOpen, onClose }: AuthModalProps) => {
 	return (
 		<>
 			{/* Overlay для закрытия по клику вне модала */}
-			<div className="fixed inset-0 bg-black/30 z-40" onClick={onClose} />
+			<div className="fixed inset-0 bg-black/30 z-[100]" onClick={onClose} style={{ WebkitBackfaceVisibility: 'visible', backfaceVisibility: 'visible' }} />
 
 			{/* Модальное окно */}
-			<div className="fixed inset-0 flex items-center justify-center z-50 pointer-events-none">
+			<div className="fixed inset-0 flex items-center justify-center z-[101] pointer-events-none" style={{ WebkitBackfaceVisibility: 'visible', backfaceVisibility: 'visible' }}>
 				<div className="bg-white rounded-lg p-6 w-full max-w-md mx-4 relative pointer-events-auto">
 					{/* Header */}
 					<div className="flex items-center justify-center mb-4">
