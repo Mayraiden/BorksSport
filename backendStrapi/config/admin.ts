@@ -23,9 +23,7 @@ export default ({ env }) => {
     secrets: {
       encryptionKey: env('ENCRYPTION_KEY'),
     },
-    url: env(
-      'PUBLIC_URL',
-      isDevelopment ? 'http://localhost:1337' : 'https://api.borkssport.ru'
-    ),
+    path: '/admin',
+    serveAdminPanel: true,
   };
 };
