@@ -26,32 +26,8 @@ export default {
 		},
 		{
 			method: 'GET',
-			path: '/sbis-sync/fetch-products',
-			handler: 'sbis-sync.fetchProducts',
-			config: { auth: false, policies: [], middlewares: [] },
-		},
-		{
-			method: 'GET',
 			path: '/sbis-sync/test-auth',
 			handler: 'sbis-sync.testAuth',
-			config: { auth: false, policies: [], middlewares: [] },
-		},
-		{
-			method: 'GET',
-			path: '/sbis-sync/status',
-			handler: 'sbis-sync.status',
-			config: { auth: false, policies: [], middlewares: [] },
-		},
-		{
-			method: 'GET',
-			path: '/sbis-sync/sample-products',
-			handler: 'sbis-sync.getSampleProducts',
-			config: { auth: false, policies: [], middlewares: [] },
-		},
-		{
-			method: 'GET',
-			path: '/sbis-sync/test-sales',
-			handler: 'sbis-sync.testSales',
 			config: { auth: false, policies: [], middlewares: [] },
 		},
 		{

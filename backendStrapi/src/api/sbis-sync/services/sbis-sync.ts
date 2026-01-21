@@ -106,78 +106,6 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 			return { items: nomenclatures, hasMore: outcome.hasMore, page, pageSize }
 		},
 
-		async getSampleProducts(count = 5, includeCategories = true) {
-			const { accessToken } = await this.getAccessToken()
-			// Берем больше товаров с нескольких страниц
-			const allItems: any[] = []
-			let page = 0
-			const maxPages = 5 // Проверяем первые 5 страниц
-
-			while (page < maxPages && allItems.length < count * 20) {
-				const result = await this.fetchProducts(accessToken, page, 100)
-				allItems.push(...result.items)
-				if (!result.hasMore) break
-				page++
-			}
-
-			// Разделяем на товары и категории
-			const products = allItems.filter(
-				(item: any) => !item.isParent && item.published && item.id !== null
-			)
-			const categories = allItems.filter((item: any) => item.isParent === true)
-
-			// Приоритетно возвращаем товары с модификаторами
-			const withModifiers = products.filter(
-				(p: any) =>
-					p.modifiers && Array.isArray(p.modifiers) && p.modifiers.length > 0
-			)
-			const withoutModifiers = products.filter(
-				(p: any) =>
-					!p.modifiers ||
-					!Array.isArray(p.modifiers) ||
-					p.modifiers.length === 0
-			)
-
-			// Группируем товары по hierarchicalParent для поиска вариантов
-			const productsByParent = new Map<number, any[]>()
-			products.forEach((p: any) => {
-				const parentId = p.hierarchicalParent
-				if (parentId) {
-					if (!productsByParent.has(parentId)) {
-						productsByParent.set(parentId, [])
-					}
-					productsByParent.get(parentId)!.push(p)
-				}
-			})
-
-			// Находим товары, у которых есть "братья" с тем же родителем (возможно варианты)
-			const productsWithSiblings = products.filter((p: any) => {
-				if (!p.hierarchicalParent) return false
-				const siblings = productsByParent.get(p.hierarchicalParent)
-				return siblings && siblings.length > 1
-			})
-
-			// Сначала товары с модификаторами, потом с братьями, потом остальные
-			const sorted = [
-				...withModifiers,
-				...productsWithSiblings.filter((p) => !withModifiers.includes(p)),
-				...withoutModifiers.filter((p) => !productsWithSiblings.includes(p)),
-			]
-
-			return {
-				products: sorted.slice(0, count),
-				allProducts: products,
-				categories: includeCategories ? categories.slice(0, 10) : [],
-				productsByParent: Array.from(productsByParent.entries())
-					.filter(([_, items]) => items.length > 1)
-					.slice(0, 5)
-					.map(([parentId, items]) => ({
-						parentId,
-						products: items.slice(0, 5), // Первые 5 товаров из группы
-						count: items.length,
-					})),
-			}
-		},
 
 		/**
 		 * Получить все товары и категории через правильную пагинацию
@@ -219,7 +147,7 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 						pointID: this.config.pointId,
 						priceListId: this.config.priceListId, // Возвращаем priceListId: 24
 						pageSize: 1000, // Максимальный размер страницы согласно документации
-						withBalance: false, // Получаем ВСЕ товары, не только с остатками
+						withBalance: true, // Получаем только товары с остатками
 						withBarcode: true,
 					}
 
@@ -370,7 +298,8 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 				const isNotCategory =
 					!item.isParent || item.isParent === false || item.isParent === 0
 				const hasId = item.id !== null && item.id !== undefined
-				return isNotCategory && hasId
+				const hasBalance = item.balance !== null && item.balance !== undefined && item.balance >= 1
+				return isNotCategory && hasId && hasBalance
 			})
 
 			// Строим дерево категорий и определяем уровни
@@ -741,79 +670,6 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 			}
 		},
 
-		/**
-		 * Старый метод - оставлен для обратной совместимости
-		 * @deprecated Используйте getAllProductsRecursively()
-		 */
-		async getAllProducts() {
-			const { accessToken } = await this.getAccessToken()
-			const allProducts: any[] = []
-			let page = 0
-			let hasMore = true
-			let firstProductLogged = false
-			while (hasMore) {
-				const result = await this.fetchProducts(accessToken, page, 100)
-				const products = result.items.filter(
-					(item: any) => !item.isParent && item.published && item.id !== null
-				)
-
-				// Логируем структуру первого товара для анализа полей
-				if (products.length > 0 && !firstProductLogged) {
-					const firstProduct = products[0]
-					strapi.log.info('=== SBIS PRODUCT STRUCTURE ANALYSIS ===')
-					strapi.log.info(
-						'All keys in product object:',
-						Object.keys(firstProduct)
-					)
-					strapi.log.info(
-						'Full product structure:',
-						JSON.stringify(firstProduct, null, 2)
-					)
-
-					// Проверяем наличие полей, связанных с цветом и размером
-					const colorSizeFields = [
-						'color',
-						'colors',
-						'Color',
-						'Colors',
-						'size',
-						'sizes',
-						'Size',
-						'Sizes',
-						'variant',
-						'variants',
-						'Variant',
-						'Variants',
-						'attributes',
-						'characteristics',
-						'properties',
-						'options',
-						'modifications',
-					]
-					const foundFields: string[] = []
-					colorSizeFields.forEach((field) => {
-						if (firstProduct.hasOwnProperty(field)) {
-							foundFields.push(field)
-							strapi.log.info(
-								`Found field "${field}":`,
-								JSON.stringify(firstProduct[field], null, 2)
-							)
-						}
-					})
-					if (foundFields.length === 0) {
-						strapi.log.warn(
-							'No color/size related fields found in product structure'
-						)
-					}
-					firstProductLogged = true
-				}
-
-				allProducts.push(...products)
-				hasMore = result.hasMore
-				page++
-			}
-			return allProducts
-		},
 
 		/**
 		 * Сохранить категории в Strapi

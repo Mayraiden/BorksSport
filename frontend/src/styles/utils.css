@@ -24,3 +24,22 @@
 	scrollbar-width: thin;
 	scrollbar-color: #94a3b8 #f1f5f9;
 }
+
+/* Исправления для macOS/Safari */
+@supports (-webkit-appearance: none) {
+	/* Улучшение рендеринга на Retina дисплеях */
+	img,
+	svg,
+	canvas {
+		image-rendering: -webkit-optimize-contrast;
+		image-rendering: crisp-edges;
+	}
+	
+	/* Предотвращение размытия при трансформациях */
+	* {
+		-webkit-backface-visibility: hidden;
+		backface-visibility: hidden;
+		-webkit-perspective: 1000;
+		perspective: 1000;
+	}
+}

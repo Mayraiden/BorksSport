@@ -48,7 +48,23 @@ body {
 		'Fira Sans',
 		'Droid Sans',
 		'Helvetica Neue';
+    /* Улучшение рендеринг шрифтов на macOS/Safari */
+		-webkit-font-smoothing: antialiased;
+		-moz-osx-font-smoothing: grayscale;
+		text-rendering: optimizeLegibility;
+		/* Предотвращение проблем с масштабированием на Retina дисплеях */
+		-webkit-text-size-adjust: 100%;
+		-moz-text-size-adjust: 100%;
+		-ms-text-size-adjust: 100%;
+		text-size-adjust: 100%;
 }
+
+/* Исправление для всех элементов на macOS */
+* {
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+}
+
 
 /* Поддержка safe area для iOS */
 @supports (padding: max(0px)) {
