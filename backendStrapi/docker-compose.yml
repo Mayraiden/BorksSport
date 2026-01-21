@@ -47,7 +47,7 @@ services:
       JWT_SECRET: ${JWT_SECRET:-${ADMIN_JWT_SECRET:-toBeModified}}
       TRANSFER_TOKEN_SALT: ${TRANSFER_TOKEN_SALT:-toBeModified}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:-toBeModified}
-      ADMIN_COOKIE_SECURE: 'false'
+      ADMIN_COOKIE_SECURE: true
 
       # SBIS Integration (опционально)
       SBIS_OAUTH_URL: ${SBIS_OAUTH_URL:-https://online.sbis.ru/oauth/service/}
