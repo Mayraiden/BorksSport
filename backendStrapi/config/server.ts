@@ -1,5 +1,5 @@
 export default ({ env }) => {
-  const isDevelopment = env('NODE_ENV', 'development') === 'development';
+  const isDevelopment = env('NODE_ENV', 'production') === 'development';
 
   return {
     host: env('HOST', '0.0.0.0'),

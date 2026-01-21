@@ -8,6 +8,5 @@ export default [
 	'strapi::body',
 	'strapi::session',
 	'strapi::favicon',
-	'global::pathname-fix',
 	'strapi::public',
 ]

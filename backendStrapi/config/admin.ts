@@ -1,5 +1,5 @@
 export default ({ env }) => {
-  const isDevelopment = env('NODE_ENV', 'development') === 'development';
+  const isDevelopment = env('NODE_ENV', 'production') === 'development';
 
   return {
     auth: {
@@ -27,7 +27,5 @@ export default ({ env }) => {
       'PUBLIC_URL',
       isDevelopment ? 'http://localhost:1337' : 'https://api.borkssport.ru'
     ),
-    serveAdminPanel: true,
-    path: '/admin',
   };
 };

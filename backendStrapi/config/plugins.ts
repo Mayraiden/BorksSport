@@ -1,5 +1,5 @@
 export default ({ env }) => {
-	const isDevelopment = env('NODE_ENV') === 'development'
+	const isDevelopment = env('NODE_ENV', 'production') === 'development'
 	
 	return {
 		'users-permissions': {
