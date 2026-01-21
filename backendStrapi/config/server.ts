@@ -5,6 +5,7 @@ export default ({ env }) => {
     host: env('HOST', '0.0.0.0'),
     port: env.int('PORT', 1337),
     proxy: !isDevelopment, // доверяем reverse proxy в production
+		proxyTrust: 'all',
     url: env(
       'PUBLIC_URL',
       !isDevelopment ? 'https://api.borkssport.ru' : 'http://localhost:1337'
