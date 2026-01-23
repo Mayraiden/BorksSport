@@ -4,6 +4,7 @@
  */
 
 import type { Core } from '@strapi/strapi'
+import { randomUUID } from 'crypto'
 import { verifyBasicAuth } from '../utils/auth-middleware'
 
 export default ({ strapi }: { strapi: Core.Strapi }) => ({
@@ -90,6 +91,17 @@ export default ({ strapi }: { strapi: Core.Strapi }) => ({
 			return
 		}
 
+		// Saby ожидает Set-Cookie на checkauth и будет присылать Cookie дальше
+		const sessionToken = randomUUID()
+		const isSecure = !!ctx.request?.secure
+		ctx.cookies.set('commerceml_session', sessionToken, {
+			httpOnly: true,
+			secure: isSecure,
+			sameSite: isSecure ? 'none' : 'lax',
+			maxAge: 60 * 60 * 1000, // 1 hour
+			path: '/',
+		})
+
 		// Успешная авторизация
 		ctx.status = 200
 		ctx.body = 'success'
@@ -102,7 +114,10 @@ export default ({ strapi }: { strapi: Core.Strapi }) => ({
 	 * Возвращает параметры для обмена
 	 */
 	handleInit(ctx: any, strapi: Core.Strapi, type: string) {
-		if (!verifyBasicAuth(ctx, strapi)) {
+		const hasBasicAuth = verifyBasicAuth(ctx, strapi)
+		const hasSessionCookie = !!ctx.cookies.get('commerceml_session')
+
+		if (!hasBasicAuth && !hasSessionCookie) {
 			ctx.status = 401
 			ctx.body = 'failure'
 			ctx.type = 'text/plain'
@@ -126,7 +141,10 @@ export default ({ strapi }: { strapi: Core.Strapi }) => ({
 	 * Saby запрашивает файл для загрузки
 	 */
 	handleFile(ctx: any, strapi: Core.Strapi, type: string) {
-		if (!verifyBasicAuth(ctx, strapi)) {
+		const hasBasicAuth = verifyBasicAuth(ctx, strapi)
+		const hasSessionCookie = !!ctx.cookies.get('commerceml_session')
+
+		if (!hasBasicAuth && !hasSessionCookie) {
 			ctx.status = 401
 			ctx.body = 'failure'
 			ctx.type = 'text/plain'
