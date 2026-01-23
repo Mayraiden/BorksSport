@@ -92,9 +92,10 @@ export default ({ strapi }: { strapi: Core.Strapi }) => ({
 		}
 
 		// Saby ожидает Set-Cookie на checkauth и будет присылать Cookie дальше
+		const cookieName = 'commerceml_session'
 		const sessionToken = randomUUID()
 		const isSecure = !!ctx.request?.secure
-		ctx.cookies.set('commerceml_session', sessionToken, {
+		ctx.cookies.set(cookieName, sessionToken, {
 			httpOnly: true,
 			secure: isSecure,
 			sameSite: isSecure ? 'none' : 'lax',
@@ -104,7 +105,9 @@ export default ({ strapi }: { strapi: Core.Strapi }) => ({
 
 		// Успешная авторизация
 		ctx.status = 200
-		ctx.body = 'success'
+		// Классический формат CommerceML/1C: success + cookieName + cookieValue (в body)
+		// Некоторые клиенты (в т.ч. СБИС) валидируют cookie именно по body, а не по Set-Cookie.
+		ctx.body = `success\n${cookieName}\n${sessionToken}`
 		ctx.type = 'text/plain'
 		strapi.log.info('[CommerceML] CheckAuth successful')
 	},
