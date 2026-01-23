@@ -14,7 +14,7 @@ export default ({ strapi }: { strapi: Core.Strapi }) => ({
 	 * POST /api/commerceml-sync/catalog
 	 */
 	async handleCatalog(ctx: any) {
-		const mode = ctx.query.mode || ctx.request.body?.mode
+		const mode = ctx.query.mode || ctx.request.body?.mode || ctx.request.query?.mode
 
 		// GET запрос с mode=checkauth - проверка авторизации
 		if (ctx.request.method === 'GET' && mode === 'checkauth') {
@@ -31,6 +31,13 @@ export default ({ strapi }: { strapi: Core.Strapi }) => ({
 			return this.handleFile(ctx, strapi, 'catalog')
 		}
 
+		// POST запрос с mode=file - отправка файла (Saby может отправлять так)
+		if (ctx.request.method === 'POST' && mode === 'file') {
+			strapi.log.info('[CommerceML Controller] POST with mode=file, treating as XML upload')
+			// Обрабатываем как обычный POST с XML
+			return this.processCatalog(ctx)
+		}
+
 		// POST запрос - обработка XML
 		return this.processCatalog(ctx)
 	},
@@ -41,7 +48,7 @@ export default ({ strapi }: { strapi: Core.Strapi }) => ({
 	 * POST /api/commerceml-sync/offers
 	 */
 	async handleOffers(ctx: any) {
-		const mode = ctx.query.mode || ctx.request.body?.mode
+		const mode = ctx.query.mode || ctx.request.body?.mode || ctx.request.query?.mode
 
 		if (ctx.request.method === 'GET' && mode === 'checkauth') {
 			return this.handleCheckAuth(ctx, strapi)
@@ -51,6 +58,10 @@ export default ({ strapi }: { strapi: Core.Strapi }) => ({
 		}
 		if (ctx.request.method === 'GET' && mode === 'file') {
 			return this.handleFile(ctx, strapi, 'offers')
+		}
+		if (ctx.request.method === 'POST' && mode === 'file') {
+			strapi.log.info('[CommerceML Controller] POST offers with mode=file, treating as XML upload')
+			return this.processOffers(ctx)
 		}
 
 		return this.processOffers(ctx)
@@ -62,7 +73,7 @@ export default ({ strapi }: { strapi: Core.Strapi }) => ({
 	 * POST /api/commerceml-sync/rests
 	 */
 	async handleRests(ctx: any) {
-		const mode = ctx.query.mode || ctx.request.body?.mode
+		const mode = ctx.query.mode || ctx.request.body?.mode || ctx.request.query?.mode
 
 		if (ctx.request.method === 'GET' && mode === 'checkauth') {
 			return this.handleCheckAuth(ctx, strapi)
@@ -72,6 +83,10 @@ export default ({ strapi }: { strapi: Core.Strapi }) => ({
 		}
 		if (ctx.request.method === 'GET' && mode === 'file') {
 			return this.handleFile(ctx, strapi, 'rests')
+		}
+		if (ctx.request.method === 'POST' && mode === 'file') {
+			strapi.log.info('[CommerceML Controller] POST rests with mode=file, treating as XML upload')
+			return this.processRests(ctx)
 		}
 
 		return this.processRests(ctx)
@@ -178,13 +193,17 @@ export default ({ strapi }: { strapi: Core.Strapi }) => ({
 	 */
 	async processCatalog(ctx: any) {
 		try {
+			strapi.log.info('[CommerceML Controller] POST catalog request received')
+			strapi.log.debug('[CommerceML Controller] Request headers:', {
+				'content-type': ctx.request.headers['content-type'],
+				'content-length': ctx.request.headers['content-length'],
+			})
+
 			// Проверка Basic Auth
 			if (!verifyBasicAuth(ctx, strapi)) {
 				ctx.status = 401
-				ctx.body = {
-					success: false,
-					message: 'Unauthorized: Invalid Basic Auth credentials',
-				}
+				ctx.body = 'failure'
+				ctx.type = 'text/plain'
 				return
 			}
 
@@ -215,37 +234,47 @@ export default ({ strapi }: { strapi: Core.Strapi }) => ({
 				xmlString = JSON.stringify(ctx.request.body)
 			}
 			else {
+				strapi.log.warn('[CommerceML Controller] Cannot extract XML from body:', {
+					bodyType: typeof ctx.request.body,
+					bodyKeys: ctx.request.body ? Object.keys(ctx.request.body) : [],
+				})
 				ctx.status = 400
-				ctx.body = {
-					success: false,
-					message: 'Invalid request: XML string expected in body. Send XML as raw text with Content-Type: text/xml or application/xml',
-				}
+				ctx.body = 'failure\nInvalid request: XML string expected in body'
+				ctx.type = 'text/plain'
 				return
 			}
 
 			if (!xmlString || typeof xmlString !== 'string' || xmlString.trim().length === 0) {
+				strapi.log.warn('[CommerceML Controller] XML string is empty')
 				ctx.status = 400
-				ctx.body = {
-					success: false,
-					message: 'Invalid request: XML string is empty',
-				}
+				ctx.body = 'failure\nInvalid request: XML string is empty'
+				ctx.type = 'text/plain'
 				return
 			}
+
+			strapi.log.info(`[CommerceML Controller] XML received, length: ${xmlString.length} bytes`)
 
 			// Обрабатываем catalog
 			const result = await strapi
 				.service('api::commerceml-sync.commerceml-sync')
 				.processCatalog(xmlString)
 
+			// CommerceML протокол требует plain text ответ "success" после получения файла
+			// Не JSON!
 			ctx.status = 200
-			ctx.body = result
+			ctx.body = 'success'
+			ctx.type = 'text/plain'
+			
+			// Логируем результат для отладки
+			strapi.log.info(
+				`[CommerceML Controller] Catalog processed: ${result.stats?.saved || 0} saved, ${result.stats?.updated || 0} updated, ${result.stats?.errors || 0} errors`
+			)
 		} catch (error: any) {
 			strapi.log.error('[CommerceML Controller] Catalog processing failed:', error.message)
+			strapi.log.error('[CommerceML Controller] Error stack:', error.stack)
 			ctx.status = 500
-			ctx.body = {
-				success: false,
-				message: error.message || 'Failed to process catalog',
-			}
+			ctx.body = `failure\n${error.message || 'Failed to process catalog'}`
+			ctx.type = 'text/plain'
 		}
 	},
 
@@ -255,13 +284,13 @@ export default ({ strapi }: { strapi: Core.Strapi }) => ({
 	 */
 	async processOffers(ctx: any) {
 		try {
+			strapi.log.info('[CommerceML Controller] POST offers request received')
+
 			// Проверка Basic Auth
 			if (!verifyBasicAuth(ctx, strapi)) {
 				ctx.status = 401
-				ctx.body = {
-					success: false,
-					message: 'Unauthorized: Invalid Basic Auth credentials',
-				}
+				ctx.body = 'failure'
+				ctx.type = 'text/plain'
 				return
 			}
 
@@ -293,36 +322,39 @@ export default ({ strapi }: { strapi: Core.Strapi }) => ({
 			}
 			else {
 				ctx.status = 400
-				ctx.body = {
-					success: false,
-					message: 'Invalid request: XML string expected in body. Send XML as raw text with Content-Type: text/xml or application/xml',
-				}
+				ctx.body = 'failure\nInvalid request: XML string expected in body'
+				ctx.type = 'text/plain'
 				return
 			}
 
 			if (!xmlString || typeof xmlString !== 'string' || xmlString.trim().length === 0) {
 				ctx.status = 400
-				ctx.body = {
-					success: false,
-					message: 'Invalid request: XML string is empty',
-				}
+				ctx.body = 'failure\nInvalid request: XML string is empty'
+				ctx.type = 'text/plain'
 				return
 			}
+
+			strapi.log.info(`[CommerceML Controller] Offers XML received, length: ${xmlString.length} bytes`)
 
 			// Обрабатываем offers
 			const result = await strapi
 				.service('api::commerceml-sync.commerceml-sync')
 				.processOffers(xmlString)
 
+			// CommerceML протокол требует plain text ответ "success" после получения файла
 			ctx.status = 200
-			ctx.body = result
+			ctx.body = 'success'
+			ctx.type = 'text/plain'
+			
+			// Логируем результат для отладки
+			strapi.log.info(
+				`[CommerceML Controller] Offers processed: ${result.stats?.updated || 0} prices updated, ${result.stats?.errors || 0} errors`
+			)
 		} catch (error: any) {
 			strapi.log.error('[CommerceML Controller] Offers processing failed:', error.message)
 			ctx.status = 500
-			ctx.body = {
-				success: false,
-				message: error.message || 'Failed to process offers',
-			}
+			ctx.body = `failure\n${error.message || 'Failed to process offers'}`
+			ctx.type = 'text/plain'
 		}
 	},
 
@@ -332,13 +364,13 @@ export default ({ strapi }: { strapi: Core.Strapi }) => ({
 	 */
 	async processRests(ctx: any) {
 		try {
+			strapi.log.info('[CommerceML Controller] POST rests request received')
+
 			// Проверка Basic Auth
 			if (!verifyBasicAuth(ctx, strapi)) {
 				ctx.status = 401
-				ctx.body = {
-					success: false,
-					message: 'Unauthorized: Invalid Basic Auth credentials',
-				}
+				ctx.body = 'failure'
+				ctx.type = 'text/plain'
 				return
 			}
 
@@ -370,36 +402,39 @@ export default ({ strapi }: { strapi: Core.Strapi }) => ({
 			}
 			else {
 				ctx.status = 400
-				ctx.body = {
-					success: false,
-					message: 'Invalid request: XML string expected in body. Send XML as raw text with Content-Type: text/xml or application/xml',
-				}
+				ctx.body = 'failure\nInvalid request: XML string expected in body'
+				ctx.type = 'text/plain'
 				return
 			}
 
 			if (!xmlString || typeof xmlString !== 'string' || xmlString.trim().length === 0) {
 				ctx.status = 400
-				ctx.body = {
-					success: false,
-					message: 'Invalid request: XML string is empty',
-				}
+				ctx.body = 'failure\nInvalid request: XML string is empty'
+				ctx.type = 'text/plain'
 				return
 			}
+
+			strapi.log.info(`[CommerceML Controller] Rests XML received, length: ${xmlString.length} bytes`)
 
 			// Обрабатываем rests
 			const result = await strapi
 				.service('api::commerceml-sync.commerceml-sync')
 				.processRests(xmlString)
 
+			// CommerceML протокол требует plain text ответ "success" после получения файла
 			ctx.status = 200
-			ctx.body = result
+			ctx.body = 'success'
+			ctx.type = 'text/plain'
+			
+			// Логируем результат для отладки
+			strapi.log.info(
+				`[CommerceML Controller] Rests processed: ${result.stats?.updated || 0} updated, ${result.stats?.errors || 0} errors`
+			)
 		} catch (error: any) {
 			strapi.log.error('[CommerceML Controller] Rests processing failed:', error.message)
 			ctx.status = 500
-			ctx.body = {
-				success: false,
-				message: error.message || 'Failed to process rests',
-			}
+			ctx.body = `failure\n${error.message || 'Failed to process rests'}`
+			ctx.type = 'text/plain'
 		}
 	},
 
