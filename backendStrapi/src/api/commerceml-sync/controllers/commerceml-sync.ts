@@ -8,7 +8,151 @@ import { verifyBasicAuth } from '../utils/auth-middleware'
 
 export default ({ strapi }: { strapi: Core.Strapi }) => ({
 	/**
-	 * Обрабатывает catalog.xml
+	 * Обрабатывает catalog (GET с mode или POST с XML)
+	 * GET /api/commerceml-sync/catalog?mode=checkauth
+	 * POST /api/commerceml-sync/catalog
+	 */
+	async handleCatalog(ctx: any) {
+		const mode = ctx.query.mode || ctx.request.body?.mode
+
+		// GET запрос с mode=checkauth - проверка авторизации
+		if (ctx.request.method === 'GET' && mode === 'checkauth') {
+			return this.handleCheckAuth(ctx, strapi)
+		}
+
+		// GET запрос с mode=init - инициализация обмена
+		if (ctx.request.method === 'GET' && mode === 'init') {
+			return this.handleInit(ctx, strapi, 'catalog')
+		}
+
+		// GET запрос с mode=file - получение файла
+		if (ctx.request.method === 'GET' && mode === 'file') {
+			return this.handleFile(ctx, strapi, 'catalog')
+		}
+
+		// POST запрос - обработка XML
+		return this.processCatalog(ctx)
+	},
+
+	/**
+	 * Обрабатывает offers (GET с mode или POST с XML)
+	 * GET /api/commerceml-sync/offers?mode=checkauth
+	 * POST /api/commerceml-sync/offers
+	 */
+	async handleOffers(ctx: any) {
+		const mode = ctx.query.mode || ctx.request.body?.mode
+
+		if (ctx.request.method === 'GET' && mode === 'checkauth') {
+			return this.handleCheckAuth(ctx, strapi)
+		}
+		if (ctx.request.method === 'GET' && mode === 'init') {
+			return this.handleInit(ctx, strapi, 'offers')
+		}
+		if (ctx.request.method === 'GET' && mode === 'file') {
+			return this.handleFile(ctx, strapi, 'offers')
+		}
+
+		return this.processOffers(ctx)
+	},
+
+	/**
+	 * Обрабатывает rests (GET с mode или POST с XML)
+	 * GET /api/commerceml-sync/rests?mode=checkauth
+	 * POST /api/commerceml-sync/rests
+	 */
+	async handleRests(ctx: any) {
+		const mode = ctx.query.mode || ctx.request.body?.mode
+
+		if (ctx.request.method === 'GET' && mode === 'checkauth') {
+			return this.handleCheckAuth(ctx, strapi)
+		}
+		if (ctx.request.method === 'GET' && mode === 'init') {
+			return this.handleInit(ctx, strapi, 'rests')
+		}
+		if (ctx.request.method === 'GET' && mode === 'file') {
+			return this.handleFile(ctx, strapi, 'rests')
+		}
+
+		return this.processRests(ctx)
+	},
+
+	/**
+	 * Обрабатывает mode=checkauth - проверка авторизации
+	 * CommerceML протокол требует вернуть "success" при успешной авторизации
+	 */
+	handleCheckAuth(ctx: any, strapi: Core.Strapi) {
+		// Проверка Basic Auth
+		if (!verifyBasicAuth(ctx, strapi)) {
+			ctx.status = 401
+			ctx.body = 'failure'
+			ctx.type = 'text/plain'
+			strapi.log.warn('[CommerceML] CheckAuth failed')
+			return
+		}
+
+		// Успешная авторизация
+		ctx.status = 200
+		ctx.body = 'success'
+		ctx.type = 'text/plain'
+		strapi.log.info('[CommerceML] CheckAuth successful')
+	},
+
+	/**
+	 * Обрабатывает mode=init - инициализация обмена
+	 * Возвращает параметры для обмена
+	 */
+	handleInit(ctx: any, strapi: Core.Strapi, type: string) {
+		if (!verifyBasicAuth(ctx, strapi)) {
+			ctx.status = 401
+			ctx.body = 'failure'
+			ctx.type = 'text/plain'
+			return
+		}
+
+		// CommerceML протокол: возвращаем параметры обмена
+		// Формат: version;zip;file_limit;step_time
+		// version - версия протокола (обычно 2.08)
+		// zip - поддержка zip (yes/no)
+		// file_limit - максимальный размер файла в байтах (50MB)
+		// step_time - задержка между запросами в секундах
+		ctx.status = 200
+		ctx.body = '2.08;no;52428800;0'
+		ctx.type = 'text/plain'
+		strapi.log.info(`[CommerceML] Init for ${type} successful`)
+	},
+
+	/**
+	 * Обрабатывает mode=file - получение файла
+	 * Saby запрашивает файл для загрузки
+	 */
+	handleFile(ctx: any, strapi: Core.Strapi, type: string) {
+		if (!verifyBasicAuth(ctx, strapi)) {
+			ctx.status = 401
+			ctx.body = 'failure'
+			ctx.type = 'text/plain'
+			return
+		}
+
+		const filename = ctx.query.filename || ctx.query.file
+
+		// Если файл не указан, возвращаем список доступных файлов
+		if (!filename) {
+			ctx.status = 200
+			ctx.body = 'failure\nФайл не указан'
+			ctx.type = 'text/plain'
+			return
+		}
+
+		// Для CommerceML мы только принимаем файлы, не отдаем
+		// Поэтому возвращаем failure
+		ctx.status = 200
+		ctx.body = 'failure\nФайл не найден'
+		ctx.type = 'text/plain'
+		strapi.log.info(`[CommerceML] File request for ${type}: ${filename}`)
+	},
+
+	/**
+	 * Обрабатывает catalog.xml (POST запрос)
 	 * POST /api/commerceml-sync/catalog
 	 */
 	async processCatalog(ctx: any) {
