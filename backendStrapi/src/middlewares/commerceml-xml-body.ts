@@ -16,10 +16,13 @@ export default (config: any, { strapi }: any) => {
 			strapi.log.info('[CommerceML Middleware] Request intercepted', {
 				method: ctx.request.method,
 				path: ctx.request.path,
+				url: ctx.request.url,
 				query: ctx.query,
 				contentType: ctx.request.headers['content-type'],
 				contentLength: ctx.request.headers['content-length'],
 				userAgent: ctx.request.headers['user-agent'],
+				ip: ctx.request.ip,
+				allHeaders: Object.keys(ctx.request.headers),
 			})
 
 			// Для POST/PUT запросов с XML, устанавливаем правильный Content-Type

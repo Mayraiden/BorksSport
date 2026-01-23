@@ -187,7 +187,10 @@ export default ({ strapi }: { strapi: Core.Strapi }) => ({
 		ctx.status = 200
 		ctx.body = '2.08;no;52428800;0'
 		ctx.type = 'text/plain'
-		strapi.log.info(`[CommerceML] Init for ${type} successful`)
+		strapi.log.info(`[CommerceML] Init for ${type} successful, response: ${ctx.body}`)
+		
+		// Логируем ожидание POST запроса
+		strapi.log.info(`[CommerceML] Waiting for POST request with ${type} data...`)
 	},
 
 	/**
