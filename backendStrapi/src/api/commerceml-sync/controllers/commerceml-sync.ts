@@ -14,6 +14,18 @@ export default ({ strapi }: { strapi: Core.Strapi }) => ({
 	 * POST /api/commerceml-sync/catalog
 	 */
 	async handleCatalog(ctx: any) {
+		// Логируем ВСЕ запросы для отладки
+		strapi.log.info('[CommerceML Controller] handleCatalog called', {
+			method: ctx.request.method,
+			path: ctx.request.path,
+			query: ctx.query,
+			contentType: ctx.request.headers['content-type'],
+			contentLength: ctx.request.headers['content-length'],
+			hasBody: !!ctx.request.body,
+			bodyType: typeof ctx.request.body,
+			hasRawBody: !!(ctx.request as any).rawBody,
+		})
+
 		const mode = ctx.query.mode || ctx.request.body?.mode || ctx.request.query?.mode
 
 		// GET запрос с mode=checkauth - проверка авторизации
@@ -48,6 +60,18 @@ export default ({ strapi }: { strapi: Core.Strapi }) => ({
 	 * POST /api/commerceml-sync/offers
 	 */
 	async handleOffers(ctx: any) {
+		// Логируем ВСЕ запросы для отладки
+		strapi.log.info('[CommerceML Controller] handleOffers called', {
+			method: ctx.request.method,
+			path: ctx.request.path,
+			query: ctx.query,
+			contentType: ctx.request.headers['content-type'],
+			contentLength: ctx.request.headers['content-length'],
+			hasBody: !!ctx.request.body,
+			bodyType: typeof ctx.request.body,
+			hasRawBody: !!(ctx.request as any).rawBody,
+		})
+
 		const mode = ctx.query.mode || ctx.request.body?.mode || ctx.request.query?.mode
 
 		if (ctx.request.method === 'GET' && mode === 'checkauth') {
@@ -73,6 +97,18 @@ export default ({ strapi }: { strapi: Core.Strapi }) => ({
 	 * POST /api/commerceml-sync/rests
 	 */
 	async handleRests(ctx: any) {
+		// Логируем ВСЕ запросы для отладки
+		strapi.log.info('[CommerceML Controller] handleRests called', {
+			method: ctx.request.method,
+			path: ctx.request.path,
+			query: ctx.query,
+			contentType: ctx.request.headers['content-type'],
+			contentLength: ctx.request.headers['content-length'],
+			hasBody: !!ctx.request.body,
+			bodyType: typeof ctx.request.body,
+			hasRawBody: !!(ctx.request as any).rawBody,
+		})
+
 		const mode = ctx.query.mode || ctx.request.body?.mode || ctx.request.query?.mode
 
 		if (ctx.request.method === 'GET' && mode === 'checkauth') {
