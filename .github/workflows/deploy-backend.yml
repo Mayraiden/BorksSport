@@ -3,7 +3,8 @@ name: Deploy Strapi Backend
 on:
   push:
     branches:
-      - main
+      - release
+  workflow_dispatch:   
 
 jobs:
   deploy:
