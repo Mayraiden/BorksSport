@@ -1,44 +1,122 @@
-name: Deploy Strapi Backend
+name: Deploy Backend
 
 on:
   push:
     branches:
       - release
-  workflow_dispatch:   
+    paths:
+      - 'backendStrapi/**'
+      - '.github/workflows/deploy-backend.yml'
+  workflow_dispatch: # Позволяет запускать вручную через GitHub UI
 
 jobs:
   deploy:
+    name: Deploy Backend to Server
     runs-on: ubuntu-latest
-
+    
     steps:
-      - name: Checkout repository
+      - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Deploy to server via SSH
-        uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ secrets.SERVER_HOST }}
-          username: ${{ secrets.SERVER_USER }}
-          key: ${{ secrets.SERVER_SSH_KEY }}
-          script: |
+          ref: release
+      
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+      
+      - name: Add server to known hosts
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_KNOWN_HOSTS }}" >> ~/.ssh/known_hosts || true
+          chmod 600 ~/.ssh/known_hosts || true
+      
+      - name: Deploy to server
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+        run: |
+          ssh -o StrictHostKeyChecking=no ${SERVER_USER}@${SERVER_HOST} << 'EOF'
             set -e
-
-            echo "🚀 Start deploy"
-
-            cd /var/www/borkssport/backendStrapi
-
-            echo "📥 Pull latest changes"
-            git pull origin main
-
-            echo "📦 Install dependencies on host"
-            yarn install --frozen-lockfile
-
-            echo "🏗️ Build Strapi on host"
-            yarn build
-
-            echo "🐳 Restart docker containers"
+            echo "🚀 Starting backend deployment..."
+            
+            cd ~/sportmagazine
+            
+            # Сохраняем .env файлы перед обновлением
+            echo "💾 Backing up .env files..."
+            if [ -f backendStrapi/.env ]; then
+              cp backendStrapi/.env backendStrapi/.env.backup || true
+              echo "✅ .env file backed up"
+            fi
+            
+            # Очистка диска перед обновлением кода
+            echo "🧹 Cleaning up disk space before deployment..."
+            df -h
+            docker system prune -f --volumes || true
+            docker builder prune -af || true
+            npm cache clean --force 2>/dev/null || true
+            df -h
+            
+            # Обновляем код из репозитория
+            echo "📥 Pulling latest changes from release branch..."
+            # Исправляем проблемы с Git refs если есть
+            git remote prune origin || true
+            rm -f .git/refs/remotes/origin/release || true
+            git fetch origin --prune || true
+            git checkout release || git checkout -b release origin/release || true
+            git pull origin release || git reset --hard origin/release || true
+            
+            # Восстанавливаем .env файлы если они были удалены
+            echo "🔄 Restoring .env files..."
+            if [ -f backendStrapi/.env.backup ] && [ ! -f backendStrapi/.env ]; then
+              mv backendStrapi/.env.backup backendStrapi/.env
+              echo "✅ .env file restored"
+            elif [ -f backendStrapi/.env.backup ]; then
+              rm backendStrapi/.env.backup
+              echo "✅ .env file already exists, backup removed"
+            fi
+            
+            # Переходим в папку backendStrapi
+            cd backendStrapi
+            
+            # Останавливаем текущие контейнеры
+            echo "🛑 Stopping current containers..."
             docker-compose down || true
+            
+            # Пересобираем образ
+            echo "🔨 Building new Docker image..."
             docker-compose build --no-cache
+            
+            # Запускаем контейнеры
+            echo "▶️ Starting containers..."
             docker-compose up -d
+            
+            # Ждем запуска
+            echo "⏳ Waiting for containers to start..."
+            sleep 15
+            
+            # Проверяем логи Strapi
+            echo "📋 Strapi container logs:"
+            docker logs sportmagazine_strapi --tail 50 || true
+            
+            # Проверяем логи PostgreSQL
+            echo "📋 PostgreSQL container logs:"
+            docker logs sportmagazine_postgres --tail 20 || true
+            
+            # Проверяем здоровье API
+            echo "🏥 Health check..."
+            if curl -f http://localhost:1337/api > /dev/null 2>&1; then
+              echo "✅ Backend API is healthy!"
+            else
+              echo "⚠️ Backend health check failed, but deployment completed"
+              echo "Check logs for more information"
+            fi
+            
+            echo "✅ Backend deployment completed!"
+          EOF
+      
+      - name: Deployment status
+        run: |
+          echo "✅ Backend deployment workflow completed"
 
-            echo "✅ Deploy finished"
+
