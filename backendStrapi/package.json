@@ -21,6 +21,7 @@
     "@strapi/plugin-cloud": "5.25.0",
     "@strapi/plugin-users-permissions": "5.25.0",
     "@strapi/strapi": "5.25.0",
+    "adm-zip": "^0.5.16",
     "better-sqlite3": "11.3.0",
     "fast-xml-parser": "^5.3.3",
     "pg": "^8.16.3",

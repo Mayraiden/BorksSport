@@ -6,8 +6,112 @@
 import type { Core } from '@strapi/strapi'
 import { randomUUID } from 'crypto'
 import { verifyBasicAuth } from '../utils/auth-middleware'
+import AdmZip from 'adm-zip'
 
-export default ({ strapi }: { strapi: Core.Strapi }) => ({
+export default ({ strapi }: { strapi: Core.Strapi }) => {
+	/**
+	 * Извлекает XML из body (может быть ZIP архив или обычный XML)
+	 * @param ctx - Koa context
+	 * @returns XML строка
+	 */
+	function extractXMLFromBody(ctx: any): string {
+		// Получаем данные из body (может быть XML или ZIP архив)
+		let bodyData: Buffer | string
+
+		// Пробуем разные способы получения данных
+		// 1. Raw body как Buffer (для ZIP)
+		if (Buffer.isBuffer(ctx.request.body)) {
+			bodyData = ctx.request.body
+		}
+		// 2. Raw body как string (для XML)
+		else if (typeof ctx.request.body === 'string') {
+			bodyData = ctx.request.body
+		}
+		// 3. Из поля xml (для JSON запросов)
+		else if (ctx.request.body?.xml && typeof ctx.request.body.xml === 'string') {
+			bodyData = ctx.request.body.xml
+		}
+		// 4. Из поля data
+		else if (ctx.request.body?.data) {
+			if (Buffer.isBuffer(ctx.request.body.data)) {
+				bodyData = ctx.request.body.data
+			} else if (typeof ctx.request.body.data === 'string') {
+				bodyData = ctx.request.body.data
+			} else {
+				bodyData = String(ctx.request.body.data)
+			}
+		}
+		// 5. Пробуем rawBody если доступен
+		else if ((ctx.request as any).rawBody) {
+			if (Buffer.isBuffer((ctx.request as any).rawBody)) {
+				bodyData = (ctx.request as any).rawBody
+			} else {
+				bodyData = String((ctx.request as any).rawBody)
+			}
+		}
+		// 6. Если body это объект, пробуем преобразовать в строку
+		else if (ctx.request.body && typeof ctx.request.body === 'object') {
+			strapi.log.warn('[CommerceML Controller] Body is object, trying to stringify...')
+			bodyData = JSON.stringify(ctx.request.body)
+		}
+		else {
+			throw new Error('Cannot extract data from body')
+		}
+
+		if (!bodyData || (typeof bodyData === 'string' && bodyData.trim().length === 0)) {
+			throw new Error('Body data is empty')
+		}
+
+		// Проверяем, является ли это ZIP архивом
+		const contentType = ctx.request.headers['content-type'] || ''
+		const isZipContentType = contentType.includes('zip') || contentType.includes('application/octet-stream')
+		
+		// Проверяем по первым байтам (ZIP signature: PK\x03\x04)
+		const isZipBuffer = Buffer.isBuffer(bodyData) && bodyData.length >= 4 && bodyData[0] === 0x50 && bodyData[1] === 0x4B
+		const isZipString = typeof bodyData === 'string' && bodyData.length >= 4 && bodyData.charCodeAt(0) === 0x50 && bodyData.charCodeAt(1) === 0x4B
+
+		if (isZipContentType || isZipBuffer || isZipString) {
+			strapi.log.info('[CommerceML Controller] Detected ZIP archive, extracting...')
+			try {
+				// Преобразуем в Buffer если нужно
+				const zipBuffer = Buffer.isBuffer(bodyData) ? bodyData : Buffer.from(bodyData, 'binary')
+				const zip = new AdmZip(zipBuffer)
+				const zipEntries = zip.getEntries()
+
+				// Ищем XML файл (catalog.xml, offers.xml, rests.xml или любой .xml)
+				let xmlEntry = zipEntries.find((entry) => 
+					entry.entryName.toLowerCase().endsWith('.xml') && 
+					(entry.entryName.toLowerCase().includes('catalog') || 
+					 entry.entryName.toLowerCase().includes('offers') ||
+					 entry.entryName.toLowerCase().includes('rests') ||
+					 entry.entryName.toLowerCase().includes('import'))
+				)
+
+				// Если не нашли, берем первый XML файл
+				if (!xmlEntry) {
+					xmlEntry = zipEntries.find((entry) => entry.entryName.toLowerCase().endsWith('.xml'))
+				}
+
+				if (!xmlEntry) {
+					throw new Error('No XML file found in ZIP archive')
+				}
+
+				const xmlString = xmlEntry.getData().toString('utf8')
+				strapi.log.info(`[CommerceML Controller] Extracted XML from ZIP: ${xmlEntry.entryName}, length: ${xmlString.length} bytes`)
+				return xmlString
+			} catch (error: any) {
+				strapi.log.error('[CommerceML Controller] Failed to extract ZIP:', error.message)
+				throw new Error(`Failed to extract ZIP: ${error.message}`)
+			}
+		} else {
+			// Это обычный XML
+			const xmlString = Buffer.isBuffer(bodyData) ? bodyData.toString('utf8') : String(bodyData)
+			strapi.log.info(`[CommerceML Controller] XML received (not ZIP), length: ${xmlString.length} bytes`)
+			return xmlString
+		}
+	}
+
+	return {
 	/**
 	 * Обрабатывает catalog (GET с mode или POST с XML)
 	 * GET /api/commerceml-sync/catalog?mode=checkauth
@@ -43,10 +147,10 @@ export default ({ strapi }: { strapi: Core.Strapi }) => ({
 			return this.handleFile(ctx, strapi, 'catalog')
 		}
 
-		// POST запрос с mode=file - отправка файла (Saby может отправлять так)
+		// POST запрос с mode=file - отправка файла (Saby отправляет ZIP архив)
 		if (ctx.request.method === 'POST' && mode === 'file') {
-			strapi.log.info('[CommerceML Controller] POST with mode=file, treating as XML upload')
-			// Обрабатываем как обычный POST с XML
+			strapi.log.info('[CommerceML Controller] POST with mode=file, treating as ZIP/XML upload')
+			// Обрабатываем как обычный POST с XML (может быть ZIP)
 			return this.processCatalog(ctx)
 		}
 
@@ -246,52 +350,25 @@ export default ({ strapi }: { strapi: Core.Strapi }) => ({
 				return
 			}
 
-			// Получаем XML из body (raw text или из поля xml)
+			// Извлекаем XML из body (может быть ZIP или обычный XML)
 			let xmlString: string
-
-			// Пробуем разные способы получения XML
-			// 1. Raw body (если Content-Type: text/xml или application/xml)
-			if (typeof ctx.request.body === 'string') {
-				xmlString = ctx.request.body
-			}
-			// 2. Из поля xml (для JSON запросов)
-			else if (ctx.request.body?.xml && typeof ctx.request.body.xml === 'string') {
-				xmlString = ctx.request.body.xml
-			}
-			// 3. Из поля data
-			else if (ctx.request.body?.data && typeof ctx.request.body.data === 'string') {
-				xmlString = ctx.request.body.data
-			}
-			// 4. Пробуем rawBody если доступен (для некоторых middleware)
-			else if ((ctx.request as any).rawBody && typeof (ctx.request as any).rawBody === 'string') {
-				xmlString = (ctx.request as any).rawBody
-			}
-			// 5. Если body это объект, пробуем преобразовать в строку
-			else if (ctx.request.body && typeof ctx.request.body === 'object') {
-				// Может быть уже распарсен как объект, пробуем преобразовать обратно
-				strapi.log.warn('[CommerceML Controller] Body is object, trying to stringify...')
-				xmlString = JSON.stringify(ctx.request.body)
-			}
-			else {
-				strapi.log.warn('[CommerceML Controller] Cannot extract XML from body:', {
-					bodyType: typeof ctx.request.body,
-					bodyKeys: ctx.request.body ? Object.keys(ctx.request.body) : [],
-				})
+			try {
+				xmlString = extractXMLFromBody(ctx)
+			} catch (error: any) {
+				strapi.log.error('[CommerceML Controller] Failed to extract XML:', error.message)
 				ctx.status = 400
-				ctx.body = 'failure\nInvalid request: XML string expected in body'
+				ctx.body = `failure\n${error.message}`
 				ctx.type = 'text/plain'
 				return
 			}
 
-			if (!xmlString || typeof xmlString !== 'string' || xmlString.trim().length === 0) {
-				strapi.log.warn('[CommerceML Controller] XML string is empty')
+			if (!xmlString || xmlString.trim().length === 0) {
+				strapi.log.warn('[CommerceML Controller] XML string is empty after processing')
 				ctx.status = 400
 				ctx.body = 'failure\nInvalid request: XML string is empty'
 				ctx.type = 'text/plain'
 				return
 			}
-
-			strapi.log.info(`[CommerceML Controller] XML received, length: ${xmlString.length} bytes`)
 
 			// Обрабатываем catalog
 			const result = await strapi
@@ -333,47 +410,24 @@ export default ({ strapi }: { strapi: Core.Strapi }) => ({
 				return
 			}
 
-			// Получаем XML из body (raw text или из поля xml)
+			// Извлекаем XML из body (может быть ZIP или обычный XML)
 			let xmlString: string
-
-			// Пробуем разные способы получения XML
-			// 1. Raw body (если Content-Type: text/xml или application/xml)
-			if (typeof ctx.request.body === 'string') {
-				xmlString = ctx.request.body
-			}
-			// 2. Из поля xml (для JSON запросов)
-			else if (ctx.request.body?.xml && typeof ctx.request.body.xml === 'string') {
-				xmlString = ctx.request.body.xml
-			}
-			// 3. Из поля data
-			else if (ctx.request.body?.data && typeof ctx.request.body.data === 'string') {
-				xmlString = ctx.request.body.data
-			}
-			// 4. Пробуем rawBody если доступен (для некоторых middleware)
-			else if ((ctx.request as any).rawBody && typeof (ctx.request as any).rawBody === 'string') {
-				xmlString = (ctx.request as any).rawBody
-			}
-			// 5. Если body это объект, пробуем преобразовать в строку
-			else if (ctx.request.body && typeof ctx.request.body === 'object') {
-				// Может быть уже распарсен как объект, пробуем преобразовать обратно
-				strapi.log.warn('[CommerceML Controller] Body is object, trying to stringify...')
-				xmlString = JSON.stringify(ctx.request.body)
-			}
-			else {
+			try {
+				xmlString = extractXMLFromBody(ctx)
+			} catch (error: any) {
+				strapi.log.error('[CommerceML Controller] Failed to extract XML:', error.message)
 				ctx.status = 400
-				ctx.body = 'failure\nInvalid request: XML string expected in body'
+				ctx.body = `failure\n${error.message}`
 				ctx.type = 'text/plain'
 				return
 			}
 
-			if (!xmlString || typeof xmlString !== 'string' || xmlString.trim().length === 0) {
+			if (!xmlString || xmlString.trim().length === 0) {
 				ctx.status = 400
 				ctx.body = 'failure\nInvalid request: XML string is empty'
 				ctx.type = 'text/plain'
 				return
 			}
-
-			strapi.log.info(`[CommerceML Controller] Offers XML received, length: ${xmlString.length} bytes`)
 
 			// Обрабатываем offers
 			const result = await strapi
@@ -413,40 +467,19 @@ export default ({ strapi }: { strapi: Core.Strapi }) => ({
 				return
 			}
 
-			// Получаем XML из body (raw text или из поля xml)
+			// Извлекаем XML из body (может быть ZIP или обычный XML)
 			let xmlString: string
-
-			// Пробуем разные способы получения XML
-			// 1. Raw body (если Content-Type: text/xml или application/xml)
-			if (typeof ctx.request.body === 'string') {
-				xmlString = ctx.request.body
-			}
-			// 2. Из поля xml (для JSON запросов)
-			else if (ctx.request.body?.xml && typeof ctx.request.body.xml === 'string') {
-				xmlString = ctx.request.body.xml
-			}
-			// 3. Из поля data
-			else if (ctx.request.body?.data && typeof ctx.request.body.data === 'string') {
-				xmlString = ctx.request.body.data
-			}
-			// 4. Пробуем rawBody если доступен (для некоторых middleware)
-			else if ((ctx.request as any).rawBody && typeof (ctx.request as any).rawBody === 'string') {
-				xmlString = (ctx.request as any).rawBody
-			}
-			// 5. Если body это объект, пробуем преобразовать в строку
-			else if (ctx.request.body && typeof ctx.request.body === 'object') {
-				// Может быть уже распарсен как объект, пробуем преобразовать обратно
-				strapi.log.warn('[CommerceML Controller] Body is object, trying to stringify...')
-				xmlString = JSON.stringify(ctx.request.body)
-			}
-			else {
+			try {
+				xmlString = extractXMLFromBody(ctx)
+			} catch (error: any) {
+				strapi.log.error('[CommerceML Controller] Failed to extract XML:', error.message)
 				ctx.status = 400
-				ctx.body = 'failure\nInvalid request: XML string expected in body'
+				ctx.body = `failure\n${error.message}`
 				ctx.type = 'text/plain'
 				return
 			}
 
-			if (!xmlString || typeof xmlString !== 'string' || xmlString.trim().length === 0) {
+			if (!xmlString || xmlString.trim().length === 0) {
 				ctx.status = 400
 				ctx.body = 'failure\nInvalid request: XML string is empty'
 				ctx.type = 'text/plain'

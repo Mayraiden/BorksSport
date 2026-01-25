@@ -27,11 +27,14 @@ export default (config: any, { strapi }: any) => {
 
 			// Для POST/PUT запросов с XML, устанавливаем правильный Content-Type
 			// чтобы стандартный body parser обработал его как текст
+			// НО НЕ меняем Content-Type для ZIP файлов!
 			const contentType = ctx.request.headers['content-type'] || ''
 			if (
 				(ctx.request.method === 'POST' || ctx.request.method === 'PUT') &&
 				!contentType.includes('application/json') &&
-				!contentType.includes('application/x-www-form-urlencoded')
+				!contentType.includes('application/x-www-form-urlencoded') &&
+				!contentType.includes('zip') &&
+				!contentType.includes('application/octet-stream')
 			) {
 				// Если Content-Type не указан или это XML, устанавливаем text/plain
 				// чтобы body parser обработал как raw text
