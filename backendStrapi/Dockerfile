@@ -1,39 +1,34 @@
 # Используем официальный образ Node.js
 FROM node:20
 
-# Устанавливаем рабочую директорию
+# Рабочая директория
 WORKDIR /app
 
-# Настройка npm для лучшей производительности и надежности
-# Увеличиваем таймауты и количество повторов для медленных соединений
-RUN npm config set fetch-retries 5 && \
-    npm config set fetch-retry-mintimeout 20000 && \
-    npm config set fetch-retry-maxtimeout 120000 && \
-    npm config set progress false && \
-    npm config set loglevel error
+# Ограничиваем память Node (критично для npm/yarn install и build)
+ENV NODE_OPTIONS="--max-old-space-size=1024"
 
-# Копируем файлы зависимостей
-COPY package*.json ./
+# Копируем только файлы зависимостей
+COPY package.json yarn.lock ./
 
 # Устанавливаем зависимости
-# Используем npm install (package-lock.json может отсутствовать, так как проект использует yarn)
-RUN npm install --loglevel=error --progress=false
+# --frozen-lockfile — гарантирует соответствие yarn.lock
+# --network-timeout — защита от долгих сетевых запросов
+RUN yarn install --frozen-lockfile --network-timeout 600000
 
 # Копируем исходный код
 COPY . .
 
-# Собираем приложение
-RUN npm run build
+# Собираем Strapi
+RUN yarn build
 
-# Удаляем dev зависимости после сборки
-RUN npm prune --production
+# Удаляем dev-зависимости
+RUN yarn install --production --ignore-scripts --prefer-offline
 
-# Создаем необходимые директории
+# Создаём необходимые директории
 RUN mkdir -p /app/.tmp /app/public/uploads /app/logs
 
-# Открываем порт
+# Открываем порт Strapi
 EXPOSE 1337
 
-# Запускаем Strapi (в development режиме используем develop, в production - start)
-CMD sh -c "if [ \"$NODE_ENV\" = \"development\" ]; then npm run develop; else npm start; fi"
-
+# Запуск
+CMD sh -c "if [ \"$NODE_ENV\" = \"development\" ]; then yarn develop; else yarn start; fi"
