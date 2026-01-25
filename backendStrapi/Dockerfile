@@ -16,10 +16,8 @@ RUN npm config set fetch-retries 5 && \
 COPY package*.json ./
 
 # Устанавливаем зависимости
-# Используем npm ci для production (быстрее и надежнее, требует package-lock.json)
-# Если npm ci не работает (нет lock файла), fallback на npm install
-RUN npm ci --loglevel=error --progress=false || \
-    npm install --loglevel=error --progress=false
+# Используем npm install (package-lock.json может отсутствовать, так как проект использует yarn)
+RUN npm install --loglevel=error --progress=false
 
 # Копируем исходный код
 COPY . .
