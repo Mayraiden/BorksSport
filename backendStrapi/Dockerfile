@@ -1,8 +1,9 @@
 # Используем официальный образ Node.js
 FROM node:20-alpine
 
-# Устанавливаем yarn глобально
-RUN npm install -g yarn@1.22.22
+# Устанавливаем нужную версию yarn
+# node:20-alpine уже содержит yarn, поэтому используем --force для переустановки
+RUN npm install -g yarn@1.22.22 --force
 
 # Устанавливаем рабочую директорию
 WORKDIR /app
