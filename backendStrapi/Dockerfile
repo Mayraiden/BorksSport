@@ -1,33 +1,34 @@
 # Используем официальный образ Node.js
 FROM node:20-alpine
 
-# Устанавливаем нужную версию yarn
-# node:20-alpine уже содержит yarn, поэтому используем --force для переустановки
-RUN npm install -g yarn@1.22.22 --force
-
 # Устанавливаем рабочую директорию
 WORKDIR /app
 
-# Настройка yarn для лучшей производительности
-RUN yarn config set network-timeout 300000 && \
-    yarn config set network-concurrency 1
+# Настройка npm для лучшей производительности и надежности
+# Увеличиваем таймауты и количество повторов для медленных соединений
+RUN npm config set fetch-retries 5 && \
+    npm config set fetch-retry-mintimeout 20000 && \
+    npm config set fetch-retry-maxtimeout 120000 && \
+    npm config set progress false && \
+    npm config set loglevel error
 
 # Копируем файлы зависимостей
-COPY package.json yarn.lock ./
+COPY package*.json ./
 
 # Устанавливаем зависимости
-# Используем yarn install --frozen-lockfile (аналог npm ci для yarn)
-RUN yarn install --frozen-lockfile --production=false || \
-    yarn install --production=false
+# Используем npm ci для production (быстрее и надежнее, требует package-lock.json)
+# Если npm ci не работает (нет lock файла), fallback на npm install
+RUN npm ci --loglevel=error --progress=false || \
+    npm install --loglevel=error --progress=false
 
 # Копируем исходный код
 COPY . .
 
 # Собираем приложение
-RUN yarn build
+RUN npm run build
 
 # Удаляем dev зависимости после сборки
-RUN yarn install --production --frozen-lockfile
+RUN npm prune --production
 
 # Создаем необходимые директории
 RUN mkdir -p /app/.tmp /app/public/uploads /app/logs
@@ -36,5 +37,5 @@ RUN mkdir -p /app/.tmp /app/public/uploads /app/logs
 EXPOSE 1337
 
 # Запускаем Strapi (в development режиме используем develop, в production - start)
-CMD sh -c "if [ \"$NODE_ENV\" = \"development\" ]; then yarn develop; else yarn start; fi"
+CMD sh -c "if [ \"$NODE_ENV\" = \"development\" ]; then npm run develop; else npm start; fi"
 
