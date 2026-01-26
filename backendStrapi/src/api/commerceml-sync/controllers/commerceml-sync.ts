@@ -584,15 +584,16 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 					.processRests(xml)
 			}
 
-			ctx.status = 200
-			ctx.body = result
-		} catch (error: any) {
-			strapi.log.error('[CommerceML Controller] Upload failed:', error.message)
-			ctx.status = 500
-			ctx.body = {
-				success: false,
-				message: error.message || 'Failed to process upload',
-			}
+		ctx.status = 200
+		ctx.body = result
+	} catch (error: any) {
+		strapi.log.error('[CommerceML Controller] Upload failed:', error.message)
+		ctx.status = 500
+		ctx.body = {
+			success: false,
+			message: error.message || 'Failed to process upload',
 		}
+	}
 	},
-})
+	}
+}
