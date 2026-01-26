@@ -1,6 +1,6 @@
 {
   "name": "backend-strapi",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "description": "A Strapi application",
   "scripts": {
@@ -18,9 +18,9 @@
     "db:reset": "docker-compose -f docker-compose.dev.yml down -v && docker-compose -f docker-compose.dev.yml up -d"
   },
   "dependencies": {
-    "@strapi/plugin-cloud": "5.25.0",
-    "@strapi/plugin-users-permissions": "5.25.0",
-    "@strapi/strapi": "5.25.0",
+    "@strapi/plugin-cloud": "5.33.4",
+    "@strapi/plugin-users-permissions": "5.33.4",
+    "@strapi/strapi": "5.33.4",
     "adm-zip": "^0.5.16",
     "better-sqlite3": "11.3.0",
     "fast-xml-parser": "^5.3.3",
