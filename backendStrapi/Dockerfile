@@ -36,7 +36,7 @@ RUN npm prune --production
 
 # Создаем необходимые директории
 RUN mkdir -p /app/.tmp /app/public/uploads /app/logs
-@@ -37,5 +35,5 @@ RUN mkdir -p /app/.tmp /app/public/uploads /app/logs
+
 EXPOSE 1337
 
 # Запускаем Strapi (в development режиме используем develop, в production - start)
