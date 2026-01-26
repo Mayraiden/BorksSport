@@ -81,15 +81,15 @@ jobs:
             
             # Останавливаем текущие контейнеры
             echo "🛑 Stopping current containers..."
-            docker-compose down || true
+            docker compose down || true
             
             # Пересобираем образ
             echo "🔨 Building new Docker image..."
-            docker-compose build --no-cache
+            docker compose build --no-cache
             
             # Запускаем контейнеры
             echo "▶️ Starting containers..."
-            docker-compose up -d
+            docker compose up -d
             
             # Ждем запуска
             echo "⏳ Waiting for containers to start..."
