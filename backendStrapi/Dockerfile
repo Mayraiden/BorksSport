@@ -2,36 +2,42 @@
 # Dockerfile для Strapi (оптимизированный для малой памяти)
 # ---------------------------
 
-    FROM node:20
+    FROM node:20-alpine
 
     WORKDIR /app
     
-    # Ограничиваем память Node.js (1GB для установки)
-    ENV NODE_OPTIONS="--max-old-space-size=1024"
-    
-    # Настройка npm
-    RUN npm config set fetch-retries 3 && \
-        npm config set fetch-retry-mintimeout 20000 && \
-        npm config set fetch-retry-maxtimeout 60000 && \
-        npm config set progress false && \
-        npm config set loglevel error
+ 
+# Настройка npm для лучшей производительности и надежности
+# Увеличиваем таймауты и количество повторов для медленных соединений
+RUN npm config set fetch-retries 5 && \
+    npm config set fetch-retry-mintimeout 20000 && \
+    npm config set fetch-retry-maxtimeout 60000 && \
+    npm config set progress false && \
+    npm config set loglevel error
+
     
     COPY package*.json ./
     
-    # Устанавливаем зависимости с минимальным потреблением памяти
-    RUN npm install --loglevel=error --progress=false --no-audit --no-fund --prefer-offline
+  # Устанавливаем зависимости
+# Используем npm ci для production (быстрее и надежнее, требует package-lock.json)
+# Если npm ci не работает (нет lock файла), fallback на npm install
+RUN npm ci --loglevel=error --progress=false || \
+npm install --loglevel=error --progress=false
+
+# Копируем исходный код
+COPY . .
     
-    COPY . .
+# Собираем приложение
+RUN npm run build
     
-    # Увеличиваем лимит для сборки
-    ENV NODE_OPTIONS="--max-old-space-size=1536"
-    RUN npm run build
-    
-    # Удаляем dev-зависимости
-    RUN npm prune --production
-    
-    RUN mkdir -p /app/.tmp /app/public/uploads /app/logs
-    
-    EXPOSE 1337
-    
-    CMD ["npm", "start"]
+# Удаляем dev зависимости после сборки
+# Удаляем dev зависимости после сборки
+RUN npm prune --production
+
+# Создаем необходимые директории
+RUN mkdir -p /app/.tmp /app/public/uploads /app/logs
+@@ -37,5 +35,5 @@ RUN mkdir -p /app/.tmp /app/public/uploads /app/logs
+EXPOSE 1337
+
+# Запускаем Strapi (в development режиме используем develop, в production - start)
+CMD sh -c "if [ \"$NODE_ENV\" = \"development\" ]; then npm run develop; else npm start; fi"
