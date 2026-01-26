@@ -44,5 +44,5 @@
     "uuid": "861a6c4b-9352-4c11-ae4a-6e33535b4bf8",
     "installId": "9e450f64147764616817847212ab6f02054bd3bc846d57d10850311194de8a0e"
   },
-  "packageManager": "yarn@1.22.22+sha1.ac34549e6aa8e7ead463a7407e1c7390f61a6610"
+  "packageManager": "npm@10.0.0"
 }
