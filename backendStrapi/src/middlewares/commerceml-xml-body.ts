@@ -49,7 +49,7 @@ export default (config: any, { strapi }: any) => {
 						strapi.log.info('[CommerceML Middleware] Raw body saved', {
 							length: (ctx.request as any).rawBody.length,
 							firstBytes: Array.from((ctx.request as any).rawBody.slice(0, 10))
-								.map(b => '0x' + b.toString(16)).join(' '),
+								.map((b: number) => '0x' + Number(b).toString(16)).join(' '),
 						})
 						
 						try {

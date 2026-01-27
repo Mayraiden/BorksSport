@@ -95,7 +95,7 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 			isBuffer: Buffer.isBuffer(bodyData),
 			length: Buffer.isBuffer(bodyData) ? bodyData.length : bodyData.length,
 			firstBytes: Buffer.isBuffer(bodyData) 
-				? Array.from(bodyData.slice(0, 10)).map(b => '0x' + b.toString(16)).join(' ')
+				? Array.from(bodyData.slice(0, 10)).map((b: number) => '0x' + Number(b).toString(16)).join(' ')
 				: bodyData.substring(0, 50),
 		})
 
@@ -121,7 +121,7 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 				const zipBuffer = Buffer.isBuffer(bodyData) ? bodyData : Buffer.from(bodyData, 'binary')
 				strapi.log.info('[CommerceML Controller] ZIP buffer created', {
 					bufferLength: zipBuffer.length,
-					firstBytes: Array.from(zipBuffer.slice(0, 10)).map(b => '0x' + b.toString(16)).join(' '),
+					firstBytes: Array.from(zipBuffer.slice(0, 10)).map((b: number) => '0x' + Number(b).toString(16)).join(' '),
 				})
 				
 				const zip = new AdmZip(zipBuffer)
