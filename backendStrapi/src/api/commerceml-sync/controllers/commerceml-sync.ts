@@ -15,24 +15,40 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 	 * @returns XML строка
 	 */
 	function extractXMLFromBody(ctx: any): string {
+		// Детальное логирование для отладки
+		strapi.log.info('[CommerceML Controller] Extracting XML from body', {
+			bodyType: typeof ctx.request.body,
+			bodyIsBuffer: Buffer.isBuffer(ctx.request.body),
+			bodyLength: ctx.request.body ? (Buffer.isBuffer(ctx.request.body) ? ctx.request.body.length : String(ctx.request.body).length) : 0,
+			contentType: ctx.request.headers['content-type'],
+			contentLength: ctx.request.headers['content-length'],
+			hasRawBody: !!(ctx.request as any).rawBody,
+			rawBodyType: typeof (ctx.request as any).rawBody,
+			rawBodyLength: (ctx.request as any).rawBody ? (Buffer.isBuffer((ctx.request as any).rawBody) ? (ctx.request as any).rawBody.length : String((ctx.request as any).rawBody).length) : 0,
+		})
+
 		// Получаем данные из body (может быть XML или ZIP архив)
 		let bodyData: Buffer | string
 
 		// Пробуем разные способы получения данных
 		// 1. Raw body как Buffer (для ZIP)
 		if (Buffer.isBuffer(ctx.request.body)) {
+			strapi.log.info('[CommerceML Controller] Body is Buffer')
 			bodyData = ctx.request.body
 		}
 		// 2. Raw body как string (для XML)
 		else if (typeof ctx.request.body === 'string') {
+			strapi.log.info('[CommerceML Controller] Body is string')
 			bodyData = ctx.request.body
 		}
 		// 3. Из поля xml (для JSON запросов)
 		else if (ctx.request.body?.xml && typeof ctx.request.body.xml === 'string') {
+			strapi.log.info('[CommerceML Controller] Body has xml field')
 			bodyData = ctx.request.body.xml
 		}
 		// 4. Из поля data
 		else if (ctx.request.body?.data) {
+			strapi.log.info('[CommerceML Controller] Body has data field')
 			if (Buffer.isBuffer(ctx.request.body.data)) {
 				bodyData = ctx.request.body.data
 			} else if (typeof ctx.request.body.data === 'string') {
@@ -43,6 +59,7 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 		}
 		// 5. Пробуем rawBody если доступен
 		else if ((ctx.request as any).rawBody) {
+			strapi.log.info('[CommerceML Controller] Using rawBody')
 			if (Buffer.isBuffer((ctx.request as any).rawBody)) {
 				bodyData = (ctx.request as any).rawBody
 			} else {
@@ -51,16 +68,36 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 		}
 		// 6. Если body это объект, пробуем преобразовать в строку
 		else if (ctx.request.body && typeof ctx.request.body === 'object') {
-			strapi.log.warn('[CommerceML Controller] Body is object, trying to stringify...')
+			strapi.log.warn('[CommerceML Controller] Body is object, trying to stringify...', {
+				bodyKeys: Object.keys(ctx.request.body),
+				bodyStringified: JSON.stringify(ctx.request.body).substring(0, 200),
+			})
 			bodyData = JSON.stringify(ctx.request.body)
 		}
 		else {
+			strapi.log.error('[CommerceML Controller] Cannot extract data from body', {
+				bodyType: typeof ctx.request.body,
+				bodyValue: ctx.request.body ? String(ctx.request.body).substring(0, 200) : 'null/undefined',
+			})
 			throw new Error('Cannot extract data from body')
 		}
 
 		if (!bodyData || (typeof bodyData === 'string' && bodyData.trim().length === 0)) {
+			strapi.log.error('[CommerceML Controller] Body data is empty', {
+				bodyDataType: typeof bodyData,
+				bodyDataLength: bodyData ? (typeof bodyData === 'string' ? bodyData.length : bodyData.length) : 0,
+			})
 			throw new Error('Body data is empty')
 		}
+
+		strapi.log.info('[CommerceML Controller] Body data extracted', {
+			type: typeof bodyData,
+			isBuffer: Buffer.isBuffer(bodyData),
+			length: Buffer.isBuffer(bodyData) ? bodyData.length : bodyData.length,
+			firstBytes: Buffer.isBuffer(bodyData) 
+				? Array.from(bodyData.slice(0, 10)).map(b => '0x' + b.toString(16)).join(' ')
+				: bodyData.substring(0, 50),
+		})
 
 		// Проверяем, является ли это ZIP архивом
 		const contentType = ctx.request.headers['content-type'] || ''
@@ -70,13 +107,30 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 		const isZipBuffer = Buffer.isBuffer(bodyData) && bodyData.length >= 4 && bodyData[0] === 0x50 && bodyData[1] === 0x4B
 		const isZipString = typeof bodyData === 'string' && bodyData.length >= 4 && bodyData.charCodeAt(0) === 0x50 && bodyData.charCodeAt(1) === 0x4B
 
+		strapi.log.info('[CommerceML Controller] ZIP detection', {
+			isZipContentType,
+			isZipBuffer,
+			isZipString,
+			contentType,
+		})
+
 		if (isZipContentType || isZipBuffer || isZipString) {
 			strapi.log.info('[CommerceML Controller] Detected ZIP archive, extracting...')
 			try {
 				// Преобразуем в Buffer если нужно
 				const zipBuffer = Buffer.isBuffer(bodyData) ? bodyData : Buffer.from(bodyData, 'binary')
+				strapi.log.info('[CommerceML Controller] ZIP buffer created', {
+					bufferLength: zipBuffer.length,
+					firstBytes: Array.from(zipBuffer.slice(0, 10)).map(b => '0x' + b.toString(16)).join(' '),
+				})
+				
 				const zip = new AdmZip(zipBuffer)
 				const zipEntries = zip.getEntries()
+				
+				strapi.log.info('[CommerceML Controller] ZIP entries found', {
+					count: zipEntries.length,
+					entries: zipEntries.map(e => e.entryName),
+				})
 
 				// Ищем XML файл (catalog.xml, offers.xml, rests.xml или любой .xml)
 				let xmlEntry = zipEntries.find((entry) => 
@@ -93,6 +147,9 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 				}
 
 				if (!xmlEntry) {
+					strapi.log.error('[CommerceML Controller] No XML file found in ZIP', {
+						entries: zipEntries.map(e => e.entryName),
+					})
 					throw new Error('No XML file found in ZIP archive')
 				}
 
@@ -100,7 +157,10 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 				strapi.log.info(`[CommerceML Controller] Extracted XML from ZIP: ${xmlEntry.entryName}, length: ${xmlString.length} bytes`)
 				return xmlString
 			} catch (error: any) {
-				strapi.log.error('[CommerceML Controller] Failed to extract ZIP:', error.message)
+				strapi.log.error('[CommerceML Controller] Failed to extract ZIP:', {
+					message: error.message,
+					stack: error.stack,
+				})
 				throw new Error(`Failed to extract ZIP: ${error.message}`)
 			}
 		} else {
@@ -355,7 +415,11 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 			try {
 				xmlString = extractXMLFromBody(ctx)
 			} catch (error: any) {
-				strapi.log.error('[CommerceML Controller] Failed to extract XML:', error.message)
+				strapi.log.error('[CommerceML Controller] Failed to extract XML:', {
+					message: error.message,
+					stack: error.stack,
+					errorType: error.constructor.name,
+				})
 				ctx.status = 400
 				ctx.body = `failure\n${error.message}`
 				ctx.type = 'text/plain'
@@ -415,7 +479,11 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 			try {
 				xmlString = extractXMLFromBody(ctx)
 			} catch (error: any) {
-				strapi.log.error('[CommerceML Controller] Failed to extract XML:', error.message)
+				strapi.log.error('[CommerceML Controller] Failed to extract XML:', {
+					message: error.message,
+					stack: error.stack,
+					errorType: error.constructor.name,
+				})
 				ctx.status = 400
 				ctx.body = `failure\n${error.message}`
 				ctx.type = 'text/plain'
@@ -472,7 +540,11 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 			try {
 				xmlString = extractXMLFromBody(ctx)
 			} catch (error: any) {
-				strapi.log.error('[CommerceML Controller] Failed to extract XML:', error.message)
+				strapi.log.error('[CommerceML Controller] Failed to extract XML:', {
+					message: error.message,
+					stack: error.stack,
+					errorType: error.constructor.name,
+				})
 				ctx.status = 400
 				ctx.body = `failure\n${error.message}`
 				ctx.type = 'text/plain'
