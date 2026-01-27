@@ -17,5 +17,23 @@ coverage
 logs
 data/.tmp
 data/uploads
+.strapi
+build
+*.tsbuildinfo
+.eslintcache
+documentation
+*.md
+!README.md
+.github
+docker-compose*.yml
+Dockerfile*
+.dockerignore
+*.test.ts
+*.test.js
+*.spec.ts
+*.spec.js
+__tests__
+test
+tests
 
 
