@@ -137,24 +137,40 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 				}
 				
 				// Проверяем END header в конце файла (должен быть 0x06054b50)
+				// END header может быть в разных местах в зависимости от размера ZIP comment
 				const endHeaderOffset = zipBuffer.length - 22
 				const endHeader = zipBuffer.readUInt32LE(endHeaderOffset)
-				if (endHeader !== 0x06054b50) {
-					strapi.log.warn(`[CommerceML Controller] ZIP END header not found at expected position. Found: 0x${endHeader.toString(16)} at offset ${endHeaderOffset}`)
+				const endHeaderBE = zipBuffer.readUInt32BE(endHeaderOffset)
+				
+				if (endHeader !== 0x06054b50 && endHeaderBE !== 0x06054b50) {
+					strapi.log.warn(`[CommerceML Controller] ZIP END header not found at expected position. Found LE: 0x${endHeader.toString(16)}, BE: 0x${endHeaderBE.toString(16)} at offset ${endHeaderOffset}`)
+					
 					// Попробуем найти END header в последних 65557 байтах (максимальный размер ZIP comment)
 					let foundEndHeader = false
-					for (let i = Math.max(0, zipBuffer.length - 65557); i < zipBuffer.length - 22; i++) {
-						if (zipBuffer.readUInt32LE(i) === 0x06054b50) {
-							strapi.log.info(`[CommerceML Controller] Found END header at offset ${i}`)
+					let foundOffset = -1
+					
+					// Ищем с конца файла (более эффективно)
+					for (let i = zipBuffer.length - 22; i >= Math.max(0, zipBuffer.length - 65557); i--) {
+						const headerLE = zipBuffer.readUInt32LE(i)
+						const headerBE = zipBuffer.readUInt32BE(i)
+						if (headerLE === 0x06054b50 || headerBE === 0x06054b50) {
+							strapi.log.info(`[CommerceML Controller] Found END header at offset ${i} (${headerLE === 0x06054b50 ? 'LE' : 'BE'})`)
 							foundEndHeader = true
+							foundOffset = i
 							break
 						}
 					}
+					
 					if (!foundEndHeader) {
-						throw new Error(`ZIP END header not found. File may be incomplete or corrupted. Size: ${zipBuffer.length} bytes`)
+						strapi.log.warn(`[CommerceML Controller] END header not found, but trying to parse ZIP anyway (adm-zip may handle it)`)
+						// Не бросаем ошибку - попробуем распарсить ZIP даже без найденного END header
+						// adm-zip может справиться с некоторыми нестандартными форматами
 					}
+				} else {
+					strapi.log.info(`[CommerceML Controller] ZIP END header found at expected position`)
 				}
 				
+				// Пробуем распарсить ZIP (даже если END header не найден в ожидаемом месте)
 				const zip = new AdmZip(zipBuffer)
 				const zipEntries = zip.getEntries()
 				
@@ -451,7 +467,8 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 					stack: error.stack,
 					errorType: error.constructor.name,
 				})
-				ctx.status = 400
+				// CommerceML протокол требует 200 OK даже при ошибках
+				ctx.status = 200
 				ctx.body = `failure\n${error.message}`
 				ctx.type = 'text/plain'
 				return
@@ -459,7 +476,8 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 
 			if (!xmlString || xmlString.trim().length === 0) {
 				strapi.log.warn('[CommerceML Controller] XML string is empty after processing')
-				ctx.status = 400
+				// CommerceML протокол требует 200 OK даже при ошибках
+				ctx.status = 200
 				ctx.body = 'failure\nInvalid request: XML string is empty'
 				ctx.type = 'text/plain'
 				return
@@ -483,7 +501,8 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 		} catch (error: any) {
 			strapi.log.error('[CommerceML Controller] Catalog processing failed:', error.message)
 			strapi.log.error('[CommerceML Controller] Error stack:', error.stack)
-			ctx.status = 500
+			// CommerceML протокол требует 200 OK даже при ошибках обработки
+			ctx.status = 200
 			ctx.body = `failure\n${error.message || 'Failed to process catalog'}`
 			ctx.type = 'text/plain'
 		}
@@ -515,14 +534,16 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 					stack: error.stack,
 					errorType: error.constructor.name,
 				})
-				ctx.status = 400
+				// CommerceML протокол требует 200 OK даже при ошибках
+				ctx.status = 200
 				ctx.body = `failure\n${error.message}`
 				ctx.type = 'text/plain'
 				return
 			}
 
 			if (!xmlString || xmlString.trim().length === 0) {
-				ctx.status = 400
+				// CommerceML протокол требует 200 OK даже при ошибках
+				ctx.status = 200
 				ctx.body = 'failure\nInvalid request: XML string is empty'
 				ctx.type = 'text/plain'
 				return
@@ -544,7 +565,8 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 			)
 		} catch (error: any) {
 			strapi.log.error('[CommerceML Controller] Offers processing failed:', error.message)
-			ctx.status = 500
+			// CommerceML протокол требует 200 OK даже при ошибках обработки
+			ctx.status = 200
 			ctx.body = `failure\n${error.message || 'Failed to process offers'}`
 			ctx.type = 'text/plain'
 		}
@@ -576,14 +598,16 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 					stack: error.stack,
 					errorType: error.constructor.name,
 				})
-				ctx.status = 400
+				// CommerceML протокол требует 200 OK даже при ошибках
+				ctx.status = 200
 				ctx.body = `failure\n${error.message}`
 				ctx.type = 'text/plain'
 				return
 			}
 
 			if (!xmlString || xmlString.trim().length === 0) {
-				ctx.status = 400
+				// CommerceML протокол требует 200 OK даже при ошибках
+				ctx.status = 200
 				ctx.body = 'failure\nInvalid request: XML string is empty'
 				ctx.type = 'text/plain'
 				return
@@ -607,7 +631,8 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 			)
 		} catch (error: any) {
 			strapi.log.error('[CommerceML Controller] Rests processing failed:', error.message)
-			ctx.status = 500
+			// CommerceML протокол требует 200 OK даже при ошибках обработки
+			ctx.status = 200
 			ctx.body = `failure\n${error.message || 'Failed to process rests'}`
 			ctx.type = 'text/plain'
 		}
