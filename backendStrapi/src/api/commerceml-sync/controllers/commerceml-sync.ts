@@ -332,8 +332,8 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 			return this.handleFile(ctx, strapi, 'catalog')
 		}
 
-		// GET запрос с mode=success - файл полностью загружен, можно обрабатывать
-		if (ctx.request.method === 'GET' && mode === 'success') {
+		// GET запрос с mode=success или mode=import - файл полностью загружен, можно обрабатывать
+		if (ctx.request.method === 'GET' && (mode === 'success' || mode === 'import')) {
 			return this.handleSuccess(ctx, strapi, 'catalog')
 		}
 
@@ -374,7 +374,7 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 			return this.handleFile(ctx, strapi, 'offers')
 		}
 
-		if (ctx.request.method === 'GET' && mode === 'success') {
+		if (ctx.request.method === 'GET' && (mode === 'success' || mode === 'import')) {
 			return this.handleSuccess(ctx, strapi, 'offers')
 		}
 
@@ -414,7 +414,7 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 			return this.handleFile(ctx, strapi, 'rests')
 		}
 
-		if (ctx.request.method === 'GET' && mode === 'success') {
+		if (ctx.request.method === 'GET' && (mode === 'success' || mode === 'import')) {
 			return this.handleSuccess(ctx, strapi, 'rests')
 		}
 
@@ -603,15 +603,43 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 		}
 
 		// Путь к сохранённому файлу
+		// Saby может отправлять filename как .xml, но файл сохранён как .zip
 		const tempDir = path.join(process.cwd(), 'data', 'commerceml')
-		const filePath = path.join(tempDir, filename)
+		let filePath = path.join(tempDir, filename)
+		
+		// Если файл не найден и filename заканчивается на .xml, пробуем найти .zip версию
+		if (!fs.existsSync(filePath) && filename.endsWith('.xml')) {
+			const zipFilename = filename.replace(/\.xml$/, '.zip')
+			const zipFilePath = path.join(tempDir, zipFilename)
+			if (fs.existsSync(zipFilePath)) {
+				strapi.log.info(`[CommerceML] File ${filename} not found, using ${zipFilename} instead`)
+				filePath = zipFilePath
+			}
+		}
 
 		if (!fs.existsSync(filePath)) {
 			strapi.log.error(`[CommerceML] File not found: ${filePath}`)
-			ctx.status = 200
-			ctx.body = 'failure\nФайл не найден'
-			ctx.type = 'text/plain'
-			return
+			// Пробуем найти любой файл с похожим именем
+			try {
+				const files = fs.readdirSync(tempDir)
+				const matchingFiles = files.filter(f => f.startsWith(filename.split('.')[0]))
+				if (matchingFiles.length > 0) {
+					strapi.log.info(`[CommerceML] Found similar files: ${matchingFiles.join(', ')}`)
+					filePath = path.join(tempDir, matchingFiles[0])
+					strapi.log.info(`[CommerceML] Using file: ${filePath}`)
+				} else {
+					ctx.status = 200
+					ctx.body = 'failure\nФайл не найден'
+					ctx.type = 'text/plain'
+					return
+				}
+			} catch (dirError: any) {
+				strapi.log.error(`[CommerceML] Failed to read temp directory: ${dirError.message}`)
+				ctx.status = 200
+				ctx.body = 'failure\nФайл не найден'
+				ctx.type = 'text/plain'
+				return
+			}
 		}
 
 		const fileStats = fs.statSync(filePath)
