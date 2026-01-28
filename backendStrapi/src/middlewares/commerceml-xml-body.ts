@@ -48,17 +48,19 @@ export default (config: any, { strapi }: any) => {
 						const rawBody = Buffer.concat(chunks)
 						;(ctx.request as any).rawBody = rawBody
 						
-						strapi.log.info('[CommerceML Middleware] Raw body saved', {
-							length: rawBody.length,
-							expectedLength: ctx.request.headers['content-length'],
-							firstBytes: Array.from(rawBody.slice(0, 10))
-								.map((b: number) => '0x' + Number(b).toString(16).padStart(2, '0')).join(' '),
-							lastBytes: rawBody.length > 10 
-								? Array.from(rawBody.slice(-10))
-									.map((b: number) => '0x' + Number(b).toString(16).padStart(2, '0')).join(' ')
-								: 'N/A',
-							isZipSignature: rawBody.length >= 4 && rawBody[0] === 0x50 && rawBody[1] === 0x4B,
-						})
+						const expectedLength = parseInt(ctx.request.headers['content-length'] || '0', 10)
+						const firstBytes = Array.from(rawBody.slice(0, 10))
+							.map((b: number) => '0x' + Number(b).toString(16).padStart(2, '0')).join(' ')
+						const lastBytes = rawBody.length > 10 
+							? Array.from(rawBody.slice(-10))
+								.map((b: number) => '0x' + Number(b).toString(16).padStart(2, '0')).join(' ')
+							: 'N/A'
+						
+						strapi.log.info(`[CommerceML Middleware] Raw body saved: ${rawBody.length} bytes (expected: ${expectedLength})`)
+						strapi.log.info(`[CommerceML Middleware] First bytes: ${firstBytes}`)
+						strapi.log.info(`[CommerceML Middleware] Last bytes: ${lastBytes}`)
+						strapi.log.info(`[CommerceML Middleware] ZIP signature: ${rawBody.length >= 4 && rawBody[0] === 0x50 && rawBody[1] === 0x4B ? 'YES' : 'NO'}`)
+						strapi.log.info(`[CommerceML Middleware] Size match: ${rawBody.length === expectedLength ? 'YES' : 'NO'} (diff: ${expectedLength - rawBody.length})`)
 						
 						// Устанавливаем body напрямую, чтобы body parser не пытался читать stream
 						ctx.request.body = rawBody

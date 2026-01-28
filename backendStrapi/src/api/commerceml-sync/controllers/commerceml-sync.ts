@@ -119,16 +119,41 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 			try {
 				// Преобразуем в Buffer если нужно
 				const zipBuffer = Buffer.isBuffer(bodyData) ? bodyData : Buffer.from(bodyData, 'binary')
-			strapi.log.info('[CommerceML Controller] ZIP buffer created', {
-				bufferLength: zipBuffer.length,
-				firstBytes: Array.from(zipBuffer.slice(0, 10))
-					.map((b: number) => '0x' + Number(b).toString(16).padStart(2, '0')).join(' '),
-				lastBytes: zipBuffer.length > 10 
+				const firstBytes = Array.from(zipBuffer.slice(0, 10))
+					.map((b: number) => '0x' + Number(b).toString(16).padStart(2, '0')).join(' ')
+				const lastBytes = zipBuffer.length > 10 
 					? Array.from(zipBuffer.slice(-10))
 						.map((b: number) => '0x' + Number(b).toString(16).padStart(2, '0')).join(' ')
-					: 'N/A',
-				hasZipSignature: zipBuffer.length >= 4 && zipBuffer[0] === 0x50 && zipBuffer[1] === 0x4B,
-			})
+					: 'N/A'
+				
+				strapi.log.info(`[CommerceML Controller] ZIP buffer created: ${zipBuffer.length} bytes`)
+				strapi.log.info(`[CommerceML Controller] First bytes: ${firstBytes}`)
+				strapi.log.info(`[CommerceML Controller] Last bytes: ${lastBytes}`)
+				strapi.log.info(`[CommerceML Controller] ZIP signature: ${zipBuffer.length >= 4 && zipBuffer[0] === 0x50 && zipBuffer[1] === 0x4B ? 'YES' : 'NO'}`)
+				
+				// Проверяем, что ZIP файл полный (должен заканчиваться на END header)
+				if (zipBuffer.length < 22) {
+					throw new Error(`ZIP buffer too small: ${zipBuffer.length} bytes (minimum 22 bytes required)`)
+				}
+				
+				// Проверяем END header в конце файла (должен быть 0x06054b50)
+				const endHeaderOffset = zipBuffer.length - 22
+				const endHeader = zipBuffer.readUInt32LE(endHeaderOffset)
+				if (endHeader !== 0x06054b50) {
+					strapi.log.warn(`[CommerceML Controller] ZIP END header not found at expected position. Found: 0x${endHeader.toString(16)} at offset ${endHeaderOffset}`)
+					// Попробуем найти END header в последних 65557 байтах (максимальный размер ZIP comment)
+					let foundEndHeader = false
+					for (let i = Math.max(0, zipBuffer.length - 65557); i < zipBuffer.length - 22; i++) {
+						if (zipBuffer.readUInt32LE(i) === 0x06054b50) {
+							strapi.log.info(`[CommerceML Controller] Found END header at offset ${i}`)
+							foundEndHeader = true
+							break
+						}
+					}
+					if (!foundEndHeader) {
+						throw new Error(`ZIP END header not found. File may be incomplete or corrupted. Size: ${zipBuffer.length} bytes`)
+					}
+				}
 				
 				const zip = new AdmZip(zipBuffer)
 				const zipEntries = zip.getEntries()
