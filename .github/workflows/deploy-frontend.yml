@@ -1,4 +1,4 @@
-name: Deploy Frontend
+name: Build and Deploy Frontend
 
 on:
   push:
@@ -9,9 +9,60 @@ on:
       - '.github/workflows/deploy-frontend.yml'
   workflow_dispatch: # Позволяет запускать вручную через GitHub UI
 
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: mayraiden/borkssport/frontend
+
 jobs:
+  build:
+    name: Build Docker Image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: release
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=latest
+            type=sha,prefix=release-
+      
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache,mode=max
+          build-args: |
+            NEXT_PUBLIC_STRAPI_URL=${{ secrets.NEXT_PUBLIC_STRAPI_URL || 'https://api.borkssport.ru' }}
+            BUILDKIT_INLINE_CACHE=1
+
   deploy:
     name: Deploy Frontend to Server
+    needs: build
     runs-on: ubuntu-latest
     
     steps:
@@ -35,6 +86,8 @@ jobs:
         env:
           SERVER_HOST: ${{ secrets.SERVER_HOST }}
           SERVER_USER: ${{ secrets.SERVER_USER }}
+          REGISTRY: ${{ env.REGISTRY }}
+          IMAGE_NAME: ${{ env.IMAGE_NAME }}
         run: |
           ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=60 -o ServerAliveCountMax=10 -o ConnectTimeout=30 -o TCPKeepAlive=yes ${SERVER_USER}@${SERVER_HOST} << 'EOF'
             set -e
@@ -52,15 +105,6 @@ jobs:
               cp frontend/.env.local frontend/.env.local.backup || true
               echo "✅ .env.local file backed up"
             fi
-            
-            # Очистка диска перед обновлением кода
-            echo "🧹 Cleaning up disk space before deployment..."
-            df -h
-            docker system prune -f --volumes || true
-            docker builder prune -af || true
-            npm cache clean --force 2>/dev/null || true
-            yarn cache clean 2>/dev/null || true
-            df -h
             
             # Обновляем код из репозитория
             echo "📥 Pulling latest changes from release branch..."
@@ -91,15 +135,18 @@ jobs:
             # Переходим в папку frontend
             cd frontend
             
+            # Логин в GHCR (если нужен для pull)
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ${{ env.REGISTRY }} -u ${{ github.actor }} --password-stdin || true
+            
+            # Pull готового образа
+            echo "📥 Pulling latest image from GHCR..."
+            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest || true
+            
             # Останавливаем текущий контейнер
             echo "🛑 Stopping current container..."
             docker compose down || true
             
-            # Пересобираем образ (используем кеш для ускорения)
-            echo "🔨 Building new Docker image..."
-            docker compose build
-            
-            # Запускаем контейнер
+            # Запускаем контейнер (образ уже скачан)
             echo "▶️ Starting container..."
             docker compose up -d
             
@@ -117,6 +164,7 @@ jobs:
               echo "✅ Frontend is healthy!"
             else
               echo "⚠️ Frontend health check failed, but deployment completed"
+              echo "Check logs for more information"
             fi
             
             echo "✅ Frontend deployment completed!"
@@ -125,5 +173,3 @@ jobs:
       - name: Deployment status
         run: |
           echo "✅ Frontend deployment workflow completed"
-
-

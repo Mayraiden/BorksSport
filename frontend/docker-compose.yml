@@ -1,10 +1,7 @@
 services:
   frontend:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      args:
-        - NEXT_PUBLIC_STRAPI_URL=${NEXT_PUBLIC_STRAPI_URL:-https://api.borkssport.ru}
+    image: ghcr.io/mayraiden/borkssport/frontend:latest
+    pull_policy: always
     container_name: sportmagazine-frontend
     restart: unless-stopped
     env_file:
