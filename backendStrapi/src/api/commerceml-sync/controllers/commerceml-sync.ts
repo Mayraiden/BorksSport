@@ -7,6 +7,8 @@ import type { Core } from '@strapi/strapi'
 import { randomUUID } from 'crypto'
 import { verifyBasicAuth } from '../utils/auth-middleware'
 import AdmZip from 'adm-zip'
+import * as fs from 'fs'
+import * as path from 'path'
 
 export default ({ strapi }: { strapi: Core.Strapi }) => {
 	/**
@@ -142,15 +144,28 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 				const endHeader = zipBuffer.readUInt32LE(endHeaderOffset)
 				const endHeaderBE = zipBuffer.readUInt32BE(endHeaderOffset)
 				
+				// Логируем последние 100 байтов для анализа
+				const last100Bytes = Array.from(zipBuffer.slice(-100))
+					.map((b: number) => '0x' + Number(b).toString(16).padStart(2, '0')).join(' ')
+				strapi.log.info(`[CommerceML Controller] Last 100 bytes: ${last100Bytes}`)
+				
 				if (endHeader !== 0x06054b50 && endHeaderBE !== 0x06054b50) {
 					strapi.log.warn(`[CommerceML Controller] ZIP END header not found at expected position. Found LE: 0x${endHeader.toString(16)}, BE: 0x${endHeaderBE.toString(16)} at offset ${endHeaderOffset}`)
 					
 					// Попробуем найти END header в последних 65557 байтах (максимальный размер ZIP comment)
+					// Но также проверим, может быть файл обрезан и END header находится раньше
 					let foundEndHeader = false
 					let foundOffset = -1
 					
 					// Ищем с конца файла (более эффективно)
-					for (let i = zipBuffer.length - 22; i >= Math.max(0, zipBuffer.length - 65557); i--) {
+					// Проверяем последние 65557 байтов, но также проверяем весь файл на случай обрезанного архива
+					const searchStart = Math.max(0, zipBuffer.length - 65557)
+					const searchEnd = zipBuffer.length - 22
+					
+					strapi.log.info(`[CommerceML Controller] Searching for END header from offset ${searchStart} to ${searchEnd}`)
+					
+					// Сначала ищем с конца (стандартное место)
+					for (let i = searchEnd; i >= searchStart; i--) {
 						const headerLE = zipBuffer.readUInt32LE(i)
 						const headerBE = zipBuffer.readUInt32BE(i)
 						if (headerLE === 0x06054b50 || headerBE === 0x06054b50) {
@@ -161,17 +176,75 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 						}
 					}
 					
+					// Если не нашли, попробуем найти в любом месте файла (может быть файл обрезан)
 					if (!foundEndHeader) {
-						strapi.log.warn(`[CommerceML Controller] END header not found, but trying to parse ZIP anyway (adm-zip may handle it)`)
-						// Не бросаем ошибку - попробуем распарсить ZIP даже без найденного END header
-						// adm-zip может справиться с некоторыми нестандартными форматами
+						strapi.log.warn(`[CommerceML Controller] END header not found in standard location, searching entire file...`)
+						// Ищем с конца файла до начала (но не дальше чем 1MB от конца для производительности)
+						const wideSearchStart = Math.max(0, zipBuffer.length - 1048576) // 1MB от конца
+						for (let i = zipBuffer.length - 22; i >= wideSearchStart; i--) {
+							const headerLE = zipBuffer.readUInt32LE(i)
+							const headerBE = zipBuffer.readUInt32BE(i)
+							if (headerLE === 0x06054b50 || headerBE === 0x06054b50) {
+								strapi.log.info(`[CommerceML Controller] Found END header at offset ${i} (${headerLE === 0x06054b50 ? 'LE' : 'BE'}) in wide search`)
+								foundEndHeader = true
+								foundOffset = i
+								break
+							}
+						}
+					}
+					
+					if (!foundEndHeader) {
+						strapi.log.error(`[CommerceML Controller] END header not found anywhere in file. File may be corrupted or incomplete.`)
+						strapi.log.error(`[CommerceML Controller] File size: ${zipBuffer.length} bytes, suspiciously exactly 5MB+1 byte`)
+						
+						// Попробуем найти центральный directory header (0x02014b50) - может быть файл обрезан после него
+						let foundCentralDir = false
+						for (let i = zipBuffer.length - 1000; i >= Math.max(0, zipBuffer.length - 100000); i--) {
+							const headerLE = zipBuffer.readUInt32LE(i)
+							if (headerLE === 0x02014b50) {
+								strapi.log.warn(`[CommerceML Controller] Found Central Directory header at offset ${i}, but no END header. File may be truncated.`)
+								foundCentralDir = true
+								break
+							}
+						}
+						
+						if (!foundCentralDir) {
+							strapi.log.error(`[CommerceML Controller] No Central Directory header found either. File structure is severely corrupted.`)
+						}
+						
+						// Все равно попробуем распарсить - может быть adm-zip сможет что-то сделать
+						strapi.log.warn(`[CommerceML Controller] Attempting to parse ZIP anyway despite missing END header...`)
 					}
 				} else {
 					strapi.log.info(`[CommerceML Controller] ZIP END header found at expected position`)
 				}
 				
 				// Пробуем распарсить ZIP (даже если END header не найден в ожидаемом месте)
-				const zip = new AdmZip(zipBuffer)
+				let zip: any
+				try {
+					zip = new AdmZip(zipBuffer)
+				} catch (zipError: any) {
+					// Если adm-zip не может распарсить, попробуем альтернативный подход
+					strapi.log.error(`[CommerceML Controller] adm-zip failed: ${zipError.message}`)
+					
+					// Попробуем найти XML напрямую в буфере (может быть это не ZIP, а просто XML с ZIP signature)
+					// Или попробуем найти XML файл по паттерну
+					const xmlStartPattern = Buffer.from('<?xml', 'utf-8')
+					const xmlStartIndex = zipBuffer.indexOf(xmlStartPattern)
+					
+					if (xmlStartIndex !== -1) {
+						strapi.log.info(`[CommerceML Controller] Found XML start pattern at offset ${xmlStartIndex}, trying to extract XML directly`)
+						// Попробуем извлечь XML напрямую
+						const xmlBuffer = zipBuffer.slice(xmlStartIndex)
+						const xmlString = xmlBuffer.toString('utf-8')
+						if (xmlString.includes('<?xml') && xmlString.includes('</')) {
+							strapi.log.info(`[CommerceML Controller] Successfully extracted XML directly from buffer`)
+							return xmlString
+						}
+					}
+					
+					throw new Error(`Failed to parse ZIP: ${zipError.message}. File may be corrupted or incomplete.`)
+				}
 				const zipEntries = zip.getEntries()
 				
 				strapi.log.info('[CommerceML Controller] ZIP entries found', {
@@ -254,14 +327,17 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 			return this.handleFile(ctx, strapi, 'catalog')
 		}
 
-		// POST запрос с mode=file - отправка файла (Saby отправляет ZIP архив)
+		// POST запрос с mode=file - сохранение чанка файла
 		if (ctx.request.method === 'POST' && mode === 'file') {
-			strapi.log.info('[CommerceML Controller] POST with mode=file, treating as ZIP/XML upload')
-			// Обрабатываем как обычный POST с XML (может быть ZIP)
-			return this.processCatalog(ctx)
+			return this.handleFile(ctx, strapi, 'catalog')
 		}
 
-		// POST запрос - обработка XML
+		// GET запрос с mode=success - файл полностью загружен, можно обрабатывать
+		if (ctx.request.method === 'GET' && mode === 'success') {
+			return this.handleSuccess(ctx, strapi, 'catalog')
+		}
+
+		// POST запрос без mode - обработка XML напрямую (legacy или тестирование)
 		return this.processCatalog(ctx)
 	},
 
@@ -295,8 +371,11 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 			return this.handleFile(ctx, strapi, 'offers')
 		}
 		if (ctx.request.method === 'POST' && mode === 'file') {
-			strapi.log.info('[CommerceML Controller] POST offers with mode=file, treating as XML upload')
-			return this.processOffers(ctx)
+			return this.handleFile(ctx, strapi, 'offers')
+		}
+
+		if (ctx.request.method === 'GET' && mode === 'success') {
+			return this.handleSuccess(ctx, strapi, 'offers')
 		}
 
 		return this.processOffers(ctx)
@@ -332,8 +411,11 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 			return this.handleFile(ctx, strapi, 'rests')
 		}
 		if (ctx.request.method === 'POST' && mode === 'file') {
-			strapi.log.info('[CommerceML Controller] POST rests with mode=file, treating as XML upload')
-			return this.processRests(ctx)
+			return this.handleFile(ctx, strapi, 'rests')
+		}
+
+		if (ctx.request.method === 'GET' && mode === 'success') {
+			return this.handleSuccess(ctx, strapi, 'rests')
 		}
 
 		return this.processRests(ctx)
@@ -392,11 +474,11 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 		// CommerceML протокол: возвращаем параметры обмена
 		// Формат: version;zip;file_limit;step_time
 		// version - версия протокола (обычно 2.08)
-		// zip - поддержка zip (yes/no)
+		// zip - поддержка zip (yes/no) - ВАЖНО: если Saby шлёт ZIP, нужно yes!
 		// file_limit - максимальный размер файла в байтах (50MB)
 		// step_time - задержка между запросами в секундах
 		ctx.status = 200
-		ctx.body = '2.08;no;52428800;0'
+		ctx.body = '2.08;yes;52428800;0' // zip=yes, т.к. Saby шлёт ZIP архивы
 		ctx.type = 'text/plain'
 		strapi.log.info(`[CommerceML] Init for ${type} successful, response: ${ctx.body}`)
 		
@@ -405,23 +487,114 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 	},
 
 	/**
-	 * Обрабатывает mode=file - получение файла
-	 * Saby запрашивает файл для загрузки
+	 * Обрабатывает mode=file - получение файла (POST - сохранение чанка)
+	 * CommerceML протокол: Saby шлёт файл чанками, нужно сохранять на диск
 	 */
-	handleFile(ctx: any, strapi: Core.Strapi, type: string) {
+	async handleFile(ctx: any, strapi: Core.Strapi, type: string) {
 		const hasBasicAuth = verifyBasicAuth(ctx, strapi)
 		const hasSessionCookie = !!ctx.cookies.get('commerceml_session')
 
 		if (!hasBasicAuth && !hasSessionCookie) {
-			ctx.status = 401
-			ctx.body = 'failure'
+			ctx.status = 200
+			ctx.body = 'failure\nUnauthorized'
 			ctx.type = 'text/plain'
 			return
 		}
 
 		const filename = ctx.query.filename || ctx.query.file
 
-		// Если файл не указан, возвращаем список доступных файлов
+		// GET запрос - Saby запрашивает файл (мы не отдаём файлы)
+		if (ctx.request.method === 'GET') {
+			if (!filename) {
+				ctx.status = 200
+				ctx.body = 'failure\nФайл не указан'
+				ctx.type = 'text/plain'
+				return
+			}
+			ctx.status = 200
+			ctx.body = 'failure\nФайл не найден'
+			ctx.type = 'text/plain'
+			strapi.log.info(`[CommerceML] File request for ${type}: ${filename}`)
+			return
+		}
+
+		// POST запрос - Saby отправляет чанк файла
+		if (ctx.request.method === 'POST') {
+			if (!filename) {
+				ctx.status = 200
+				ctx.body = 'failure\nФайл не указан'
+				ctx.type = 'text/plain'
+				return
+			}
+
+			// Получаем данные из body
+			let chunkData: Buffer
+			if (Buffer.isBuffer(ctx.request.body)) {
+				chunkData = ctx.request.body
+			} else if ((ctx.request as any).rawBody && Buffer.isBuffer((ctx.request as any).rawBody)) {
+				chunkData = (ctx.request as any).rawBody
+			} else {
+				ctx.status = 200
+				ctx.body = 'failure\nInvalid body format'
+				ctx.type = 'text/plain'
+				return
+			}
+
+			// Создаём директорию для временных файлов CommerceML
+			const tempDir = path.join(process.cwd(), 'data', 'commerceml')
+			if (!fs.existsSync(tempDir)) {
+				fs.mkdirSync(tempDir, { recursive: true })
+			}
+
+			// Путь к файлу
+			const filePath = path.join(tempDir, filename)
+
+			// Сохраняем чанк (append mode)
+			try {
+				fs.appendFileSync(filePath, chunkData)
+				const fileStats = fs.existsSync(filePath) ? fs.statSync(filePath) : null
+				
+				strapi.log.info(`[CommerceML] Chunk saved for ${type}: ${filename}, chunk size: ${chunkData.length} bytes, total size: ${fileStats?.size || 0} bytes`)
+				
+				// CommerceML протокол требует plain text "success" после получения чанка
+				ctx.status = 200
+				ctx.body = 'success'
+				ctx.type = 'text/plain'
+			} catch (error: any) {
+				strapi.log.error(`[CommerceML] Failed to save chunk for ${type}: ${filename}`, {
+					message: error.message,
+					stack: error.stack,
+				})
+				ctx.status = 200
+				ctx.body = `failure\n${error.message}`
+				ctx.type = 'text/plain'
+			}
+			return
+		}
+
+		// Fallback
+		ctx.status = 200
+		ctx.body = 'failure\nInvalid request'
+		ctx.type = 'text/plain'
+	},
+
+	/**
+	 * Обрабатывает mode=success - файл полностью загружен, можно обрабатывать
+	 * GET /api/commerceml-sync/{type}?mode=success&filename=import0_1.zip
+	 */
+	async handleSuccess(ctx: any, strapi: Core.Strapi, type: string) {
+		const hasBasicAuth = verifyBasicAuth(ctx, strapi)
+		const hasSessionCookie = !!ctx.cookies.get('commerceml_session')
+
+		if (!hasBasicAuth && !hasSessionCookie) {
+			ctx.status = 200
+			ctx.body = 'failure\nUnauthorized'
+			ctx.type = 'text/plain'
+			return
+		}
+
+		const filename = ctx.query.filename || ctx.query.file
+
 		if (!filename) {
 			ctx.status = 200
 			ctx.body = 'failure\nФайл не указан'
@@ -429,16 +602,116 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 			return
 		}
 
-		// Для CommerceML мы только принимаем файлы, не отдаем
-		// Поэтому возвращаем failure
-		ctx.status = 200
-		ctx.body = 'failure\nФайл не найден'
-		ctx.type = 'text/plain'
-		strapi.log.info(`[CommerceML] File request for ${type}: ${filename}`)
+		// Путь к сохранённому файлу
+		const tempDir = path.join(process.cwd(), 'data', 'commerceml')
+		const filePath = path.join(tempDir, filename)
+
+		if (!fs.existsSync(filePath)) {
+			strapi.log.error(`[CommerceML] File not found: ${filePath}`)
+			ctx.status = 200
+			ctx.body = 'failure\nФайл не найден'
+			ctx.type = 'text/plain'
+			return
+		}
+
+		const fileStats = fs.statSync(filePath)
+		strapi.log.info(`[CommerceML] Processing complete file for ${type}: ${filename}, size: ${fileStats.size} bytes`)
+
+		try {
+			// Читаем файл
+			const fileBuffer = fs.readFileSync(filePath)
+
+			// Проверяем, что это ZIP (по первым байтам)
+			if (fileBuffer.length < 4 || fileBuffer[0] !== 0x50 || fileBuffer[1] !== 0x4B) {
+				strapi.log.error(`[CommerceML] File is not a ZIP archive: ${filename}`)
+				ctx.status = 200
+				ctx.body = 'failure\nФайл не является ZIP архивом'
+				ctx.type = 'text/plain'
+				return
+			}
+
+			// Распаковываем ZIP
+			const zip = new AdmZip(fileBuffer)
+			const zipEntries = zip.getEntries()
+
+			strapi.log.info(`[CommerceML] ZIP entries found: ${zipEntries.length}`, {
+				entries: zipEntries.map(e => e.entryName),
+			})
+
+			// Ищем XML файл
+			let xmlEntry = zipEntries.find((entry) => 
+				entry.entryName.toLowerCase().endsWith('.xml') && 
+				(entry.entryName.toLowerCase().includes('catalog') || 
+				 entry.entryName.toLowerCase().includes('offers') ||
+				 entry.entryName.toLowerCase().includes('rests') ||
+				 entry.entryName.toLowerCase().includes('import'))
+			)
+
+			if (!xmlEntry) {
+				xmlEntry = zipEntries.find((entry) => entry.entryName.toLowerCase().endsWith('.xml'))
+			}
+
+			if (!xmlEntry) {
+				strapi.log.error(`[CommerceML] No XML file found in ZIP: ${filename}`)
+				ctx.status = 200
+				ctx.body = 'failure\nXML файл не найден в архиве'
+				ctx.type = 'text/plain'
+				return
+			}
+
+			// Извлекаем XML
+			const xmlString = xmlEntry.getData().toString('utf8')
+			strapi.log.info(`[CommerceML] Extracted XML from ZIP: ${xmlEntry.entryName}, length: ${xmlString.length} bytes`)
+
+			// Обрабатываем XML в зависимости от типа
+			let result
+			if (type === 'catalog') {
+				result = await strapi
+					.service('api::commerceml-sync.commerceml-sync')
+					.processCatalog(xmlString)
+			} else if (type === 'offers') {
+				result = await strapi
+					.service('api::commerceml-sync.commerceml-sync')
+					.processOffers(xmlString)
+			} else if (type === 'rests') {
+				result = await strapi
+					.service('api::commerceml-sync.commerceml-sync')
+					.processRests(xmlString)
+			} else {
+				ctx.status = 200
+				ctx.body = 'failure\nНеизвестный тип'
+				ctx.type = 'text/plain'
+				return
+			}
+
+			// Удаляем временный файл после успешной обработки
+			try {
+				fs.unlinkSync(filePath)
+				strapi.log.info(`[CommerceML] Temporary file deleted: ${filename}`)
+			} catch (deleteError: any) {
+				strapi.log.warn(`[CommerceML] Failed to delete temporary file: ${filename}`, {
+					message: deleteError.message,
+				})
+			}
+
+			// Возвращаем успех
+			ctx.status = 200
+			ctx.body = 'success'
+			ctx.type = 'text/plain'
+			strapi.log.info(`[CommerceML] Successfully processed ${type} from ${filename}`)
+		} catch (error: any) {
+			strapi.log.error(`[CommerceML] Failed to process ${type} from ${filename}:`, {
+				message: error.message,
+				stack: error.stack,
+			})
+			ctx.status = 200
+			ctx.body = `failure\n${error.message || 'Ошибка обработки файла'}`
+			ctx.type = 'text/plain'
+		}
 	},
 
 	/**
-	 * Обрабатывает catalog.xml (POST запрос)
+	 * Обрабатывает catalog.xml (POST запрос напрямую - для legacy или тестирования)
 	 * POST /api/commerceml-sync/catalog
 	 */
 	async processCatalog(ctx: any) {
