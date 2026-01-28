@@ -691,17 +691,34 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 			const xmlString = xmlEntry.getData().toString('utf8')
 			strapi.log.info(`[CommerceML] Extracted XML from ZIP: ${xmlEntry.entryName}, length: ${xmlString.length} bytes`)
 
+			// Определяем тип по имени файла, если не указан явно
+			// Saby может отправлять offers на catalog эндпоинт
+			let actualType = type
+			const xmlFileName = xmlEntry.entryName.toLowerCase()
+			const zipFileName = filename.toLowerCase()
+			
+			if (xmlFileName.includes('offers') || zipFileName.includes('offers')) {
+				actualType = 'offers'
+				strapi.log.info(`[CommerceML] Detected offers file by name: ${xmlFileName} / ${zipFileName}`)
+			} else if (xmlFileName.includes('rests') || zipFileName.includes('rests')) {
+				actualType = 'rests'
+				strapi.log.info(`[CommerceML] Detected rests file by name: ${xmlFileName} / ${zipFileName}`)
+			} else if (xmlFileName.includes('catalog') || zipFileName.includes('catalog') || zipFileName.includes('import')) {
+				actualType = 'catalog'
+				strapi.log.info(`[CommerceML] Detected catalog file by name: ${xmlFileName} / ${zipFileName}`)
+			}
+
 			// Обрабатываем XML в зависимости от типа
 			let result
-			if (type === 'catalog') {
+			if (actualType === 'catalog') {
 				result = await strapi
 					.service('api::commerceml-sync.commerceml-sync')
 					.processCatalog(xmlString)
-			} else if (type === 'offers') {
+			} else if (actualType === 'offers') {
 				result = await strapi
 					.service('api::commerceml-sync.commerceml-sync')
 					.processOffers(xmlString)
-			} else if (type === 'rests') {
+			} else if (actualType === 'rests') {
 				result = await strapi
 					.service('api::commerceml-sync.commerceml-sync')
 					.processRests(xmlString)
