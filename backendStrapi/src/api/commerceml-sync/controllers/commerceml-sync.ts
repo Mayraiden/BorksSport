@@ -708,6 +708,21 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 				strapi.log.info(`[CommerceML] Detected catalog file by name: ${xmlFileName} / ${zipFileName}`)
 			}
 
+			// ВРЕМЕННО: Сохраняем XML в папку для анализа
+			try {
+				const samplesDir = path.join(process.cwd(), 'data', 'commerceml-samples')
+				if (!fs.existsSync(samplesDir)) {
+					fs.mkdirSync(samplesDir, { recursive: true })
+				}
+				const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
+				const sampleFileName = `${actualType}-${timestamp}.xml`
+				const sampleFilePath = path.join(samplesDir, sampleFileName)
+				fs.writeFileSync(sampleFilePath, xmlString, 'utf-8')
+				strapi.log.info(`[CommerceML] XML sample saved to: ${sampleFilePath}`)
+			} catch (saveError: any) {
+				strapi.log.warn(`[CommerceML] Failed to save XML sample: ${saveError.message}`)
+			}
+
 			// Обрабатываем XML в зависимости от типа
 			let result
 			if (actualType === 'catalog') {

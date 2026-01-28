@@ -130,3 +130,10 @@ build
 .strapi-updater.json
 .strapi-cloud.json
 documentation
+
+############################
+# CommerceML временные файлы
+############################
+
+data/commerceml-samples/
+data/commerceml/
