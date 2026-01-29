@@ -18,6 +18,10 @@ export interface CommerceMLProduct {
 	Артикул?: string
 	Группы?: {
 		Группа?: any | any[]
+		Ид?: string | string[]
+		Id?: string | string[]
+		id?: string | string[]
+		[key: string]: any
 	}
 	Цены?: {
 		Цена?: any | any[]
@@ -28,10 +32,15 @@ export interface CommerceMLProduct {
 	Характеристики?: {
 		Характеристика?: any | any[]
 	}
+	Картинка?: string | string[]
 	Картинки?: {
 		Картинка?: string | string[]
 		Picture?: string | string[]
 		picture?: string | string[]
+		[key: string]: any
+	}
+	ЗначенияСвойств?: {
+		ЗначенияСвойства?: any | any[]
 		[key: string]: any
 	}
 	[key: string]: any
