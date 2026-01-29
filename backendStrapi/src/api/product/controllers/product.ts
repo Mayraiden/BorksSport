@@ -146,9 +146,12 @@ export default factories.createCoreController(
 					}
 				}
 
-				// Объединяем фильтры с фильтром published: true по умолчанию
+				// Объединяем фильтры с фильтром published: true и stock > 0 по умолчанию
 				const baseFilters: Record<string, unknown> = {
 					published: true,
+					stock: {
+						$gt: 0,
+					},
 				}
 				const filters = {
 					...baseFilters,
@@ -187,6 +190,7 @@ export default factories.createCoreController(
 				
 				if (sortParam === 'price:desc') {
 					// При сортировке по убыванию цены сначала получаем товары с ценой > 0, потом с ценой 0 или NULL
+					// При этом stock > 0 уже включен в baseFilters
 					const filtersWithPrice = {
 						...filters,
 						price: {
@@ -196,6 +200,7 @@ export default factories.createCoreController(
 					
 					// Для товаров с ценой 0 или NULL используем фильтр по цене = 0
 					// NULL значения будут обработаны отдельно
+					// stock > 0 уже включен в baseFilters
 					const filtersWithZeroPrice = {
 						...filters,
 						price: {
@@ -378,6 +383,16 @@ export default factories.createCoreController(
 				ctx.body = {
 					success: false,
 					message: 'Product not found',
+				}
+				return
+			}
+
+			// Проверяем, что товар имеет stock > 0
+			if (!product.stock || product.stock <= 0) {
+				ctx.status = 404
+				ctx.body = {
+					success: false,
+					message: 'Product out of stock',
 				}
 				return
 			}
@@ -570,12 +585,15 @@ export default factories.createCoreController(
 			try {
 				const limit = Number(ctx.query.limit) || 15
 
-				// Сначала пробуем найти товары с популярностью > 0
+				// Сначала пробуем найти товары с популярностью > 0 и stock > 0
 				let products = await strapi.entityService.findMany(
 					'api::product.product',
 					{
 						filters: {
 							published: true,
+							stock: {
+								$gt: 0,
+							},
 							sbisPopularityScore: {
 								$gt: 0,
 							},
@@ -585,7 +603,7 @@ export default factories.createCoreController(
 					}
 				)
 
-				// Если не нашли товары с популярностью, возвращаем любые опубликованные
+				// Если не нашли товары с популярностью, возвращаем любые опубликованные с stock > 0
 				// сортируя по количеству продаж или просто по дате создания
 				if (products.length === 0) {
 					products = await strapi.entityService.findMany(
@@ -593,6 +611,9 @@ export default factories.createCoreController(
 						{
 							filters: {
 								published: true,
+								stock: {
+									$gt: 0,
+								},
 							},
 							sort: ['sbisSalesCount:desc', 'createdAt:desc'],
 							limit,
@@ -624,7 +645,7 @@ export default factories.createCoreController(
 			try {
 				const limit = Number(ctx.query.limit) || 15
 
-				// Сначала пробуем найти товары, синхронизированные за последние 30 дней
+				// Сначала пробуем найти товары, синхронизированные за последние 30 дней с stock > 0
 				const thirtyDaysAgo = new Date()
 				thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
 
@@ -633,6 +654,9 @@ export default factories.createCoreController(
 					{
 						filters: {
 							published: true,
+							stock: {
+								$gt: 0,
+							},
 							lastSyncAt: {
 								$gte: thirtyDaysAgo.toISOString(),
 							},
@@ -643,13 +667,16 @@ export default factories.createCoreController(
 				)
 
 				// Если не нашли недавно синхронизированные товары,
-				// возвращаем любые опубликованные, сортируя по дате создания (новые первыми)
+				// возвращаем любые опубликованные с stock > 0, сортируя по дате создания (новые первыми)
 				if (products.length === 0) {
 					products = await strapi.entityService.findMany(
 						'api::product.product',
 						{
 							filters: {
 								published: true,
+								stock: {
+									$gt: 0,
+								},
 							},
 							sort: 'createdAt:desc',
 							limit,

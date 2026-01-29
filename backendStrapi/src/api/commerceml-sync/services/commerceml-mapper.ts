@@ -244,17 +244,9 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 			})
 
 			// Изображения - в CommerceML это прямые теги <Картинка> (может быть несколько)
+			// Формируем URL напрямую: https://disk.sbis.ru/disk/api/v1/{имя_файла}
 			let images: string[] = []
-			
-			// URL прокси на бэкенде для загрузки изображений
-			const proxyBaseUrl = process.env.PUBLIC_URL || 'http://localhost:1337'
-			const useProxy = process.env.COMMERCEML_USE_IMAGE_PROXY !== 'false' // По умолчанию используем прокси
-			
-			// Базовый URL для изображений SBIS (может быть переопределен через переменную окружения)
-			// Пробуем разные варианты базовых URL
-			const imageBaseUrl =
-				process.env.COMMERCEML_IMAGE_BASE_URL ||
-				'https://api.sbis.ru/disk/api/v1/'
+			const imageBaseUrl = 'https://disk.sbis.ru/disk/api/v1/'
 
 			// Проверяем разные варианты структуры
 			let pictureTags: any = null
@@ -291,17 +283,10 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 					if (filename.startsWith('http://') || filename.startsWith('https://')) {
 						imageUrl = filename
 					} else {
-						// Иначе формируем URL из базового пути и имени файла
-						const sbisUrl = imageBaseUrl.endsWith('/')
-							? imageBaseUrl + filename
-							: imageBaseUrl + '/' + filename
-						
-						// Используем прокси, если включен
-						if (useProxy) {
-							imageUrl = `${proxyBaseUrl}/api/products/image-proxy?url=${encodeURIComponent(sbisUrl)}`
-						} else {
-							imageUrl = sbisUrl
-						}
+						// Формируем URL напрямую: https://disk.sbis.ru/disk/api/v1/{имя_файла}
+						// Убираем расширение файла, если оно есть (SBIS API не требует расширения)
+						const cleanFilename = filename.split('.')[0].trim()
+						imageUrl = imageBaseUrl + cleanFilename
 					}
 
 					images.push(imageUrl)
