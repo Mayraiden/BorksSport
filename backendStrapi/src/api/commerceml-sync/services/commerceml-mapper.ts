@@ -9,7 +9,6 @@ import {
 	extractColor,
 	extractDimensions,
 } from '../../sbis-sync/utils/data-extractor'
-import { processImageArray } from '../../sbis-sync/utils/image-processor'
 
 export interface CommerceMLProduct {
 	Ид?: string
@@ -292,10 +291,11 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 				}
 			}
 
-			// Используем processImageArray для обработки (на случай если есть специальные форматы)
-			if (images.length > 0) {
-				images = processImageArray(images)
-			}
+			// Для CommerceML изображения уже в формате URL, processImageArray не нужен
+			// Но проверяем, что все URL валидны
+			images = images.filter((url: string) => {
+				return url && typeof url === 'string' && url.trim().length > 0
+			})
 
 			// Единица измерения
 			const unit =
@@ -331,7 +331,7 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 				width: dimensions.width || undefined,
 				height: dimensions.height || undefined,
 				weight: dimensions.weight || undefined,
-				images: images && images.length > 0 ? images : undefined,
+				images: images && images.length > 0 ? images : [],
 				unit: unit || undefined,
 				stock: undefined, // Будет установлено из offers.xml
 				lastSyncAt: new Date(),

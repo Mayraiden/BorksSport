@@ -296,14 +296,34 @@ export default factories.createCoreController(
 					)
 				}
 
+				// Нормализуем изображения для всех продуктов - всегда возвращаем массив
+				const normalizedProducts = products.map((product: any) => {
+					// Нормализуем images - всегда массив строк
+					if (!product.images) {
+						product.images = []
+					} else if (typeof product.images === 'string') {
+						// Если это строка, оборачиваем в массив
+						product.images = [product.images]
+					} else if (Array.isArray(product.images)) {
+						// Фильтруем null/undefined значения
+						product.images = product.images.filter(
+							(img: any) => img !== null && img !== undefined && img !== ''
+						)
+					} else {
+						// Если это объект или что-то другое, пытаемся преобразовать
+						product.images = []
+					}
+					return product
+				})
+
 				// Логируем финальный ответ перед отправкой
 				strapi.log.info(
-					`[Product Controller] Sending response: ${products.length} products, total=${total}`
+					`[Product Controller] Sending response: ${normalizedProducts.length} products, total=${total}`
 				)
 
 				ctx.body = {
 					success: true,
-					data: products,
+					data: normalizedProducts,
 					meta: {
 						pagination: {
 							page: Math.floor(start / limit) + 1,
@@ -367,11 +387,40 @@ export default factories.createCoreController(
 				.service('api::product.product')
 				.findVariants(product)
 
+			// Нормализуем изображения - всегда возвращаем массив
+			if (!product.images) {
+				product.images = []
+			} else if (typeof product.images === 'string') {
+				product.images = [product.images]
+			} else if (Array.isArray(product.images)) {
+				product.images = product.images.filter(
+					(img: any) => img !== null && img !== undefined && img !== ''
+				)
+			} else {
+				product.images = []
+			}
+
+			// Нормализуем изображения для вариантов
+			const normalizedVariants = (variants || []).map((variant: any) => {
+				if (!variant.images) {
+					variant.images = []
+				} else if (typeof variant.images === 'string') {
+					variant.images = [variant.images]
+				} else if (Array.isArray(variant.images)) {
+					variant.images = variant.images.filter(
+						(img: any) => img !== null && img !== undefined && img !== ''
+					)
+				} else {
+					variant.images = []
+				}
+				return variant
+			})
+
 			ctx.body = {
 				success: true,
 				data: {
 					...product,
-					variants: variants || [],
+					variants: normalizedVariants,
 				},
 			}
 			} catch (error) {
