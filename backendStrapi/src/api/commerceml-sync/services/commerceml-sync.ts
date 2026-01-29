@@ -62,8 +62,27 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 				throw new Error('Invalid catalog XML structure')
 			}
 
-			// Извлекаем продукты
+			// Извлекаем классификатор и категории
 			const mapperService = getMapperService()
+			const classifier = mapperService.extractClassifier(parsedXML)
+			const propertiesMap = classifier
+				? mapperService.extractPropertiesMap(classifier)
+				: new Map<string, string>()
+
+			// Извлекаем категории с иерархией
+			const categories = mapperService.extractCategories(parsedXML)
+
+			// Синхронизируем категории сначала (построение иерархии)
+			const productSyncService = getProductSyncService()
+			let categoryMap = new Map<string, number>()
+			if (categories.length > 0) {
+				categoryMap = await productSyncService.syncCategories(categories)
+				strapi.log.info(
+					`[CommerceML Sync] Categories synced: ${categoryMap.size} categories processed`
+				)
+			}
+
+			// Извлекаем продукты
 			const products = mapperService.extractProducts(parsedXML)
 
 			if (products.length === 0) {
@@ -80,8 +99,8 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 				}
 			}
 
-			// Маппим продукты
-			const mappedProducts = mapperService.mapProducts(products)
+			// Маппим продукты с propertiesMap для характеристик
+			const mappedProducts = mapperService.mapProducts(products, propertiesMap)
 
 			if (mappedProducts.length === 0) {
 				strapi.log.warn('[CommerceML Sync] No products mapped successfully')
@@ -97,9 +116,8 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 				}
 			}
 
-			// Синхронизируем продукты
-			const productSyncService = getProductSyncService()
-			const stats = await productSyncService.syncProducts(mappedProducts)
+			// Синхронизируем продукты с мапой категорий
+			const stats = await productSyncService.syncProducts(mappedProducts, categoryMap, categories)
 
 			strapi.log.info(
 				`[CommerceML Sync] Catalog processed: ${stats.saved} saved, ${stats.updated} updated, ${stats.errors} errors`
