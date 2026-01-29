@@ -212,7 +212,6 @@ const transformApiProduct = (apiProduct: ApiProduct): Product => {
 		Категория: apiProduct.categoryName || 'Не указано',
 		Артикул: apiProduct.article || apiProduct.sbisNomNumber || 'Не указано',
 		Единица: apiProduct.unit || 'шт',
-		'SBIS ID': apiProduct.sbisId?.toString() || 'Не указано',
 	}
 
 	// Добавляем размер, цвет, вес, габариты в характеристики, если они есть

@@ -672,6 +672,87 @@ export default factories.createCoreController(
 				}
 			}
 		},
+
+		/**
+		 * Прокси для загрузки изображений из SBIS
+		 * GET /api/products/image-proxy?url=...
+		 */
+		async imageProxy(ctx: any) {
+			try {
+				const imageUrl = ctx.query.url
+
+				if (!imageUrl || typeof imageUrl !== 'string') {
+					ctx.status = 400
+					ctx.body = {
+						success: false,
+						error: 'Missing or invalid url parameter',
+					}
+					return
+				}
+
+				// Проверяем, что URL принадлежит SBIS (безопасность)
+				const allowedDomains = ['api.sbis.ru', 'disk.sbis.ru']
+				let urlObj: URL
+				try {
+					urlObj = new URL(imageUrl)
+				} catch {
+					ctx.status = 400
+					ctx.body = {
+						success: false,
+						error: 'Invalid URL format',
+					}
+					return
+				}
+
+				if (!allowedDomains.includes(urlObj.hostname)) {
+					ctx.status = 403
+					ctx.body = {
+						success: false,
+						error: 'URL not allowed',
+					}
+					return
+				}
+
+				// Загружаем изображение с SBIS
+				const axios = require('axios')
+				const response = await axios.get(imageUrl, {
+					responseType: 'arraybuffer',
+					timeout: 10000,
+					headers: {
+						'User-Agent': 'BorksSport-Backend/1.0',
+					},
+				})
+
+				// Определяем content-type из ответа или по расширению файла
+				let contentType = response.headers['content-type'] || 'image/jpeg'
+				if (!contentType.startsWith('image/')) {
+					// Пробуем определить по расширению
+					const ext = imageUrl.split('.').pop()?.toLowerCase()
+					const mimeTypes: Record<string, string> = {
+						jpg: 'image/jpeg',
+						jpeg: 'image/jpeg',
+						png: 'image/png',
+						webp: 'image/webp',
+						gif: 'image/gif',
+					}
+					if (ext && mimeTypes[ext]) {
+						contentType = mimeTypes[ext]
+					}
+				}
+
+				// Устанавливаем заголовки и отправляем изображение
+				ctx.set('Content-Type', contentType)
+				ctx.set('Cache-Control', 'public, max-age=31536000') // Кешируем на год
+				ctx.body = Buffer.from(response.data)
+			} catch (error: any) {
+				strapi.log.error('[Product Controller] Failed to proxy image:', error.message)
+				ctx.status = error.response?.status || 500
+				ctx.body = {
+					success: false,
+					error: 'Failed to load image',
+				}
+			}
+		},
 	})
 )
 

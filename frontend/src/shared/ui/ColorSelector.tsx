@@ -30,20 +30,20 @@ export const ColorSelector = ({
 			<label className="text-base font-bold leading-[1.3125] text-[#121212] max-sm:text-sm">
 				Цвет
 			</label>
-			<div className="flex gap-3 max-sm:gap-2">
+			<div className="flex gap-3 max-sm:gap-2 flex-wrap">
 				{colors.map((color) => (
 					<button
 						key={color.id}
 						onClick={() => handleColorSelect(color.id)}
-						className={`w-[60px] h-[60px] rounded-[4px] border-2 transition-all duration-200 max-sm:w-12 max-sm:h-12 ${
+						className={`px-4 py-2 rounded-[4px] border-2 transition-all duration-200 text-base font-normal max-sm:text-sm ${
 							selectedId === color.id
-								? 'border-[#7B1931]'
-								: 'border-transparent hover:border-gray/30'
+								? 'border-[#7B1931] bg-[#7B1931] text-white'
+								: 'border-[#A0A4A8] bg-white text-[#121212] hover:border-[#7B1931] hover:text-[#7B1931]'
 						}`}
-						style={{ backgroundColor: color.hex }}
-						title={color.name}
 						aria-label={`Выбрать цвет ${color.name}`}
-					/>
+					>
+						{color.name}
+					</button>
 				))}
 			</div>
 		</div>

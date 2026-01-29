@@ -100,6 +100,16 @@ export default {
 		// Параметризованный роут должен быть ПОСЛЕДНИМ
 		{
 			method: 'GET',
+			path: '/products/image-proxy',
+			handler: 'product.imageProxy',
+			config: {
+				auth: false,
+				policies: [],
+				middlewares: [],
+			},
+		},
+		{
+			method: 'GET',
 			path: '/products/:id',
 			handler: 'product.findOne',
 			config: {
