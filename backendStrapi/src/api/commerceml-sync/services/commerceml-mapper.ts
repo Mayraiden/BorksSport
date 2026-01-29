@@ -171,21 +171,15 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 				}
 			}
 
-			// Категории - берем первую группу
-			let categoryName: string | undefined
-			let rootCategoryName: string | undefined
+			// Категории - в CommerceML это <Группы><Ид> (UUID категории)
+			// Название категории будет найдено позже через мапу категорий
+			let productCategoryId: string | undefined
 			if (commerceMLProduct.Группы) {
-				const groups = commerceMLProduct.Группы.Группа
-				if (groups) {
-					const groupArray = Array.isArray(groups) ? groups : [groups]
-					const firstGroup = groupArray[0]
-					if (firstGroup) {
-						categoryName =
-							firstGroup.Наименование ||
-							firstGroup.Name ||
-							firstGroup.name ||
-							undefined
-					}
+				const groupIds = commerceMLProduct.Группы.Ид || commerceMLProduct.Группы.Id || commerceMLProduct.Группы.id
+				if (groupIds) {
+					const groupIdsArray = Array.isArray(groupIds) ? groupIds : [groupIds]
+					// Берем первую группу (основную категорию товара)
+					productCategoryId = groupIdsArray[0]
 				}
 			}
 
@@ -319,7 +313,7 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 				price: price || undefined,
 				sbisExternalId: String(externalId),
 				sbisId,
-				categoryId: categoryId || undefined,
+				categoryId: productCategoryId || undefined,
 				categoryName: undefined, // Будет установлено при синхронизации
 				rootCategoryName: undefined, // Будет установлено при синхронизации
 				size: size || undefined,

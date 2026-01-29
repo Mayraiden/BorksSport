@@ -88,7 +88,8 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 							data: categoryData,
 						}
 					)
-					strapiCategoryId = updated.id
+					// Strapi ID может быть string или number, приводим к number
+					strapiCategoryId = typeof updated.id === 'number' ? updated.id : parseInt(String(updated.id), 10)
 					strapi.log.debug(
 						`[CommerceML Product Sync] Updated category: ${categoryName} (level ${level})`
 					)
@@ -97,7 +98,8 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 					const created = await strapi.entityService.create('api::category.category', {
 						data: categoryData,
 					})
-					strapiCategoryId = created.id
+					// Strapi ID может быть string или number, приводим к number
+					strapiCategoryId = typeof created.id === 'number' ? created.id : parseInt(String(created.id), 10)
 					strapi.log.debug(
 						`[CommerceML Product Sync] Created category: ${categoryName} (level ${level})`
 					)
