@@ -827,19 +827,73 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 
 								// Используем внутренний API для загрузки
 								// В Strapi v4 upload service ожидает файлы в формате, который используется в контроллерах Koa
-								// Файл должен быть объектом с полем path (строка с абсолютным путем)
-								// Пробуем использовать правильный формат
+								// Пробуем использовать правильный формат - файл должен быть объектом с полем path
 								// Важно: проверяем, что path действительно строка и файл существует
 								strapi.log.info(`[CommerceML] Calling upload service with:`, {
 									fileDataKeys: Object.keys(fileData),
 									fileDataPath: fileData.path,
 									fileDataPathType: typeof fileData.path,
+									fileDataPathValue: String(fileData.path).substring(0, 100),
 								})
 								
-								const uploadedFiles = await uploadService.upload({
-									data: {},
-									files: [fileData],
-								})
+								// Пробуем использовать upload service с правильным форматом
+								// В Strapi v4 файлы должны быть в формате, который используется в контроллерах
+								// Попробуем использовать формат с полем files как массив объектов с path
+								// Важно: файл должен иметь path как строку, а не undefined
+								let uploadedFiles
+								try {
+									// Проверяем, что path действительно строка перед вызовом
+									if (!fileData.path || typeof fileData.path !== 'string') {
+										throw new Error(`Invalid file path: ${fileData.path} (type: ${typeof fileData.path})`)
+									}
+									
+									// Пробуем использовать upload service
+									// В Strapi v4 формат: { data: {}, files: [file objects] }
+									// где каждый file object имеет path (строка с абсолютным путем)
+									// Важно: файлы должны быть в формате, который используется в контроллерах Koa
+									// Попробуем использовать формат, который точно работает
+									uploadedFiles = await uploadService.upload({
+										data: {},
+										files: [fileData],
+									})
+								} catch (uploadError: any) {
+									// Если не работает, пробуем использовать другой формат
+									// Может быть проблема в том, что upload service ожидает другой формат
+									strapi.log.error(`[CommerceML] Upload error:`, {
+										message: uploadError.message,
+										stack: uploadError.stack,
+										fileDataPath: fileData.path,
+										fileDataPathType: typeof fileData.path,
+										fileDataKeys: Object.keys(fileData),
+										fileDataStringified: JSON.stringify(fileData),
+									})
+									
+									// Пробуем использовать альтернативный подход - использовать provider напрямую
+									// или создать файл через entityService
+									// Но сначала пробуем использовать другой формат для upload service
+									try {
+										// Пробуем использовать формат с полем stream вместо path
+										const { createReadStream } = await import('fs')
+										const fileStream = createReadStream(absolutePath)
+										
+										const fileDataWithStream: any = {
+											name: imageName,
+											stream: fileStream,
+											size: imageBuffer.length,
+											type: mimeType,
+											mime: mimeType,
+											ext: path.extname(imageName).toLowerCase().replace('.', ''),
+										}
+										
+										uploadedFiles = await uploadService.upload({
+											data: {},
+											files: [fileDataWithStream],
+										})
+									} catch (streamError: any) {
+										strapi.log.error(`[CommerceML] Stream upload also failed:`, streamError.message)
+										throw uploadError // Бросаем оригинальную ошибку
+									}
+								}
 								
 								// Если это не работает, попробуем использовать другой формат
 								// Но сначала проверим, что uploadedFiles не undefined
