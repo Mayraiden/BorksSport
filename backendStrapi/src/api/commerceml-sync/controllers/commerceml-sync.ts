@@ -9,7 +9,6 @@ import { verifyBasicAuth } from '../utils/auth-middleware'
 import AdmZip from 'adm-zip'
 import * as fs from 'fs'
 import * as path from 'path'
-import { Readable } from 'stream'
 
 export default ({ strapi }: { strapi: Core.Strapi }) => {
 	/**
@@ -750,54 +749,28 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 					}
 
 					for (const imageEntry of imageEntries) {
-						let tempImagePath: string | null = null
 						try {
 							const imageBuffer = imageEntry.getData()
 							const imageName = path.basename(imageEntry.entryName)
-							tempImagePath = path.join(tempImagesDir, imageName)
 
-							// Сохраняем во временный файл
-							fs.writeFileSync(tempImagePath, imageBuffer)
-
-							// Получаем абсолютный путь и проверяем существование файла
-							const absolutePath = path.resolve(tempImagePath)
+							// Загружаем в Strapi через upload service
+							// Strapi upload service ожидает объект с полями: buffer, name, type, size
+							// Используем Buffer напрямую (без зависимости от файловой системы)
+							const uploadService = strapi.plugins['upload'].services.upload
 							
-							if (!fs.existsSync(absolutePath)) {
-								throw new Error(`Temp image file does not exist: ${absolutePath}`)
+							// Создаем объект файла в правильном формате для Strapi
+							// Strapi ожидает объект как из FormData/formidable: { buffer, name, type, size }
+							const fileObj = {
+								buffer: imageBuffer, // Buffer с данными файла
+								name: imageName, // name (не filename!)
+								type: getMimeType(imageName), // type (не mime!)
+								size: imageBuffer.length, // size из buffer.length (не из fs.stat!)
 							}
-
-							// Получаем размер файла через fs.statSync (требование Strapi)
-							// Strapi upload service проверяет размер через fs.stat и требует точного совпадения
-							const stat = fs.statSync(absolutePath)
 
 							strapi.log.info('[CommerceML] Uploading image', {
 								imageName,
-								absolutePath,
-								size: stat.size,
-								fileExists: fs.existsSync(absolutePath),
-							})
-
-							// Загружаем в Strapi через upload service
-							// Strapi upload service ожидает файл в формате multipart/form-data
-							const uploadService = strapi.plugins['upload'].services.upload
-							
-							// Создаем объект файла в правильном формате
-							// Используем ТОЛЬКО path (без stream) - ошибка указывает на path
-							// Strapi сам создаст stream из path внутри
-							const fileObj = {
-								path: absolutePath, // Абсолютный путь к файлу - ОБЯЗАТЕЛЬНО
-								filename: imageName,
-								mime: getMimeType(imageName),
-								size: stat.size, // ✅ ТОЛЬКО из fs.statSync
-							}
-
-							strapi.log.debug('[CommerceML] File object for upload', {
-								path: fileObj.path,
-								pathType: typeof fileObj.path,
-								pathExists: fs.existsSync(fileObj.path),
-								filename: fileObj.filename,
-								mime: fileObj.mime,
-								size: fileObj.size,
+								bufferSize: imageBuffer.length,
+								mimeType: fileObj.type,
 							})
 
 							// Передаем файл как массив (стандартный формат для multipart/form-data)
@@ -806,19 +779,12 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 								files: [fileObj],
 							})
 
-							// Удаляем временный файл ТОЛЬКО после успешной загрузки
-							// Не удаляем в catch, так как Strapi может читать файл асинхронно
 							if (fileInfo && fileInfo.length > 0) {
 								const fileId = fileInfo[0].id
 								imageMap.set(imageName, fileId)
 								strapi.log.info(
 									`[CommerceML] Image uploaded: ${imageName} -> file ID ${fileId}`
 								)
-								
-								// Удаляем файл только после подтверждения успешной загрузки
-								if (fs.existsSync(tempImagePath)) {
-									fs.unlinkSync(tempImagePath)
-								}
 							} else {
 								strapi.log.warn(
 									`[CommerceML] Upload service returned empty result for ${imageName}`
@@ -828,8 +794,6 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 							strapi.log.warn(
 								`[CommerceML] Failed to upload image ${imageEntry.entryName}: ${imageError.message}`
 							)
-							// НЕ удаляем файл в catch - Strapi может еще читать его
-							// Файл останется во временной папке и будет очищен при следующей синхронизации
 						}
 					}
 
