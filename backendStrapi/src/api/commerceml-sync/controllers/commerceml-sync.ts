@@ -742,20 +742,31 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 						`[CommerceML] Found ${imageEntries.length} images in archive, uploading to Strapi...`
 					)
 
+					// Создаем временную папку для изображений
+					const tempImagesDir = path.join(process.cwd(), 'data', 'temp-images')
+					if (!fs.existsSync(tempImagesDir)) {
+						fs.mkdirSync(tempImagesDir, { recursive: true })
+					}
+
 					for (const imageEntry of imageEntries) {
+						let tempImagePath: string | null = null
 						try {
 							const imageBuffer = imageEntry.getData()
 							const imageName = path.basename(imageEntry.entryName)
+							tempImagePath = path.join(tempImagesDir, imageName)
+
+							// Сохраняем во временный файл
+							fs.writeFileSync(tempImagePath, imageBuffer)
 
 							// Загружаем в Strapi через upload service
-							// Strapi upload service ожидает файл в формате, похожем на multipart/form-data
+							// Strapi upload service ожидает файл с путем или stream
 							const uploadService = strapi.plugins['upload'].services.upload
 							const fileInfo = await uploadService.upload({
 								data: {},
 								files: {
-									buffer: imageBuffer,
-									filename: imageName,
-									mimetype: getMimeType(imageName),
+									path: tempImagePath,
+									name: imageName,
+									type: getMimeType(imageName),
 									size: imageBuffer.length,
 								} as any,
 							})
@@ -767,10 +778,23 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 									`[CommerceML] Image uploaded: ${imageName} -> file ID ${fileId}`
 								)
 							}
+
+							// Удаляем временный файл после загрузки
+							if (tempImagePath && fs.existsSync(tempImagePath)) {
+								fs.unlinkSync(tempImagePath)
+							}
 						} catch (imageError: any) {
 							strapi.log.warn(
 								`[CommerceML] Failed to upload image ${imageEntry.entryName}: ${imageError.message}`
 							)
+							// Удаляем временный файл в случае ошибки
+							if (tempImagePath && fs.existsSync(tempImagePath)) {
+								try {
+									fs.unlinkSync(tempImagePath)
+								} catch {
+									// Игнорируем ошибку удаления
+								}
+							}
 						}
 					}
 
