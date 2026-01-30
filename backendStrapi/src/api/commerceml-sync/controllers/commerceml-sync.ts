@@ -758,18 +758,34 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 							// Сохраняем во временный файл
 							fs.writeFileSync(tempImagePath, imageBuffer)
 
+							// Получаем абсолютный путь и проверяем существование файла
+							const absolutePath = path.resolve(tempImagePath)
+							
+							if (!fs.existsSync(absolutePath)) {
+								throw new Error(`Temp image file does not exist: ${absolutePath}`)
+							}
+
+							// Получаем размер файла через fs.statSync (требование Strapi)
+							// Strapi upload service проверяет размер через fs.stat и требует точного совпадения
+							const stat = fs.statSync(absolutePath)
+
+							strapi.log.info('[CommerceML] Uploading image', {
+								imageName,
+								absolutePath,
+								size: stat.size,
+							})
+
 							// Загружаем в Strapi через upload service
 							// Strapi upload service ожидает файл в формате multipart/form-data
 							const uploadService = strapi.plugins['upload'].services.upload
 							
 							// Создаем объект файла в правильном формате
-							// Strapi ожидает объект с path (абсолютный путь), name, type, size
-							const absolutePath = path.resolve(tempImagePath)
+							// КРИТИЧЕСКИ ВАЖНО: size должен быть из fs.statSync, а не из buffer.length
 							const fileObj = {
 								path: absolutePath,
 								name: imageName,
 								type: getMimeType(imageName),
-								size: imageBuffer.length,
+								size: stat.size, // ✅ ТОЛЬКО из fs.statSync
 							}
 
 							// Передаем как массив файлов (Strapi может ожидать массив)
@@ -778,30 +794,30 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 								files: [fileObj],
 							})
 
+							// Удаляем временный файл ТОЛЬКО после успешной загрузки
+							// Не удаляем в catch, так как Strapi может читать файл асинхронно
 							if (fileInfo && fileInfo.length > 0) {
 								const fileId = fileInfo[0].id
 								imageMap.set(imageName, fileId)
 								strapi.log.info(
 									`[CommerceML] Image uploaded: ${imageName} -> file ID ${fileId}`
 								)
-							}
-
-							// Удаляем временный файл после загрузки
-							if (tempImagePath && fs.existsSync(tempImagePath)) {
-								fs.unlinkSync(tempImagePath)
+								
+								// Удаляем файл только после подтверждения успешной загрузки
+								if (fs.existsSync(tempImagePath)) {
+									fs.unlinkSync(tempImagePath)
+								}
+							} else {
+								strapi.log.warn(
+									`[CommerceML] Upload service returned empty result for ${imageName}`
+								)
 							}
 						} catch (imageError: any) {
 							strapi.log.warn(
 								`[CommerceML] Failed to upload image ${imageEntry.entryName}: ${imageError.message}`
 							)
-							// Удаляем временный файл в случае ошибки
-							if (tempImagePath && fs.existsSync(tempImagePath)) {
-								try {
-									fs.unlinkSync(tempImagePath)
-								} catch {
-									// Игнорируем ошибку удаления
-								}
-							}
+							// НЕ удаляем файл в catch - Strapi может еще читать его
+							// Файл останется во временной папке и будет очищен при следующей синхронизации
 						}
 					}
 
