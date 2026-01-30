@@ -9,6 +9,8 @@ import { verifyBasicAuth } from '../utils/auth-middleware'
 import AdmZip from 'adm-zip'
 import * as fs from 'fs'
 import * as path from 'path'
+import axios from 'axios'
+import FormData from 'form-data'
 
 export default ({ strapi }: { strapi: Core.Strapi }) => {
 	/**
@@ -742,63 +744,86 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 						`[CommerceML] Found ${imageEntries.length} images in archive, uploading to Strapi...`
 					)
 
-					// Создаем временную папку для изображений
-					const tempImagesDir = path.join(process.cwd(), 'data', 'temp-images')
-					if (!fs.existsSync(tempImagesDir)) {
-						fs.mkdirSync(tempImagesDir, { recursive: true })
-					}
+					// Получаем URL сервера Strapi
+					const serverUrl = strapi.config.server.url || 'http://localhost:1337'
+					const uploadUrl = `${serverUrl}/api/upload`
 
-					for (const imageEntry of imageEntries) {
-						try {
-							const imageBuffer = imageEntry.getData()
-							const imageName = path.basename(imageEntry.entryName)
+					// Параллельная загрузка с батчингом (по 5 файлов одновременно)
+					const BATCH_SIZE = 5
+					let uploadedCount = 0
 
-							// Загружаем в Strapi через upload service
-							// Strapi upload service ожидает объект с полями: buffer, name, type, size
-							// Используем Buffer напрямую (без зависимости от файловой системы)
-							const uploadService = strapi.plugins['upload'].services.upload
-							
-							// Создаем объект файла в правильном формате для Strapi
-							// Strapi ожидает объект как из FormData/formidable: { buffer, name, type, size }
-							const fileObj = {
-								buffer: imageBuffer, // Buffer с данными файла
-								name: imageName, // name (не filename!)
-								type: getMimeType(imageName), // type (не mime!)
-								size: imageBuffer.length, // size из buffer.length (не из fs.stat!)
-							}
+					for (let i = 0; i < imageEntries.length; i += BATCH_SIZE) {
+						const batch = imageEntries.slice(i, i + BATCH_SIZE)
+						strapi.log.info(
+							`[CommerceML] Uploading batch ${Math.floor(i / BATCH_SIZE) + 1} (${batch.length} images)...`
+						)
 
-							strapi.log.info('[CommerceML] Uploading image', {
-								imageName,
-								bufferSize: imageBuffer.length,
-								mimeType: fileObj.type,
-							})
+						const uploadPromises = batch.map(async (imageEntry) => {
+							try {
+								const imageBuffer = imageEntry.getData()
+								const imageName = path.basename(imageEntry.entryName)
 
-							// Передаем файл как массив (стандартный формат для multipart/form-data)
-							const fileInfo = await uploadService.upload({
-								data: {},
-								files: [fileObj],
-							})
+								// Создаем FormData для multipart/form-data
+								const formData = new FormData()
+								formData.append('files', imageBuffer, {
+									filename: imageName,
+									contentType: getMimeType(imageName),
+								})
 
-							if (fileInfo && fileInfo.length > 0) {
-								const fileId = fileInfo[0].id
-								imageMap.set(imageName, fileId)
-								strapi.log.info(
-									`[CommerceML] Image uploaded: ${imageName} -> file ID ${fileId}`
-								)
-							} else {
+								// Отправляем через REST API
+								const response = await axios.post(uploadUrl, formData, {
+									headers: {
+										...formData.getHeaders(),
+									},
+									maxBodyLength: Infinity,
+									maxContentLength: Infinity,
+								})
+
+								if (response.data && Array.isArray(response.data) && response.data.length > 0) {
+									const fileId = response.data[0].id
+									imageMap.set(imageName, fileId)
+									uploadedCount++
+									strapi.log.info(
+										`[CommerceML] Image uploaded: ${imageName} -> file ID ${fileId}`
+									)
+									return { success: true, imageName, fileId }
+								} else {
+									strapi.log.warn(
+										`[CommerceML] Upload returned empty result for ${imageName}`
+									)
+									return { success: false, imageName, error: 'Empty response' }
+								}
+							} catch (imageError: any) {
 								strapi.log.warn(
-									`[CommerceML] Upload service returned empty result for ${imageName}`
+									`[CommerceML] Failed to upload image ${imageEntry.entryName}: ${imageError.message}`
+								)
+								return {
+									success: false,
+									imageName: path.basename(imageEntry.entryName),
+									error: imageError.message,
+								}
+							}
+						})
+
+						// Ждем завершения всех загрузок в батче
+						const results = await Promise.allSettled(uploadPromises)
+
+						// Обрабатываем результаты
+						for (const result of results) {
+							if (result.status === 'rejected') {
+								strapi.log.warn(
+									`[CommerceML] Upload promise rejected: ${result.reason}`
 								)
 							}
-						} catch (imageError: any) {
-							strapi.log.warn(
-								`[CommerceML] Failed to upload image ${imageEntry.entryName}: ${imageError.message}`
-							)
 						}
+
+						strapi.log.info(
+							`[CommerceML] Batch completed: ${uploadedCount}/${imageEntries.length} images uploaded so far`
+						)
 					}
 
 					strapi.log.info(
-						`[CommerceML] Successfully uploaded ${imageMap.size} images to Strapi`
+						`[CommerceML] Successfully uploaded ${uploadedCount}/${imageEntries.length} images to Strapi`
 					)
 				}
 			} catch (imageProcessError: any) {
