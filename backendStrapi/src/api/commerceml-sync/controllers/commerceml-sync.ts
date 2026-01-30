@@ -12,6 +12,21 @@ import * as path from 'path'
 
 export default ({ strapi }: { strapi: Core.Strapi }) => {
 	/**
+	 * Определяет MIME тип по расширению файла
+	 */
+	function getMimeType(filename: string): string {
+		const ext = path.extname(filename).toLowerCase()
+		const mimeTypes: Record<string, string> = {
+			'.jpg': 'image/jpeg',
+			'.jpeg': 'image/jpeg',
+			'.png': 'image/png',
+			'.webp': 'image/webp',
+			'.gif': 'image/gif',
+		}
+		return mimeTypes[ext] || 'image/jpeg'
+	}
+
+	/**
 	 * Извлекает XML из body (может быть ZIP архив или обычный XML)
 	 * @param ctx - Koa context
 	 * @returns XML строка
@@ -708,27 +723,65 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 				strapi.log.info(`[CommerceML] Detected catalog file by name: ${xmlFileName} / ${zipFileName}`)
 			}
 
-			// Сохраняем копию архива и XML в папку для анализа
+			// Извлекаем картинки из архива и загружаем в Strapi
+			const imageMap = new Map<string, number>() // имя файла -> Strapi file ID
 			try {
-				const samplesDir = path.join(process.cwd(), 'data', 'commerceml-samples')
-				if (!fs.existsSync(samplesDir)) {
-					fs.mkdirSync(samplesDir, { recursive: true })
+				const imageEntries = zipEntries.filter((entry) => {
+					const name = entry.entryName.toLowerCase()
+					return (
+						name.endsWith('.jpg') ||
+						name.endsWith('.jpeg') ||
+						name.endsWith('.png') ||
+						name.endsWith('.webp') ||
+						name.endsWith('.gif')
+					)
+				})
+
+				if (imageEntries.length > 0) {
+					strapi.log.info(
+						`[CommerceML] Found ${imageEntries.length} images in archive, uploading to Strapi...`
+					)
+
+					for (const imageEntry of imageEntries) {
+						try {
+							const imageBuffer = imageEntry.getData()
+							const imageName = path.basename(imageEntry.entryName)
+
+							// Загружаем в Strapi через upload service
+							// Strapi upload service ожидает файл в формате, похожем на multipart/form-data
+							const uploadService = strapi.plugins['upload'].services.upload
+							const fileInfo = await uploadService.upload({
+								data: {},
+								files: {
+									buffer: imageBuffer,
+									filename: imageName,
+									mimetype: getMimeType(imageName),
+									size: imageBuffer.length,
+								} as any,
+							})
+
+							if (fileInfo && fileInfo.length > 0) {
+								const fileId = fileInfo[0].id
+								imageMap.set(imageName, fileId)
+								strapi.log.info(
+									`[CommerceML] Image uploaded: ${imageName} -> file ID ${fileId}`
+								)
+							}
+						} catch (imageError: any) {
+							strapi.log.warn(
+								`[CommerceML] Failed to upload image ${imageEntry.entryName}: ${imageError.message}`
+							)
+						}
+					}
+
+					strapi.log.info(
+						`[CommerceML] Successfully uploaded ${imageMap.size} images to Strapi`
+					)
 				}
-				const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
-				
-				// Сохраняем XML
-				const sampleFileName = `${actualType}-${timestamp}.xml`
-				const sampleFilePath = path.join(samplesDir, sampleFileName)
-				fs.writeFileSync(sampleFilePath, xmlString, 'utf-8')
-				strapi.log.info(`[CommerceML] XML sample saved to: ${sampleFilePath}`)
-				
-				// Сохраняем копию архива
-				const archiveFileName = `${actualType}-${timestamp}.zip`
-				const archiveFilePath = path.join(samplesDir, archiveFileName)
-				fs.copyFileSync(filePath, archiveFilePath)
-				strapi.log.info(`[CommerceML] Archive copy saved to: ${archiveFilePath}`)
-			} catch (saveError: any) {
-				strapi.log.warn(`[CommerceML] Failed to save samples: ${saveError.message}`)
+			} catch (imageProcessError: any) {
+				strapi.log.warn(
+					`[CommerceML] Failed to process images from archive: ${imageProcessError.message}`
+				)
 			}
 
 			// Обрабатываем XML в зависимости от типа
@@ -736,7 +789,7 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 			if (actualType === 'catalog') {
 				result = await strapi
 					.service('api::commerceml-sync.commerceml-sync')
-					.processCatalog(xmlString)
+					.processCatalog(xmlString, imageMap)
 			} else if (actualType === 'offers') {
 				result = await strapi
 					.service('api::commerceml-sync.commerceml-sync')

@@ -44,9 +44,10 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 	/**
 	 * Обрабатывает catalog.xml
 	 * @param xmlString - XML строка из catalog.xml
+	 * @param imageMap - Map: имя файла -> Strapi file ID
 	 * @returns Результат синхронизации
 	 */
-	async function processCatalog(xmlString: string) {
+	async function processCatalog(xmlString: string, imageMap?: Map<string, number>) {
 		try {
 			strapi.log.info('[CommerceML Sync] Processing catalog.xml...')
 
@@ -99,8 +100,8 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 				}
 			}
 
-			// Маппим продукты с propertiesMap для характеристик
-			const mappedProducts = mapperService.mapProducts(products, propertiesMap)
+			// Маппим продукты с propertiesMap для характеристик и imageMap для картинок
+			const mappedProducts = mapperService.mapProducts(products, propertiesMap, imageMap)
 
 			if (mappedProducts.length === 0) {
 				strapi.log.warn('[CommerceML Sync] No products mapped successfully')

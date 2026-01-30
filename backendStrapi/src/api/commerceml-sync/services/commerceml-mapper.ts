@@ -4,6 +4,7 @@
  */
 
 import type { Core } from '@strapi/strapi'
+import * as path from 'path'
 import {
 	extractSize,
 	extractColor,
@@ -109,7 +110,8 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 	 */
 	function mapProduct(
 		commerceMLProduct: CommerceMLProduct,
-		propertiesMap?: Map<string, string>
+		propertiesMap?: Map<string, string>,
+		imageMap?: Map<string, number>
 	): MappedProduct | null {
 		try {
 			// Внешний ID обязателен для upsert
@@ -244,7 +246,8 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 			})
 
 			// Изображения - в CommerceML это прямые теги <Картинка> (может быть несколько)
-			// Формируем URL напрямую: https://disk.sbis.ru/disk/api/v1/{имя_файла}
+			// Если картинки были загружены из архива, используем локальные URL из Strapi
+			// Иначе используем URL от disk.sbis.ru
 			let images: string[] = []
 			const imageBaseUrl = 'https://disk.sbis.ru/disk/api/v1/'
 
@@ -283,10 +286,19 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 					if (filename.startsWith('http://') || filename.startsWith('https://')) {
 						imageUrl = filename
 					} else {
-						// Формируем URL напрямую: https://disk.sbis.ru/disk/api/v1/{имя_файла}
-						// Убираем расширение файла, если оно есть (SBIS API не требует расширения)
-						const cleanFilename = filename.split('.')[0].trim()
-						imageUrl = imageBaseUrl + cleanFilename
+						// Проверяем, есть ли файл в imageMap (загружен из архива)
+						const imageName = path.basename(filename)
+						const fileId = imageMap?.get(imageName)
+
+						if (fileId) {
+							// Используем локальный URL из Strapi
+							imageUrl = `/api/upload/files/${fileId}`
+						} else {
+							// Fallback: используем URL от disk.sbis.ru
+							// Убираем расширение файла, если оно есть (SBIS API не требует расширения)
+							const cleanFilename = filename.split('.')[0].trim()
+							imageUrl = imageBaseUrl + cleanFilename
+						}
 					}
 
 					images.push(imageUrl)
@@ -347,16 +359,18 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 	 * Маппит массив продуктов из CommerceML
 	 * @param commerceMLProducts - Массив продуктов из CommerceML
 	 * @param propertiesMap - Map ID свойства -> Название свойства (опционально)
+	 * @param imageMap - Map: имя файла -> Strapi file ID (опционально)
 	 * @returns Массив маппированных продуктов
 	 */
 	function mapProducts(
 		commerceMLProducts: CommerceMLProduct[],
-		propertiesMap?: Map<string, string>
+		propertiesMap?: Map<string, string>,
+		imageMap?: Map<string, number>
 	): MappedProduct[] {
 		const mapped: MappedProduct[] = []
 
 		for (const product of commerceMLProducts) {
-			const mappedProduct = mapProduct(product, propertiesMap)
+			const mappedProduct = mapProduct(product, propertiesMap, imageMap)
 			if (mappedProduct) {
 				mapped.push(mappedProduct)
 			}
