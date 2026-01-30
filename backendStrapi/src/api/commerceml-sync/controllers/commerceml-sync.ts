@@ -708,19 +708,27 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 				strapi.log.info(`[CommerceML] Detected catalog file by name: ${xmlFileName} / ${zipFileName}`)
 			}
 
-			// ВРЕМЕННО: Сохраняем XML в папку для анализа
+			// Сохраняем копию архива и XML в папку для анализа
 			try {
 				const samplesDir = path.join(process.cwd(), 'data', 'commerceml-samples')
 				if (!fs.existsSync(samplesDir)) {
 					fs.mkdirSync(samplesDir, { recursive: true })
 				}
 				const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
+				
+				// Сохраняем XML
 				const sampleFileName = `${actualType}-${timestamp}.xml`
 				const sampleFilePath = path.join(samplesDir, sampleFileName)
 				fs.writeFileSync(sampleFilePath, xmlString, 'utf-8')
 				strapi.log.info(`[CommerceML] XML sample saved to: ${sampleFilePath}`)
+				
+				// Сохраняем копию архива
+				const archiveFileName = `${actualType}-${timestamp}.zip`
+				const archiveFilePath = path.join(samplesDir, archiveFileName)
+				fs.copyFileSync(filePath, archiveFilePath)
+				strapi.log.info(`[CommerceML] Archive copy saved to: ${archiveFilePath}`)
 			} catch (saveError: any) {
-				strapi.log.warn(`[CommerceML] Failed to save XML sample: ${saveError.message}`)
+				strapi.log.warn(`[CommerceML] Failed to save samples: ${saveError.message}`)
 			}
 
 			// Обрабатываем XML в зависимости от типа
