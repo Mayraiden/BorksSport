@@ -744,15 +744,33 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 						`[CommerceML] Found ${imageEntries.length} images in archive, uploading to Strapi...`
 					)
 
-					// Создаем временную папку для изображений
-					const tempImagesDir = path.join(process.cwd(), 'data', 'temp-images')
-					if (!fs.existsSync(tempImagesDir)) {
-						fs.mkdirSync(tempImagesDir, { recursive: true })
+					// Пытаемся найти существующий API токен для внутренних запросов
+					let apiToken: string | null = null
+					try {
+						const existingTokens = await strapi.entityService.findMany('admin::api-token', {
+							filters: {
+								name: 'CommerceML Internal Upload',
+							},
+							limit: 1,
+						})
+
+						if (existingTokens && existingTokens.length > 0) {
+							apiToken = existingTokens[0].accessKey
+							strapi.log.info('[CommerceML] Using existing API token for upload')
+						} else {
+							strapi.log.warn(
+								'[CommerceML] No API token found. Will try REST endpoint without auth first.'
+							)
+						}
+					} catch (tokenError: any) {
+						strapi.log.warn(
+							`[CommerceML] Failed to get API token: ${tokenError.message}. Will try without auth.`
+						)
 					}
 
-					// Используем внутренний upload service с временными файлами
-					// Это обходит проблему авторизации и работает с path
-					const uploadService = strapi.plugins['upload'].services.upload
+					// Используем REST endpoint через HTTP запрос
+					const serverUrl = strapi.config.server.url || 'http://localhost:1337'
+					const uploadUrl = `${serverUrl}/api/upload`
 
 					// Параллельная загрузка с батчингом (по 5 файлов одновременно)
 					const BATCH_SIZE = 5
@@ -765,65 +783,53 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 						)
 
 						const uploadPromises = batch.map(async (imageEntry) => {
-							let tempImagePath: string | null = null
 							try {
 								const imageBuffer = imageEntry.getData()
 								const imageName = path.basename(imageEntry.entryName)
-								tempImagePath = path.join(tempImagesDir, imageName)
 
-								// Сохраняем во временный файл (upload service требует path)
-								fs.writeFileSync(tempImagePath, imageBuffer)
-
-								// Получаем абсолютный путь и размер файла
-								const absolutePath = path.resolve(tempImagePath)
-								const stat = fs.statSync(absolutePath)
-
-								// Создаем объект файла с path (это работает с upload service)
-								const fileObj = {
-									path: absolutePath,
+								// Создаем FormData для multipart/form-data
+								const formData = new FormData()
+								formData.append('files', imageBuffer, {
 									filename: imageName,
-									mime: getMimeType(imageName),
-									size: stat.size,
-								}
-
-								// Вызываем upload service напрямую (внутренний вызов)
-								const fileInfo = await uploadService.upload({
-									data: {},
-									files: [fileObj],
+									contentType: getMimeType(imageName),
 								})
 
-								if (fileInfo && Array.isArray(fileInfo) && fileInfo.length > 0) {
-									const fileId = fileInfo[0].id
+								// Формируем заголовки с авторизацией
+								const headers: any = {
+									...formData.getHeaders(),
+								}
+
+								// Добавляем API токен если есть
+								if (apiToken) {
+									headers['Authorization'] = `Bearer ${apiToken}`
+								}
+
+								// Отправляем через REST API
+								const response = await axios.post(uploadUrl, formData, {
+									headers,
+									maxBodyLength: Infinity,
+									maxContentLength: Infinity,
+									validateStatus: (status) => status < 500,
+								})
+
+								if (response.status === 200 && response.data && Array.isArray(response.data) && response.data.length > 0) {
+									const fileId = response.data[0].id
 									imageMap.set(imageName, fileId)
 									uploadedCount++
 									strapi.log.info(
 										`[CommerceML] Image uploaded: ${imageName} -> file ID ${fileId}`
 									)
-
-									// Удаляем временный файл после успешной загрузки
-									if (fs.existsSync(tempImagePath)) {
-										fs.unlinkSync(tempImagePath)
-									}
-
 									return { success: true, imageName, fileId }
 								} else {
 									strapi.log.warn(
-										`[CommerceML] Upload returned empty result for ${imageName}`
+										`[CommerceML] Upload returned status ${response.status} for ${imageName}`
 									)
-									return { success: false, imageName, error: 'Empty response' }
+									return { success: false, imageName, error: `Status ${response.status}` }
 								}
 							} catch (imageError: any) {
 								strapi.log.warn(
 									`[CommerceML] Failed to upload image ${imageEntry.entryName}: ${imageError.message}`
 								)
-								// Удаляем временный файл в случае ошибки
-								if (tempImagePath && fs.existsSync(tempImagePath)) {
-									try {
-										fs.unlinkSync(tempImagePath)
-									} catch {
-										// Игнорируем ошибку удаления
-									}
-								}
 								return {
 									success: false,
 									imageName: path.basename(imageEntry.entryName),
