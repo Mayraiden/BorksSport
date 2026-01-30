@@ -191,7 +191,7 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 								imageMap.set(imageName, fullUrl)
 								
 								strapi.log.debug(
-									`[CommerceML Sync] Moved image ${imageName} to ${relativeUrl}`
+									`[CommerceML Sync] Moved image ${imageName} to ${fullUrl}`
 								)
 							} catch (fileError: any) {
 								strapi.log.warn(
