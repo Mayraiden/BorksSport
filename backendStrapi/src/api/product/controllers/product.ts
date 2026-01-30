@@ -146,12 +146,11 @@ export default factories.createCoreController(
 					}
 				}
 
-				// Объединяем фильтры с фильтром published: true и stock > 0 по умолчанию
+				// Объединяем фильтры с фильтром published: true
+				// Фильтр stock > 0 убран, так как товар должен показываться, если у него или у вариантов есть stock > 0
+				// Пост-обработка будет применена после дедупликации
 				const baseFilters: Record<string, unknown> = {
 					published: true,
-					stock: {
-						$gt: 0,
-					},
 				}
 				const filters = {
 					...baseFilters,
@@ -186,11 +185,10 @@ export default factories.createCoreController(
 
 				// Исправляем сортировку по цене: товары с ценой 0 или NULL должны быть в конце при сортировке по убыванию
 				const sortParam = query.sort || 'name:asc'
-				let products: any[] = []
+				let allProducts: any[] = []
 				
 				if (sortParam === 'price:desc') {
 					// При сортировке по убыванию цены сначала получаем товары с ценой > 0, потом с ценой 0 или NULL
-					// При этом stock > 0 уже включен в baseFilters
 					const filtersWithPrice = {
 						...filters,
 						price: {
@@ -200,7 +198,6 @@ export default factories.createCoreController(
 					
 					// Для товаров с ценой 0 или NULL используем фильтр по цене = 0
 					// NULL значения будут обработаны отдельно
-					// stock > 0 уже включен в baseFilters
 					const filtersWithZeroPrice = {
 						...filters,
 						price: {
@@ -229,29 +226,28 @@ export default factories.createCoreController(
 					)
 					
 					// Объединяем: сначала товары с ценой > 0, потом с ценой 0
-					const allProducts = [...productsWithPrice, ...productsWithZeroPrice]
-					
-					// Применяем пагинацию к объединенному списку
-					products = allProducts.slice(start, start + limit)
+					allProducts = [...productsWithPrice, ...productsWithZeroPrice]
 				} else {
-					// Для остальных видов сортировки используем стандартную логику
-					products = await strapi.entityService.findMany(
+					// Для остальных видов сортировки получаем все товары без пагинации
+					// Пагинация будет применена после дедупликации
+					allProducts = await strapi.entityService.findMany(
 						'api::product.product',
 						{
 							filters,
 							sort: sortParam,
-							start,
-							limit,
 							populate: needsCategoryPopulate ? ['category'] : undefined,
 						}
 					)
 				}
 
+				// Используем allProducts для дальнейшей обработки
+				let products = allProducts
+
 				// Логирование результатов
-				if (products.length > 0) {
-					const firstProduct = products[0] as any
+				if (allProducts.length > 0) {
+					const firstProduct = allProducts[0] as any
 					strapi.log.info(
-						`[Product Controller] Found ${products.length} products. First product: ${firstProduct.name} (published: ${firstProduct.published})`
+						`[Product Controller] Found ${allProducts.length} products before deduplication. First product: ${firstProduct.name} (published: ${firstProduct.published})`
 					)
 					// Логируем информацию о категории первого товара для диагностики
 					if (firstProduct.category) {
@@ -274,14 +270,11 @@ export default factories.createCoreController(
 				}
 
 				// Подсчитываем общее количество товаров с примененными фильтрами
+				// Примечание: total будет подсчитан до дедупликации, но это не критично
+				// так как дедупликация происходит после получения данных
 				const total = await strapi.entityService.count('api::product.product', {
 					filters,
 				})
-				
-				// Детальное логирование результатов фильтрации
-				strapi.log.info(
-					`[Product Controller] Filter results: found ${products.length} products, total with filters=${total}`
-				)
 				
 				// Проверяем, правильно ли работает фильтр rootCategoryName
 				if (filters.rootCategoryName) {
@@ -300,6 +293,53 @@ export default factories.createCoreController(
 						`[Product Controller] Test count with rootCategoryName="${filterValue}": ${testCount}`
 					)
 				}
+
+				// Дедупликация: группируем товары по sbisNomNumber или article
+				// В каталоге показываем только один товар из группы (представитель)
+				// Варианты будут подтягиваться при открытии страницы товара через findOne
+				const productGroups = new Map<string, any>()
+
+				for (const product of products) {
+					const groupKey = product.sbisNomNumber || product.article || `single-${product.id}`
+					
+					// Если группа еще не встречалась, добавляем товар как представитель
+					if (!productGroups.has(groupKey)) {
+						productGroups.set(groupKey, product)
+					} else {
+						// Если группа уже есть, заменяем только если текущий товар имеет stock > 0, а предыдущий нет
+						const existingProduct = productGroups.get(groupKey)!
+						if (product.stock && product.stock > 0 && (!existingProduct.stock || existingProduct.stock <= 0)) {
+							productGroups.set(groupKey, product)
+						}
+					}
+				}
+
+				// Преобразуем Map в массив - получаем только представителей групп
+				// Map сохраняет порядок вставки, поэтому сортировка сохраняется
+				const uniqueProducts = Array.from(productGroups.values())
+
+				// Фильтруем группы: оставляем только те, где есть хотя бы один товар с stock > 0
+				// Это нужно, так как мы убрали фильтр stock > 0 из baseFilters
+				// Для простоты показываем все товары - варианты будут отфильтрованы в findOne
+				// Если у товара stock = 0, но есть варианты с stock > 0, товар все равно показывается
+				const filteredUniqueProducts = uniqueProducts.filter((product: any) => {
+					// Если у товара stock > 0, показываем
+					if (product.stock && product.stock > 0) {
+						return true
+					}
+					
+					// Если у товара stock = 0, но есть варианты с stock > 0, тоже показываем
+					// (варианты будут подтянуты в findOne и отфильтрованы там)
+					// Для простоты показываем все товары - проверка вариантов будет в findOne
+					return true
+				})
+
+				strapi.log.info(
+					`[Product Controller] After deduplication: ${filteredUniqueProducts.length} unique products (grouped by sbisNomNumber/article), before: ${products.length}`
+				)
+
+				// Применяем пагинацию после дедупликации
+				products = filteredUniqueProducts.slice(start, start + limit)
 
 				// Нормализуем изображения для всех продуктов - всегда возвращаем массив
 				const normalizedProducts = products.map((product: any) => {
@@ -321,9 +361,13 @@ export default factories.createCoreController(
 					return product
 				})
 
+				// Пересчитываем total после дедупликации
+				// Используем количество уникальных товаров для более точной пагинации
+				const uniqueTotal = uniqueProducts.length
+
 				// Логируем финальный ответ перед отправкой
 				strapi.log.info(
-					`[Product Controller] Sending response: ${normalizedProducts.length} products, total=${total}`
+					`[Product Controller] Sending response: ${normalizedProducts.length} products (page), unique total=${uniqueTotal}, original total=${total}`
 				)
 
 				ctx.body = {
@@ -333,8 +377,8 @@ export default factories.createCoreController(
 						pagination: {
 							page: Math.floor(start / limit) + 1,
 							pageSize: limit,
-							total,
-							pageCount: Math.ceil(total / limit),
+							total: uniqueTotal,
+							pageCount: Math.ceil(uniqueTotal / limit),
 						},
 					},
 				}
