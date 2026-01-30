@@ -802,16 +802,21 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 									throw new Error(`File does not exist: ${absolutePath}`)
 								}
 
+								// В Strapi v4 upload service ожидает файлы в формате, который используется в контроллерах Koa
+								// Файл должен быть объектом с полем path (строка) или stream
+								// Пробуем использовать формат, который точно работает
+								// Важно: path должен быть абсолютным путем к файлу
 								const fileData: any = {
 									name: imageName,
-									path: absolutePath, // Абсолютный путь как строка
+									path: absolutePath,
 									size: imageBuffer.length,
 									type: mimeType,
 									mime: mimeType,
+									ext: path.extname(imageName).toLowerCase().replace('.', ''),
 								}
 
 								// Логируем данные файла перед загрузкой
-								strapi.log.debug(`[CommerceML] Uploading file:`, {
+								strapi.log.info(`[CommerceML] Uploading file:`, {
 									name: fileData.name,
 									path: fileData.path,
 									pathType: typeof fileData.path,
@@ -821,12 +826,26 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 								})
 
 								// Используем внутренний API для загрузки
-								// В Strapi v4 формат: { data: {}, files: [file objects] }
-								// где каждый file object имеет path (строка с абсолютным путем к файлу)
+								// В Strapi v4 upload service ожидает файлы в формате, который используется в контроллерах Koa
+								// Файл должен быть объектом с полем path (строка с абсолютным путем)
+								// Пробуем использовать правильный формат
+								// Важно: проверяем, что path действительно строка и файл существует
+								strapi.log.info(`[CommerceML] Calling upload service with:`, {
+									fileDataKeys: Object.keys(fileData),
+									fileDataPath: fileData.path,
+									fileDataPathType: typeof fileData.path,
+								})
+								
 								const uploadedFiles = await uploadService.upload({
 									data: {},
 									files: [fileData],
 								})
+								
+								// Если это не работает, попробуем использовать другой формат
+								// Но сначала проверим, что uploadedFiles не undefined
+								if (!uploadedFiles) {
+									throw new Error('Upload service returned undefined')
+								}
 
 								// Удаляем временный файл после загрузки
 								if (tempFilePath && fs.existsSync(tempFilePath)) {
