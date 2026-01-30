@@ -182,11 +182,13 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 								// Сохраняем файл (перезаписываем, если существует)
 								fs.writeFileSync(targetPath, imageBuffer)
 								
-								// Формируем относительный URL
-								const relativeUrl = `/uploads/commerceml/products/${productId}/${safeImageName}`
+								// Формируем полный URL к Strapi API
+								const publicUrl = strapi.config.get('server.url') || 'http://localhost:1337'
+								const relativePath = `/uploads/commerceml/products/${productId}/${safeImageName}`
+								const fullUrl = `${publicUrl}${relativePath}`
 								
-								// Сохраняем в imageMap
-								imageMap.set(imageName, relativeUrl)
+								// Сохраняем в imageMap полный URL
+								imageMap.set(imageName, fullUrl)
 								
 								strapi.log.debug(
 									`[CommerceML Sync] Moved image ${imageName} to ${relativeUrl}`

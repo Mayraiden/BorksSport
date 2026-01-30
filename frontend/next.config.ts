@@ -45,12 +45,28 @@ const nextConfig: NextConfig = {
 				protocol: 'http',
 				hostname: 'backend',
 				port: '1337',
+				pathname: '/uploads/**',
+			},
+			{
+				protocol: 'http',
+				hostname: 'backend',
+				port: '1337',
 				pathname: '/img**',
 			},
 			{
 				protocol: 'http',
 				hostname: 'api.borkssport.ru',
+				pathname: '/uploads/**',
+			},
+			{
+				protocol: 'http',
+				hostname: 'api.borkssport.ru',
 				pathname: '/img**',
+			},
+			{
+				protocol: 'https',
+				hostname: 'api.borkssport.ru',
+				pathname: '/uploads/**',
 			},
 			{
 				protocol: 'https',
