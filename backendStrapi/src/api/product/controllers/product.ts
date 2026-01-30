@@ -415,8 +415,13 @@ export default factories.createCoreController(
 				product.images = []
 			}
 
+			// Фильтруем варианты: убираем те, у которых stock = 0
+			const availableVariants = (variants || []).filter(
+				(variant: any) => variant.stock && variant.stock > 0
+			)
+
 			// Нормализуем изображения для вариантов
-			const normalizedVariants = (variants || []).map((variant: any) => {
+			const normalizedVariants = availableVariants.map((variant: any) => {
 				if (!variant.images) {
 					variant.images = []
 				} else if (typeof variant.images === 'string') {

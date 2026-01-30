@@ -105,23 +105,34 @@ const transformApiProduct = (apiProduct: ApiProduct): Product => {
 					},
 				]
 
-	// Собираем уникальные размеры и цвета из вариантов
-	const variants = apiProduct.variants || []
-	const allProducts = [apiProduct, ...variants]
+	// Собираем уникальные размеры и цвета только из вариантов с stock > 0
+	// Варианты с stock = 0 уже отфильтрованы на бэкенде, но на всякий случай фильтруем еще раз
+	const variants = (apiProduct.variants || []).filter(
+		(v) => v.stock !== null && v.stock !== undefined && v.stock > 0
+	)
+	
+	// Формируем список товаров для извлечения цветов/размеров:
+	// - Если у основного товара stock > 0, включаем его
+	// - Всегда включаем варианты с stock > 0
+	const productsWithStock = []
+	if (apiProduct.stock && apiProduct.stock > 0) {
+		productsWithStock.push(apiProduct)
+	}
+	productsWithStock.push(...variants)
 
-	// Извлекаем уникальные размеры
+	// Извлекаем уникальные размеры только из товаров с stock > 0
 	const uniqueSizes = Array.from(
 		new Set(
-			allProducts
+			productsWithStock
 				.map((p) => p.size)
 				.filter((size): size is string => size !== null && size !== undefined)
 		)
 	)
 
-	// Извлекаем уникальные цвета
+	// Извлекаем уникальные цвета только из товаров с stock > 0
 	const uniqueColors = Array.from(
 		new Set(
-			allProducts
+			productsWithStock
 				.map((p) => p.color)
 				.filter((color): color is string => color !== null && color !== undefined)
 		)
@@ -177,6 +188,7 @@ const transformApiProduct = (apiProduct: ApiProduct): Product => {
 	})
 
 	// Трансформируем варианты (без рекурсии - варианты не должны содержать свои варианты)
+	// Используем уже отфильтрованные варианты с stock > 0
 	const transformedVariants = variants.map((variant) => {
 		// Используем упрощенную трансформацию для вариантов
 		return {
