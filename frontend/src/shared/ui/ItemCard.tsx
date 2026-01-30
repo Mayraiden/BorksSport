@@ -112,6 +112,12 @@ export const ItemCard = memo<ItemCardProps>(
 					<p className="text-gray text-sm">{displayProduct.brand}</p>
 					{/* Цена - всегда на одном месте */}
 					<p className="text-base font-normal text-black">{formattedPrice}</p>
+					{/* Остаток на складе */}
+					{displayProduct.stock !== null && displayProduct.stock !== undefined && displayProduct.stock > 0 && (
+						<p className="text-sm text-gray">
+							Осталось: {displayProduct.stock} шт.
+						</p>
+					)}
 					<div className="w-full min-w-0 flex justify-between items-center mt-auto gap-2">
 						<BuyButton
 							className="w-30 h-8 flex items-center justify-center rounded-sm text-white bg-burgundy cursor-pointer flex-shrink-0"

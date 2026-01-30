@@ -204,6 +204,7 @@ const transformApiProduct = (apiProduct: ApiProduct): Product => {
 			length: variant.length || null,
 			width: variant.width || null,
 			height: variant.height || null,
+			stock: variant.stock || null,
 		}
 	})
 
@@ -255,6 +256,7 @@ const transformApiProduct = (apiProduct: ApiProduct): Product => {
 		length: apiProduct.length || null,
 		width: apiProduct.width || null,
 		height: apiProduct.height || null,
+		stock: apiProduct.stock || null,
 	}
 }
 

@@ -76,6 +76,7 @@ export type Product = {
 	length?: number | null
 	width?: number | null
 	height?: number | null
+	stock?: number | null
 }
 
 export type SearchSuggestion = {
@@ -112,6 +113,7 @@ export type ApiProduct = {
 	length: number | null
 	width: number | null
 	height: number | null
+	stock: number | null
 	variants?: ApiProduct[] // Variants of the product (same sbisNomNumber/article)
 }
 

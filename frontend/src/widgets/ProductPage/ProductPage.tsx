@@ -150,10 +150,16 @@ export const ProductPage = ({ product, className = '' }: ProductPageProps) => {
 						</div>
 
 						{/* Цена - сразу после бренда, рядом со слайдером */}
-						<div className="flex justify-start">
+						<div className="flex flex-col gap-2">
 							<p className="text-2xl font-bold leading-[0.875] text-[#7B1931] max-sm:text-xl">
 								{formatPrice(displayProduct.price)}
 							</p>
+							{/* Остаток на складе */}
+							{displayProduct.stock !== null && displayProduct.stock !== undefined && displayProduct.stock > 0 && (
+								<p className="text-base text-gray max-sm:text-sm">
+									Осталось: {displayProduct.stock} шт.
+								</p>
+							)}
 						</div>
 					</div>
 
