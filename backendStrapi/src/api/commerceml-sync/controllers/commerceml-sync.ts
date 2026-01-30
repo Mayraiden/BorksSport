@@ -779,24 +779,52 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 								tempFilePath = path.join(tempDir, `${randomUUID()}_${imageName}`)
 								fs.writeFileSync(tempFilePath, imageBuffer)
 
-								// Создаем файловый объект для Strapi upload service
-								// Upload service ожидает path к файлу
-								const fileData: any = {
-									name: imageName,
-									path: tempFilePath,
-									size: imageBuffer.length,
-									type: mimeType,
+								// Проверяем, что файл создан
+								if (!fs.existsSync(tempFilePath)) {
+									throw new Error(`Failed to create temp file: ${tempFilePath}`)
 								}
 
+								// Логируем путь для отладки
+								strapi.log.debug(`[CommerceML] Temp file created: ${tempFilePath}, size: ${imageBuffer.length}`)
+
+								// Создаем файловый объект для Strapi upload service
+								// В Strapi v4 формат должен быть как в контроллерах Koa
+								// Файл должен иметь path (абсолютный путь) как строка
+								// Важно: path должен быть строкой, не undefined
+								const absolutePath = path.resolve(tempFilePath)
+								
+								// Проверяем, что путь существует и это строка
+								if (!absolutePath || typeof absolutePath !== 'string') {
+									throw new Error(`Invalid file path: ${absolutePath}`)
+								}
+								
+								if (!fs.existsSync(absolutePath)) {
+									throw new Error(`File does not exist: ${absolutePath}`)
+								}
+
+								const fileData: any = {
+									name: imageName,
+									path: absolutePath, // Абсолютный путь как строка
+									size: imageBuffer.length,
+									type: mimeType,
+									mime: mimeType,
+								}
+
+								// Логируем данные файла перед загрузкой
+								strapi.log.debug(`[CommerceML] Uploading file:`, {
+									name: fileData.name,
+									path: fileData.path,
+									pathType: typeof fileData.path,
+									size: fileData.size,
+									type: fileData.type,
+									pathExists: fs.existsSync(fileData.path),
+								})
+
 								// Используем внутренний API для загрузки
+								// В Strapi v4 формат: { data: {}, files: [file objects] }
+								// где каждый file object имеет path (строка с абсолютным путем к файлу)
 								const uploadedFiles = await uploadService.upload({
-									data: {
-										fileInfo: {
-											name: imageName,
-											alternativeText: imageName,
-											caption: '',
-										},
-									},
+									data: {},
 									files: [fileData],
 								})
 
