@@ -763,13 +763,12 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 							const uploadService = strapi.plugins['upload'].services.upload
 							
 							// Создаем объект файла в правильном формате
-							// Strapi ожидает объект с stream (или path), filename, mime, size
-							// Используем stream из файла
-							const fileStream = fs.createReadStream(tempImagePath)
+							// Strapi ожидает объект с path (абсолютный путь), name, type, size
+							const absolutePath = path.resolve(tempImagePath)
 							const fileObj = {
-								stream: fileStream,
-								filename: imageName,
-								mime: getMimeType(imageName),
+								path: absolutePath,
+								name: imageName,
+								type: getMimeType(imageName),
 								size: imageBuffer.length,
 							}
 
