@@ -781,22 +781,20 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 							// Strapi upload service ожидает файл в формате multipart/form-data
 							const uploadService = strapi.plugins['upload'].services.upload
 							
-							// Создаем stream из buffer (Strapi может требовать stream, а не buffer или path)
-							const fileStream = Readable.from(imageBuffer)
-							
 							// Создаем объект файла в правильном формате
-							// Используем stream из buffer + path для проверки размера
+							// Используем ТОЛЬКО path (без stream) - ошибка указывает на path
+							// Strapi сам создаст stream из path внутри
 							const fileObj = {
-								stream: fileStream, // Stream из buffer
-								path: absolutePath, // Path для проверки размера через fs.stat
+								path: absolutePath, // Абсолютный путь к файлу - ОБЯЗАТЕЛЬНО
 								filename: imageName,
 								mime: getMimeType(imageName),
 								size: stat.size, // ✅ ТОЛЬКО из fs.statSync
 							}
 
 							strapi.log.debug('[CommerceML] File object for upload', {
-								hasStream: !!fileObj.stream,
-								hasPath: !!fileObj.path,
+								path: fileObj.path,
+								pathType: typeof fileObj.path,
+								pathExists: fs.existsSync(fileObj.path),
 								filename: fileObj.filename,
 								mime: fileObj.mime,
 								size: fileObj.size,
