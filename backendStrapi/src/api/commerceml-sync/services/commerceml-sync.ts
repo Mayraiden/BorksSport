@@ -44,10 +44,10 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 	/**
 	 * Обрабатывает catalog.xml
 	 * @param xmlString - XML строка из catalog.xml
-	 * @param imageMap - Map: имя файла -> Strapi file ID
+	 * @param tempImageMap - Map: имя файла -> Buffer (временные файлы из ZIP)
 	 * @returns Результат синхронизации
 	 */
-	async function processCatalog(xmlString: string, imageMap?: Map<string, number>) {
+	async function processCatalog(xmlString: string, tempImageMap?: Map<string, Buffer>) {
 		try {
 			strapi.log.info('[CommerceML Sync] Processing catalog.xml...')
 
@@ -97,6 +97,142 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 						errors: 0,
 						total: 0,
 					},
+				}
+			}
+
+			// Перемещаем файлы из временной папки в структуру products/{productId}/
+			// и создаем imageMap с URL путями
+			const imageMap = new Map<string, string>() // имя файла -> URL путь
+			if (tempImageMap && tempImageMap.size > 0) {
+				const publicDir = path.join(process.cwd(), 'public', 'uploads', 'commerceml')
+				const productsDir = path.join(publicDir, 'products')
+				
+				// Создаем директорию products, если её нет
+				if (!fs.existsSync(productsDir)) {
+					fs.mkdirSync(productsDir, { recursive: true })
+				}
+
+				strapi.log.info(
+					`[CommerceML Sync] Moving ${tempImageMap.size} images to product directories...`
+				)
+
+				// Для каждого продукта находим его картинки и перемещаем файлы
+				for (const product of products) {
+					try {
+						// Получаем productId из Ид
+						const productId = product.Ид || product.Id || product.id
+						if (!productId) {
+							continue
+						}
+
+						// Извлекаем имена файлов из тегов <Картинка>
+						let pictureTags: any = null
+						if (product.Картинка) {
+							pictureTags = product.Картинка
+						} else if (product.Картинки) {
+							pictureTags =
+								(product.Картинки as any).Картинка ||
+								(product.Картинки as any).Picture ||
+								(product.Картинки as any).picture
+						} else if (product.Picture) {
+							pictureTags = product.Picture
+						} else if (product.picture) {
+							pictureTags = product.picture
+						}
+
+						if (!pictureTags) {
+							continue
+						}
+
+						const pictureArray = Array.isArray(pictureTags) ? pictureTags : [pictureTags]
+						const imageFilenames = pictureArray.filter(
+							(pic: any) => pic && typeof pic === 'string' && pic.trim().length > 0
+						)
+
+						// Создаем папку для продукта
+						const productDir = path.join(productsDir, String(productId))
+						if (!fs.existsSync(productDir)) {
+							fs.mkdirSync(productDir, { recursive: true })
+						}
+
+						// Перемещаем файлы для этого продукта
+						for (const filename of imageFilenames) {
+							// Пропускаем полные URL
+							if (filename.startsWith('http://') || filename.startsWith('https://')) {
+								continue
+							}
+
+							const imageName = path.basename(filename)
+							
+							// Проверяем, есть ли файл во временной мапе
+							if (!tempImageMap.has(imageName)) {
+								continue
+							}
+
+							try {
+								// Получаем buffer из временной мапы
+								const imageBuffer = tempImageMap.get(imageName)!
+								
+								// Создаем безопасное имя файла
+								const safeImageName = imageName.replace(/[^a-zA-Z0-9._-]/g, '_')
+								
+								// Путь для сохранения
+								const targetPath = path.join(productDir, safeImageName)
+								
+								// Сохраняем файл (перезаписываем, если существует)
+								fs.writeFileSync(targetPath, imageBuffer)
+								
+								// Формируем относительный URL
+								const relativeUrl = `/uploads/commerceml/products/${productId}/${safeImageName}`
+								
+								// Сохраняем в imageMap
+								imageMap.set(imageName, relativeUrl)
+								
+								strapi.log.debug(
+									`[CommerceML Sync] Moved image ${imageName} to ${relativeUrl}`
+								)
+							} catch (fileError: any) {
+								strapi.log.warn(
+									`[CommerceML Sync] Failed to move image ${imageName} for product ${productId}: ${fileError.message}`
+								)
+							}
+						}
+					} catch (productError: any) {
+						strapi.log.warn(
+							`[CommerceML Sync] Failed to process images for product: ${productError.message}`
+						)
+					}
+				}
+
+				strapi.log.info(
+					`[CommerceML Sync] Moved ${imageMap.size} images to product directories`
+				)
+
+				// Очищаем временную папку
+				try {
+					const tempDir = path.join(publicDir, 'temp')
+					if (fs.existsSync(tempDir)) {
+						const tempFiles = fs.readdirSync(tempDir)
+						for (const file of tempFiles) {
+							try {
+								fs.unlinkSync(path.join(tempDir, file))
+							} catch (deleteError: any) {
+								strapi.log.warn(
+									`[CommerceML Sync] Failed to delete temp file ${file}: ${deleteError.message}`
+								)
+							}
+						}
+						// Пытаемся удалить саму папку (может не получиться, если есть файлы)
+						try {
+							fs.rmdirSync(tempDir)
+						} catch {
+							// Игнорируем ошибку, если папка не пуста
+						}
+					}
+				} catch (cleanupError: any) {
+					strapi.log.warn(
+						`[CommerceML Sync] Failed to cleanup temp directory: ${cleanupError.message}`
+					)
 				}
 			}
 

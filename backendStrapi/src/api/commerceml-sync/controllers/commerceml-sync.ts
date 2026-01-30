@@ -723,8 +723,9 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 				strapi.log.info(`[CommerceML] Detected catalog file by name: ${xmlFileName} / ${zipFileName}`)
 			}
 
-			// Извлекаем картинки из архива и загружаем в Strapi
-			const imageMap = new Map<string, number>() // имя файла -> Strapi file ID
+			// Извлекаем картинки из архива во временную папку
+			// Файлы будут перемещены в структуру products/{productId}/ после парсинга XML
+			const tempImageMap = new Map<string, Buffer>() // имя файла -> buffer
 			try {
 				const imageEntries = zipEntries.filter((entry) => {
 					const name = entry.entryName.toLowerCase()
@@ -739,244 +740,45 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 
 				if (imageEntries.length > 0) {
 					strapi.log.info(
-						`[CommerceML] Found ${imageEntries.length} images in archive, uploading to Strapi...`
+						`[CommerceML] Found ${imageEntries.length} images in archive, extracting to temporary folder...`
 					)
 
-					// Используем внутренний API Strapi для загрузки файлов
-					// Это обходит проблемы с авторизацией при HTTP запросах
-					const uploadService = strapi.plugin('upload').service('upload')
-					
-					if (!uploadService) {
-						strapi.log.error('[CommerceML] Upload service not available')
-						throw new Error('Upload service not available')
+					// Создаем временную директорию для файлов
+					const tempImageDir = path.join(process.cwd(), 'public', 'uploads', 'commerceml', 'temp')
+					if (!fs.existsSync(tempImageDir)) {
+						fs.mkdirSync(tempImageDir, { recursive: true })
 					}
 
-					// Параллельная загрузка с батчингом (по 5 файлов одновременно)
-					const BATCH_SIZE = 5
-					let uploadedCount = 0
-
-					for (let i = 0; i < imageEntries.length; i += BATCH_SIZE) {
-						const batch = imageEntries.slice(i, i + BATCH_SIZE)
-						strapi.log.info(
-							`[CommerceML] Uploading batch ${Math.floor(i / BATCH_SIZE) + 1} (${batch.length} images)...`
-						)
-
-						const uploadPromises = batch.map(async (imageEntry) => {
-							let tempFilePath: string | null = null
-							try {
-								const imageBuffer = imageEntry.getData()
-								const imageName = path.basename(imageEntry.entryName)
-								const mimeType = getMimeType(imageName)
-
-								// Создаем временную директорию для файлов
-								const tempDir = path.join(process.cwd(), 'data', 'commerceml', 'temp-uploads')
-								if (!fs.existsSync(tempDir)) {
-									fs.mkdirSync(tempDir, { recursive: true })
-								}
-
-								// Сохраняем файл во временную папку
-								// Upload service требует path, а не stream
-								tempFilePath = path.join(tempDir, `${randomUUID()}_${imageName}`)
-								fs.writeFileSync(tempFilePath, imageBuffer)
-
-								// Проверяем, что файл создан
-								if (!fs.existsSync(tempFilePath)) {
-									throw new Error(`Failed to create temp file: ${tempFilePath}`)
-								}
-
-								// Логируем путь для отладки
-								strapi.log.debug(`[CommerceML] Temp file created: ${tempFilePath}, size: ${imageBuffer.length}`)
-
-								// Создаем файловый объект для Strapi upload service
-								// В Strapi v4 формат должен быть как в контроллерах Koa
-								// Файл должен иметь path (абсолютный путь) как строка
-								// Важно: path должен быть строкой, не undefined
-								const absolutePath = path.resolve(tempFilePath)
-								
-								// Проверяем, что путь существует и это строка
-								if (!absolutePath || typeof absolutePath !== 'string') {
-									throw new Error(`Invalid file path: ${absolutePath}`)
-								}
-								
-								if (!fs.existsSync(absolutePath)) {
-									throw new Error(`File does not exist: ${absolutePath}`)
-								}
-
-								// В Strapi v4 upload service ожидает файлы в формате, который используется в контроллерах Koa
-								// Файл должен быть объектом с полем path (строка) или stream
-								// Пробуем использовать формат, который точно работает
-								// Важно: path должен быть абсолютным путем к файлу
-								const fileData: any = {
-									name: imageName,
-									path: absolutePath,
-									size: imageBuffer.length,
-									type: mimeType,
-									mime: mimeType,
-									ext: path.extname(imageName).toLowerCase().replace('.', ''),
-								}
-
-								// Логируем данные файла перед загрузкой
-								strapi.log.info(`[CommerceML] Uploading file:`, {
-									name: fileData.name,
-									path: fileData.path,
-									pathType: typeof fileData.path,
-									size: fileData.size,
-									type: fileData.type,
-									pathExists: fs.existsSync(fileData.path),
-								})
-
-								// Используем внутренний API для загрузки
-								// В Strapi v4 upload service ожидает файлы в формате, который используется в контроллерах Koa
-								// Пробуем использовать правильный формат - файл должен быть объектом с полем path
-								// Важно: проверяем, что path действительно строка и файл существует
-								strapi.log.info(`[CommerceML] Calling upload service with:`, {
-									fileDataKeys: Object.keys(fileData),
-									fileDataPath: fileData.path,
-									fileDataPathType: typeof fileData.path,
-									fileDataPathValue: String(fileData.path).substring(0, 100),
-								})
-								
-								// Пробуем использовать upload service с правильным форматом
-								// В Strapi v4 файлы должны быть в формате, который используется в контроллерах
-								// Попробуем использовать формат с полем files как массив объектов с path
-								// Важно: файл должен иметь path как строку, а не undefined
-								let uploadedFiles
-								try {
-									// Проверяем, что path действительно строка перед вызовом
-									if (!fileData.path || typeof fileData.path !== 'string') {
-										throw new Error(`Invalid file path: ${fileData.path} (type: ${typeof fileData.path})`)
-									}
-									
-									// Пробуем использовать upload service
-									// В Strapi v4 формат: { data: {}, files: [file objects] }
-									// где каждый file object имеет path (строка с абсолютным путем)
-									// Важно: файлы должны быть в формате, который используется в контроллерах Koa
-									// Попробуем использовать формат, который точно работает
-									uploadedFiles = await uploadService.upload({
-										data: {},
-										files: [fileData],
-									})
-								} catch (uploadError: any) {
-									// Если не работает, пробуем использовать другой формат
-									// Может быть проблема в том, что upload service ожидает другой формат
-									strapi.log.error(`[CommerceML] Upload error:`, {
-										message: uploadError.message,
-										stack: uploadError.stack,
-										fileDataPath: fileData.path,
-										fileDataPathType: typeof fileData.path,
-										fileDataKeys: Object.keys(fileData),
-										fileDataStringified: JSON.stringify(fileData),
-									})
-									
-									// Пробуем использовать альтернативный подход - использовать provider напрямую
-									// или создать файл через entityService
-									// Но сначала пробуем использовать другой формат для upload service
-									try {
-										// Пробуем использовать формат с полем stream вместо path
-										const { createReadStream } = await import('fs')
-										const fileStream = createReadStream(absolutePath)
-										
-										const fileDataWithStream: any = {
-											name: imageName,
-											stream: fileStream,
-											size: imageBuffer.length,
-											type: mimeType,
-											mime: mimeType,
-											ext: path.extname(imageName).toLowerCase().replace('.', ''),
-										}
-										
-										uploadedFiles = await uploadService.upload({
-											data: {},
-											files: [fileDataWithStream],
-										})
-									} catch (streamError: any) {
-										strapi.log.error(`[CommerceML] Stream upload also failed:`, streamError.message)
-										throw uploadError // Бросаем оригинальную ошибку
-									}
-								}
-								
-								// Если это не работает, попробуем использовать другой формат
-								// Но сначала проверим, что uploadedFiles не undefined
-								if (!uploadedFiles) {
-									throw new Error('Upload service returned undefined')
-								}
-
-								// Удаляем временный файл после загрузки
-								if (tempFilePath && fs.existsSync(tempFilePath)) {
-									try {
-										fs.unlinkSync(tempFilePath)
-									} catch (deleteError: any) {
-										strapi.log.warn(
-											`[CommerceML] Failed to delete temp file ${tempFilePath}: ${deleteError.message}`
-										)
-									}
-								}
-
-								if (uploadedFiles && uploadedFiles.length > 0) {
-									const fileId = uploadedFiles[0].id
-									imageMap.set(imageName, fileId)
-									uploadedCount++
-									strapi.log.info(
-										`[CommerceML] Image uploaded: ${imageName} -> file ID ${fileId}`
-									)
-									return { success: true, imageName, fileId }
-								} else {
-									strapi.log.warn(
-										`[CommerceML] Upload returned empty result for ${imageName}`
-									)
-									return { success: false, imageName, error: 'Empty result' }
-								}
-							} catch (imageError: any) {
-								// Удаляем временный файл в случае ошибки
-								if (tempFilePath && fs.existsSync(tempFilePath)) {
-									try {
-										fs.unlinkSync(tempFilePath)
-									} catch (deleteError: any) {
-										// Игнорируем ошибки удаления
-									}
-								}
-								strapi.log.warn(
-									`[CommerceML] Failed to upload image ${imageEntry.entryName}: ${imageError.message}`,
-									{ stack: imageError.stack }
-								)
-								return {
-									success: false,
-									imageName: path.basename(imageEntry.entryName),
-									error: imageError.message,
-								}
-							}
-						})
-
-						// Ждем завершения всех загрузок в батче
-						const results = await Promise.allSettled(uploadPromises)
-
-						// Обрабатываем результаты
-						for (const result of results) {
-							if (result.status === 'rejected') {
-								strapi.log.warn(
-									`[CommerceML] Upload promise rejected: ${result.reason}`
-								)
-							} else if (result.status === 'fulfilled' && result.value.success) {
-								// Успешная загрузка уже обработана выше
-							} else if (result.status === 'fulfilled' && !result.value.success) {
-								strapi.log.warn(
-									`[CommerceML] Upload failed for ${result.value.imageName}: ${result.value.error}`
-								)
-							}
+					// Извлекаем все изображения во временную папку
+					for (const imageEntry of imageEntries) {
+						try {
+							const imageBuffer = imageEntry.getData()
+							const imageName = path.basename(imageEntry.entryName)
+							
+							// Сохраняем buffer в мапу для последующего использования
+							tempImageMap.set(imageName, imageBuffer)
+							
+							// Сохраняем файл во временную папку
+							const tempPath = path.join(tempImageDir, imageName)
+							fs.writeFileSync(tempPath, imageBuffer)
+							
+							strapi.log.debug(
+								`[CommerceML] Extracted image to temp: ${imageName} (${imageBuffer.length} bytes)`
+							)
+						} catch (imageError: any) {
+							strapi.log.warn(
+								`[CommerceML] Failed to extract image ${imageEntry.entryName}: ${imageError.message}`
+							)
 						}
-
-						strapi.log.info(
-							`[CommerceML] Batch completed: ${uploadedCount}/${imageEntries.length} images uploaded so far`
-						)
 					}
 
 					strapi.log.info(
-						`[CommerceML] Successfully uploaded ${uploadedCount}/${imageEntries.length} images to Strapi`
+						`[CommerceML] Successfully extracted ${tempImageMap.size}/${imageEntries.length} images to temporary folder`
 					)
 				}
 			} catch (imageProcessError: any) {
 				strapi.log.warn(
-					`[CommerceML] Failed to process images from archive: ${imageProcessError.message}`
+					`[CommerceML] Failed to extract images from archive: ${imageProcessError.message}`
 				)
 			}
 
@@ -985,7 +787,7 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 			if (actualType === 'catalog') {
 				result = await strapi
 					.service('api::commerceml-sync.commerceml-sync')
-					.processCatalog(xmlString, imageMap)
+					.processCatalog(xmlString, tempImageMap)
 			} else if (actualType === 'offers') {
 				result = await strapi
 					.service('api::commerceml-sync.commerceml-sync')
