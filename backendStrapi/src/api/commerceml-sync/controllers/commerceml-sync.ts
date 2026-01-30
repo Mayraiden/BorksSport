@@ -759,16 +759,24 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 							fs.writeFileSync(tempImagePath, imageBuffer)
 
 							// Загружаем в Strapi через upload service
-							// Strapi upload service ожидает файл с путем или stream
+							// Strapi upload service ожидает файл в формате multipart/form-data
 							const uploadService = strapi.plugins['upload'].services.upload
+							
+							// Создаем объект файла в правильном формате
+							// Strapi ожидает объект с stream (или path), filename, mime, size
+							// Используем stream из файла
+							const fileStream = fs.createReadStream(tempImagePath)
+							const fileObj = {
+								stream: fileStream,
+								filename: imageName,
+								mime: getMimeType(imageName),
+								size: imageBuffer.length,
+							}
+
+							// Передаем как массив файлов (Strapi может ожидать массив)
 							const fileInfo = await uploadService.upload({
 								data: {},
-								files: {
-									path: tempImagePath,
-									name: imageName,
-									type: getMimeType(imageName),
-									size: imageBuffer.length,
-								} as any,
+								files: [fileObj],
 							})
 
 							if (fileInfo && fileInfo.length > 0) {
