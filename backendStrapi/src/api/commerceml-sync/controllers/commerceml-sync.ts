@@ -9,6 +9,7 @@ import { verifyBasicAuth } from '../utils/auth-middleware'
 import AdmZip from 'adm-zip'
 import * as fs from 'fs'
 import * as path from 'path'
+import { Readable } from 'stream'
 
 export default ({ strapi }: { strapi: Core.Strapi }) => {
 	/**
@@ -780,18 +781,22 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 							// Strapi upload service ожидает файл в формате multipart/form-data
 							const uploadService = strapi.plugins['upload'].services.upload
 							
+							// Создаем stream из buffer (Strapi может требовать stream, а не buffer или path)
+							const fileStream = Readable.from(imageBuffer)
+							
 							// Создаем объект файла в правильном формате
-							// Пробуем использовать buffer напрямую (может быть ожидаемый формат для Strapi v5+)
+							// Используем stream из buffer + path для проверки размера
 							const fileObj = {
-								buffer: imageBuffer, // Buffer с данными файла
+								stream: fileStream, // Stream из buffer
+								path: absolutePath, // Path для проверки размера через fs.stat
 								filename: imageName,
 								mime: getMimeType(imageName),
 								size: stat.size, // ✅ ТОЛЬКО из fs.statSync
 							}
 
 							strapi.log.debug('[CommerceML] File object for upload', {
-								hasBuffer: !!fileObj.buffer,
-								bufferSize: fileObj.buffer?.length,
+								hasStream: !!fileObj.stream,
+								hasPath: !!fileObj.path,
 								filename: fileObj.filename,
 								mime: fileObj.mime,
 								size: fileObj.size,
