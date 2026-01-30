@@ -773,6 +773,7 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 								imageName,
 								absolutePath,
 								size: stat.size,
+								fileExists: fs.existsSync(absolutePath),
 							})
 
 							// Загружаем в Strapi через upload service
@@ -780,15 +781,23 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 							const uploadService = strapi.plugins['upload'].services.upload
 							
 							// Создаем объект файла в правильном формате
-							// КРИТИЧЕСКИ ВАЖНО: size должен быть из fs.statSync, а не из buffer.length
+							// Пробуем использовать buffer напрямую (может быть ожидаемый формат для Strapi v5+)
 							const fileObj = {
-								path: absolutePath,
-								name: imageName,
-								type: getMimeType(imageName),
+								buffer: imageBuffer, // Buffer с данными файла
+								filename: imageName,
+								mime: getMimeType(imageName),
 								size: stat.size, // ✅ ТОЛЬКО из fs.statSync
 							}
 
-							// Передаем как массив файлов (Strapi может ожидать массив)
+							strapi.log.debug('[CommerceML] File object for upload', {
+								hasBuffer: !!fileObj.buffer,
+								bufferSize: fileObj.buffer?.length,
+								filename: fileObj.filename,
+								mime: fileObj.mime,
+								size: fileObj.size,
+							})
+
+							// Передаем файл как массив (стандартный формат для multipart/form-data)
 							const fileInfo = await uploadService.upload({
 								data: {},
 								files: [fileObj],
