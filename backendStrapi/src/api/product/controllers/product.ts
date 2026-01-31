@@ -146,11 +146,12 @@ export default factories.createCoreController(
 					}
 				}
 
-				// Объединяем фильтры с фильтром published: true
-				// Фильтр stock > 0 убран, так как товар должен показываться, если у него или у вариантов есть stock > 0
-				// Пост-обработка будет применена после дедупликации
+				// Объединяем фильтры с фильтром published: true и stock > 0 по умолчанию
 				const baseFilters: Record<string, unknown> = {
 					published: true,
+					stock: {
+						$gt: 0,
+					},
 				}
 				const filters = {
 					...baseFilters,
@@ -315,31 +316,14 @@ export default factories.createCoreController(
 				}
 
 				// Преобразуем Map в массив - получаем только представителей групп
-				// Map сохраняет порядок вставки, поэтому сортировка сохраняется
 				const uniqueProducts = Array.from(productGroups.values())
 
-				// Фильтруем группы: оставляем только те, где есть хотя бы один товар с stock > 0
-				// Это нужно, так как мы убрали фильтр stock > 0 из baseFilters
-				// Для простоты показываем все товары - варианты будут отфильтрованы в findOne
-				// Если у товара stock = 0, но есть варианты с stock > 0, товар все равно показывается
-				const filteredUniqueProducts = uniqueProducts.filter((product: any) => {
-					// Если у товара stock > 0, показываем
-					if (product.stock && product.stock > 0) {
-						return true
-					}
-					
-					// Если у товара stock = 0, но есть варианты с stock > 0, тоже показываем
-					// (варианты будут подтянуты в findOne и отфильтрованы там)
-					// Для простоты показываем все товары - проверка вариантов будет в findOne
-					return true
-				})
-
 				strapi.log.info(
-					`[Product Controller] After deduplication: ${filteredUniqueProducts.length} unique products (grouped by sbisNomNumber/article), before: ${products.length}`
+					`[Product Controller] After deduplication: ${uniqueProducts.length} unique products (grouped by sbisNomNumber/article), before: ${products.length}`
 				)
 
 				// Применяем пагинацию после дедупликации
-				products = filteredUniqueProducts.slice(start, start + limit)
+				products = uniqueProducts.slice(start, start + limit)
 
 				// Нормализуем изображения для всех продуктов - всегда возвращаем массив
 				const normalizedProducts = products.map((product: any) => {
