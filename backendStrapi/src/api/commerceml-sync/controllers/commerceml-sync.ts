@@ -664,17 +664,36 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 			// Читаем файл
 			const fileBuffer = fs.readFileSync(filePath)
 
-			// Проверяем, что это ZIP (по первым байтам)
-			if (fileBuffer.length < 4 || fileBuffer[0] !== 0x50 || fileBuffer[1] !== 0x4B) {
-				strapi.log.error(`[CommerceML] File is not a ZIP archive: ${filename}`)
-				ctx.status = 200
-				ctx.body = 'failure\nФайл не является ZIP архивом'
-				ctx.type = 'text/plain'
-				return
+		// Проверяем, что это ZIP (по первым байтам)
+		if (fileBuffer.length < 4 || fileBuffer[0] !== 0x50 || fileBuffer[1] !== 0x4B) {
+			strapi.log.error(`[CommerceML] File is not a ZIP archive: ${filename}`)
+			ctx.status = 200
+			ctx.body = 'failure\nФайл не является ZIP архивом'
+			ctx.type = 'text/plain'
+			return
+		}
+
+		// Сохраняем копию исходного ZIP-архива
+		try {
+			const archiveDir = path.join(process.cwd(), 'data', 'commerceml-archives')
+			if (!fs.existsSync(archiveDir)) {
+				fs.mkdirSync(archiveDir, { recursive: true })
 			}
 
-			// Распаковываем ZIP
-			const zip = new AdmZip(fileBuffer)
+			// Создаем уникальное имя файла с timestamp для избежания конфликтов
+			const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
+			const archiveFilename = `${timestamp}_${filename}`
+			const archivePath = path.join(archiveDir, archiveFilename)
+
+			fs.writeFileSync(archivePath, fileBuffer)
+			strapi.log.info(`[CommerceML] Saved ZIP archive copy: ${archiveFilename} (${fileBuffer.length} bytes)`)
+		} catch (archiveError: any) {
+			// Не прерываем обработку, если не удалось сохранить копию
+			strapi.log.warn(`[CommerceML] Failed to save ZIP archive copy: ${archiveError.message}`)
+		}
+
+		// Распаковываем ZIP
+		const zip = new AdmZip(fileBuffer)
 			const zipEntries = zip.getEntries()
 
 			strapi.log.info(`[CommerceML] ZIP entries found: ${zipEntries.length}`, {
