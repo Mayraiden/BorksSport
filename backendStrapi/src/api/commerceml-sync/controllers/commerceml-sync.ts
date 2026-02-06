@@ -682,7 +682,18 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 
 			// Создаем уникальное имя файла с timestamp для избежания конфликтов
 			const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
-			const archiveFilename = `${timestamp}_${filename}`
+			
+			// Используем реальное имя файла из filePath (может быть .zip, если Saby отправил .xml)
+			// Но всегда сохраняем с расширением .zip, так как это ZIP-архив
+			const realFilename = path.basename(filePath)
+			let archiveFilename = realFilename
+			
+			// Если расширение не .zip, заменяем на .zip
+			if (!archiveFilename.toLowerCase().endsWith('.zip')) {
+				archiveFilename = archiveFilename.replace(/\.[^.]+$/, '') + '.zip'
+			}
+			
+			archiveFilename = `${timestamp}_${archiveFilename}`
 			const archivePath = path.join(archiveDir, archiveFilename)
 
 			fs.writeFileSync(archivePath, fileBuffer)
