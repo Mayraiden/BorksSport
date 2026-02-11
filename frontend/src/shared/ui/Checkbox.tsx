@@ -20,9 +20,9 @@ export const Checkbox = ({
 	size = 'md',
 }: CheckboxProps) => {
 	const textSizeClasses = {
-		sm: 'text-xs max-sm:text-[10px]',
-		md: 'text-sm max-sm:text-xs',
-		lg: 'text-base max-sm:text-sm',
+		sm: 'text-xs max-sm:text-sm',
+		md: 'text-sm max-sm:text-base',
+		lg: 'text-base max-sm:text-lg',
 	}
 
 	return (
@@ -39,7 +39,7 @@ export const Checkbox = ({
 				{checked && (
 					<CheckIcon
 						size={size === 'sm' ? 10 : size === 'md' ? 12 : 14}
-						className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-white pointer-events-none"
+						className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-white pointer-events-none max-sm:w-3 max-sm:h-3"
 					/>
 				)}
 			</div>

@@ -231,7 +231,7 @@ export const Filters = ({ isMobile = false, onApply }: FiltersProps) => {
 			</div>
 
 			{/* Фиксированные кнопки внизу */}
-			<div className="pt-4 space-y-3 flex-shrink-0 border-t border-gray-200 bg-white">
+			<div className={`pt-4 space-y-3 flex-shrink-0 border-t border-gray-200 bg-white ${isMobile ? 'pb-safe pb-4' : ''}`}>
 				<button
 					onClick={() => {
 						applyFilters()
@@ -240,7 +240,7 @@ export const Filters = ({ isMobile = false, onApply }: FiltersProps) => {
 						}
 					}}
 					disabled={!hasUnsavedChanges}
-					className={`w-full py-3 px-4 rounded-md transition-colors duration-200 font-medium ${
+					className={`w-full ${isMobile ? 'py-2.5 px-3 text-sm' : 'py-3 px-4'} rounded-md transition-colors duration-200 font-medium ${
 						hasUnsavedChanges
 							? 'bg-burgundy text-white hover:bg-burgundy/90'
 							: 'bg-gray-300 text-gray-500 cursor-not-allowed'
@@ -250,7 +250,7 @@ export const Filters = ({ isMobile = false, onApply }: FiltersProps) => {
 				</button>
 				<button
 					onClick={clearFilters}
-					className="w-full bg-white text-gray-700 py-3 px-4 rounded-md border border-gray-300 hover:bg-gray-50 transition-colors duration-200 font-medium"
+					className={`w-full bg-white text-gray-700 ${isMobile ? 'py-2.5 px-3 text-sm' : 'py-3 px-4'} rounded-md border border-gray-300 hover:bg-gray-50 transition-colors duration-200 font-medium`}
 				>
 					Сбросить все фильтры
 				</button>

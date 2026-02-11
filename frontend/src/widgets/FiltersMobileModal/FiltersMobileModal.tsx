@@ -46,10 +46,10 @@ export const FiltersMobileModal = ({
 			/>
 
 			{/* Modal */}
-			<div className="fixed inset-y-0 left-0 w-full max-w-sm bg-white z-50 shadow-xl md:hidden flex flex-col">
+			<div className="fixed inset-y-0 left-0 w-full bg-white z-50 shadow-xl md:hidden flex flex-col">
 				{/* Header */}
-				<div className="flex items-center justify-between p-4 border-b border-gray-200 flex-shrink-0">
-					<h2 className="text-xl font-bold text-gray-900">ФИЛЬТРЫ</h2>
+				<div className="flex items-center justify-between p-3 border-b border-gray-200 flex-shrink-0">
+					<h2 className="text-lg font-bold text-gray-900">ФИЛЬТРЫ</h2>
 					<button
 						onClick={onClose}
 						className="w-8 h-8 flex items-center justify-center text-gray-500 hover:text-gray-700 transition-colors"

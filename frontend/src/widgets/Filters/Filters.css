@@ -11,6 +11,14 @@
 	transition: all 0.2s ease;
 }
 
+/* Увеличенный размер чекбоксов на мобильных устройствах */
+@media (max-width: 768px) {
+	.custom-checkbox {
+		width: 20px;
+		height: 20px;
+	}
+}
+
 .custom-checkbox:hover {
 	background: var(--color-burgundy, #991b1b);
 	border-color: var(--color-burgundy, #991b1b);
