@@ -36,6 +36,18 @@ export const CatalogModal = ({ isOpen, onClose }: ICatalogModalProps) => {
 		setSelectedPath(newPath)
 	}
 
+	// Обработчик наведения на категорию
+	const handleCategoryHover = (
+		category: MainCategory,
+		level: number,
+		e: React.MouseEvent
+	) => {
+		// Обрезаем путь до текущего уровня и добавляем новую категорию
+		const newPath = selectedPath.slice(0, level)
+		newPath[level] = category
+		setSelectedPath(newPath)
+	}
+
 	// Формируем колонки на основе выбранного пути
 	const columns = useMemo(() => {
 		const result: Array<{
@@ -94,19 +106,11 @@ export const CatalogModal = ({ isOpen, onClose }: ICatalogModalProps) => {
 								level={column.level}
 								selectedPath={selectedPath}
 								onCategoryClick={handleCategoryClick}
+								onCategoryHover={handleCategoryHover}
 								onClose={handleClose}
 							/>
 						))
 					)}
-				</div>
-				<div className="flex gap-5 items-center">
-					<Link
-						className="h-10 py-4 px-6 flex items-center border-1 border-gray/20 rounded-md hover:bg-alt-white transition-colors"
-						href={'/catalog'}
-						onClick={handleClose}
-					>
-						смотреть все товары
-					</Link>
 				</div>
 			</aside>
 		</>

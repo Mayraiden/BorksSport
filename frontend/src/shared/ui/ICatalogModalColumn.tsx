@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { ICatalogModalLink } from './ICatalogModalLink'
 import type { MainCategory } from '@/features/Filters/api/categoryApi'
 
@@ -13,6 +14,11 @@ type ICatalogModalColumnProps = {
 		level: number,
 		e: React.MouseEvent
 	) => void
+	onCategoryHover?: (
+		category: MainCategory,
+		level: number,
+		e: React.MouseEvent
+	) => void
 	onClose?: () => void
 }
 
@@ -22,51 +28,72 @@ export const ICatalogModalColumn = ({
 	level,
 	selectedPath,
 	onCategoryClick,
+	onCategoryHover,
 	onClose,
 }: ICatalogModalColumnProps) => {
 	// Определяем, какая категория выбрана на этом уровне
 	const selectedCategory = selectedPath[level]
 
 	return (
-		<div className="p-5 border-r-1 border-inherit">
-			{title && <h1 className="mb-5 text-base font-bold">{title}</h1>}
-			<ul className="flex flex-col gap-1">
-				{categories.map((category) => {
-					const isSelected = selectedCategory?.id === category.id
-					const hasChildren = category.children && category.children.length > 0
+		<div className="p-5 border-r-1 border-inherit flex flex-col h-full">
+			<div>
+				{title && <h1 className="mb-5 text-base font-bold">{title}</h1>}
+				<ul className="flex flex-col gap-1">
+					{categories.map((category) => {
+						const isSelected = selectedCategory?.id === category.id
+						const hasChildren = category.children && category.children.length > 0
 
-					// Определяем href в зависимости от уровня
-					let href = '/catalog'
-					if (level === 0) {
-						href = `/catalog?sport=${encodeURIComponent(category.name)}`
-					} else if (level === 1) {
-						href = `/catalog?category=${encodeURIComponent(category.name)}`
-					} else if (level === 2) {
-						href = `/catalog?brand=${encodeURIComponent(category.name)}`
-					} else {
-						href = `/catalog?category=${encodeURIComponent(category.name)}`
-					}
+						// Определяем href в зависимости от уровня
+						let href = '/catalog'
+						if (level === 0) {
+							href = `/catalog?sport=${encodeURIComponent(category.name)}`
+						} else if (level === 1) {
+							href = `/catalog?category=${encodeURIComponent(category.name)}`
+						} else if (level === 2) {
+							href = `/catalog?brand=${encodeURIComponent(category.name)}`
+						} else {
+							href = `/catalog?category=${encodeURIComponent(category.name)}`
+						}
 
-					return (
-						<li key={category.id}>
-							<ICatalogModalLink
-								href={href}
-								text={category.name}
-								isSelected={isSelected}
-								hasChildren={hasChildren}
-								onClick={(e) => {
-									if (hasChildren) {
-										// Если есть дети, показываем их в следующей колонке
-										onCategoryClick(category, level, e)
-									}
-									// Если нет детей, Link сам перейдет в каталог и закроет модалку
-								}}
-								onClose={onClose}
-							/>
-						</li>
-					)
-				})}
-			</ul>
+						return (
+							<li key={category.id}>
+								<ICatalogModalLink
+									href={href}
+									text={category.name}
+									isSelected={isSelected}
+									hasChildren={hasChildren}
+									onClick={(e) => {
+										if (hasChildren) {
+											// Если есть дети, показываем их в следующей колонке
+											onCategoryClick(category, level, e)
+										}
+										// Если нет детей, Link сам перейдет в каталог и закроет модалку
+									}}
+									onMouseEnter={(e) => {
+										if (hasChildren && onCategoryHover) {
+											// При наведении раскрываем подкатегории
+											onCategoryHover(category, level, e)
+										}
+									}}
+									onClose={onClose}
+								/>
+							</li>
+						)
+					})}
+				</ul>
+			</div>
+			{/* Кнопка только для первой колонки (level 0) */}
+			{level === 0 && onClose && (
+				<div className="mt-auto pt-5">
+					<Link
+						className="h-10 py-4 px-6 flex items-center justify-center bg-burgundy text-white rounded-md hover:bg-burgundy/90 transition-colors"
+						href={'/catalog'}
+						onClick={onClose}
+					>
+						смотреть все товары
+					</Link>
+				</div>
+			)}
 		</div>
 	)
 }

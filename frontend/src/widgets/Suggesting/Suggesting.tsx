@@ -9,6 +9,7 @@ import 'swiper/css/navigation'
 import { CaretLeftIcon, CaretRightIcon } from '@phosphor-icons/react/ssr'
 
 import { ItemCard } from '@/shared/ui/ItemCard'
+import { ItemCardSkeleton } from '@/shared/ui/ItemCardSkeleton'
 import { productApi } from '@/features/Product/api/productApi'
 import type { Product } from '@/shared/types'
 
@@ -80,10 +81,10 @@ export const Suggesting = ({ title }: ISuggestingProps) => {
 					}}
 				>
 					{loading ? (
-						// Показываем заглушки во время загрузки
+						// Показываем skeleton во время загрузки
 						Array.from({ length: 5 }).map((_, index) => (
 							<SwiperSlide key={`loading-${index}`}>
-								<ItemCard />
+								<ItemCardSkeleton />
 							</SwiperSlide>
 						))
 					) : products.length > 0 ? (

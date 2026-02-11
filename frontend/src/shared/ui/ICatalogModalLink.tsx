@@ -10,6 +10,7 @@ type ICatalogModalLinkProps = {
 	isSelected?: boolean
 	hasChildren?: boolean
 	onClick?: (e: React.MouseEvent) => void
+	onMouseEnter?: (e: React.MouseEvent) => void
 	onClose?: () => void
 }
 
@@ -20,6 +21,7 @@ export const ICatalogModalLink = ({
 	isSelected = false,
 	hasChildren = false,
 	onClick,
+	onMouseEnter,
 	onClose,
 }: ICatalogModalLinkProps) => {
 	const handleClick = (e: React.MouseEvent) => {
@@ -39,15 +41,22 @@ export const ICatalogModalLink = ({
 		}
 	}
 
+	const handleMouseEnter = (e: React.MouseEvent) => {
+		if (hasChildren && onMouseEnter) {
+			onMouseEnter(e)
+		}
+	}
+
 	return (
 		<Link
-			className={`w-45 h-7 p-2 flex justify-between items-center rounded-md transition-colors ${
+			className={`w-45 h-7 p-2 flex justify-between items-center rounded-md transition-colors whitespace-nowrap ${
 				isSelected
 					? 'bg-gray/30 text-burgundy font-medium'
 					: 'bg-white hover:bg-gray/20'
 			} ${className}`}
 			href={href}
 			onClick={handleClick}
+			onMouseEnter={handleMouseEnter}
 		>
 			<span>{text}</span>
 			{hasChildren && <CaretRightIcon size={20} />}
