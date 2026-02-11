@@ -8,33 +8,31 @@ export default factories.createCoreService(
 	'api::product.product',
 	({ strapi }) => ({
 		/**
-		 * Находит варианты товара по sbisNomNumber или article
-		 * Вариантами считаются товары с одинаковым sbisNomNumber (если есть) или article
+		 * Находит варианты товара по article (только CommerceML, без sbisNomNumber)
+		 * Вариантами считаются товары с одинаковым article
 		 */
 		async findVariants(product: any): Promise<any[]> {
 			if (!product) {
 				return []
 			}
 
-			// Определяем ключ для группировки
-			const groupKey = product.sbisNomNumber || product.article
+			// Нормализуем артикул для сравнения (trim, но сохраняем регистр)
+			const normalizeArticle = (article: string | null | undefined): string | null => {
+				if (!article || typeof article !== 'string') return null
+				return article.trim() || null
+			}
 
-			if (!groupKey) {
+			// Используем только article для группировки (CommerceML)
+			const normalizedArticle = normalizeArticle(product.article)
+
+			if (!normalizedArticle) {
 				return []
 			}
 
-			// Ищем другие товары с тем же ключом, но другим ID
+			// Ищем другие товары с тем же артикулом, но другим ID
 			const filters: any = {
 				published: true,
-			}
-
-			// Добавляем фильтр по группировочному ключу
-			if (product.sbisNomNumber) {
-				filters.sbisNomNumber = product.sbisNomNumber
-			} else if (product.article) {
-				filters.article = product.article
-			} else {
-				return []
+				article: normalizedArticle,
 			}
 
 			const allVariants = await strapi.entityService.findMany(
