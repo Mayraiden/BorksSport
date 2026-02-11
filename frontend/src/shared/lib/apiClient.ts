@@ -1,9 +1,12 @@
 /**
  * API Client для выполнения запросов с JWT токеном
  * Обрабатывает 401 ошибки (истекший токен) - разлогинивает и уведомляет пользователя
+ * Безопасная обработка ошибок парсинга JSON и защита от XSS
  */
 
 import { useAuthStore } from '@/features/Auth/model/store'
+import { safeParseJSON } from '@/shared/lib/safeUtils'
+import { securityLogger } from '@/shared/lib/securityLogger'
 
 const API_URL =
 	process.env.NEXT_PUBLIC_STRAPI_URL ||
@@ -65,6 +68,61 @@ export async function fetchWithAuth(
 		}
 	}
 
+	// Логируем подозрительные ответы (например, очень большие ответы)
+	if (response.headers.get('content-length')) {
+		const contentLength = parseInt(response.headers.get('content-length') || '0', 10)
+		if (contentLength > 10 * 1024 * 1024) {
+			// Ответ больше 10MB - подозрительно
+			securityLogger.logSuspiciousActivity('LARGE_RESPONSE', {
+				url,
+				size: contentLength,
+				status: response.status,
+			})
+		}
+	}
+
 	return response
 }
 
+/**
+ * Безопасный парсинг JSON ответа с защитой от XSS
+ */
+export async function safeJsonResponse<T = unknown>(
+	response: Response
+): Promise<T | null> {
+	try {
+		const text = await response.text()
+		
+		// Базовая проверка на подозрительный контент
+		if (text.includes('<script') || text.includes('javascript:')) {
+			securityLogger.logSuspiciousActivity('POTENTIAL_XSS_IN_RESPONSE', {
+				url: response.url,
+				status: response.status,
+				preview: text.substring(0, 200),
+			})
+			return null
+		}
+
+		// Безопасный парсинг JSON
+		const parsed = safeParseJSON<T>(text, null)
+		
+		if (parsed === null && text.trim() !== '') {
+			securityLogger.logError(
+				new Error('Failed to parse JSON response'),
+				{
+					url: response.url,
+					status: response.status,
+					preview: text.substring(0, 200),
+				}
+			)
+		}
+
+		return parsed
+	} catch (error) {
+		securityLogger.logError(error, {
+			url: response.url,
+			status: response.status,
+		})
+		return null
+	}
+}

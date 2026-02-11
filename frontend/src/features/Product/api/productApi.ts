@@ -9,6 +9,7 @@ import type {
 	ProductColor,
 	SearchSuggestion,
 } from '@/shared/types'
+import { safeArrayFrom, safeSetFrom } from '@/shared/lib/safeUtils'
 
 const API_URL = process.env.NEXT_PUBLIC_STRAPI_URL || process.env.NEXT_STRAPI_URL || 'http://localhost:1337'
 
@@ -68,7 +69,21 @@ function extractPhotoURLFromParams(url: string): string | null {
 }
 
 // Transform API product to our Product type
-const transformApiProduct = (apiProduct: ApiProduct): Product => {
+// Возвращает null при ошибке вместо падения приложения
+const transformApiProduct = (apiProduct: ApiProduct): Product | null => {
+	try {
+		return transformApiProductInternal(apiProduct)
+	} catch (error) {
+		console.error('[ProductApi] Error transforming product:', error, {
+			productId: apiProduct.id,
+			productName: apiProduct.name,
+		})
+		return null
+	}
+}
+
+// Внутренняя функция трансформации
+const transformApiProductInternal = (apiProduct: ApiProduct): Product => {
 	// Изображения могут быть обработаны на бэкенде, но проверяем на всякий случай
 	const images = (apiProduct.images || [])
 		.map((url) => {
@@ -121,22 +136,17 @@ const transformApiProduct = (apiProduct: ApiProduct): Product => {
 	productsWithStock.push(...variants)
 
 	// Извлекаем уникальные размеры только из товаров с stock > 0
-	const uniqueSizes = Array.from(
-		new Set(
-			productsWithStock
-				.map((p) => p.size)
-				.filter((size): size is string => size !== null && size !== undefined)
-		)
-	)
+	// Используем безопасные функции для предотвращения ошибок "object is not iterable"
+	const sizeValues = productsWithStock
+		.map((p) => p.size)
+		.filter((size): size is string => size !== null && size !== undefined)
+	const uniqueSizes = safeArrayFrom(safeSetFrom(sizeValues))
 
 	// Извлекаем уникальные цвета только из товаров с stock > 0
-	const uniqueColors = Array.from(
-		new Set(
-			productsWithStock
-				.map((p) => p.color)
-				.filter((color): color is string => color !== null && color !== undefined)
-		)
-	)
+	const colorValues = productsWithStock
+		.map((p) => p.color)
+		.filter((color): color is string => color !== null && color !== undefined)
+	const uniqueColors = safeArrayFrom(safeSetFrom(colorValues))
 
 	// Создаем массивы для селекторов
 	const sizes: ProductSize[] = uniqueSizes.map((size, index) => ({
@@ -469,7 +479,10 @@ export const productApi = {
 				throw new Error(data.message || data.error)
 			}
 
-			const products = data.data.map(transformApiProduct)
+			// Безопасная трансформация с фильтрацией null значений
+			const products = data.data
+				.map(transformApiProduct)
+				.filter((p): p is Product => p !== null)
 			const pagination = data.meta?.pagination
 
 			return {
@@ -517,7 +530,12 @@ export const productApi = {
 				throw new Error('Product data is empty')
 			}
 
-			return transformApiProduct(data.data)
+			const product = transformApiProduct(data.data)
+			if (!product) {
+				throw new Error('Failed to transform product data')
+			}
+
+			return product
 		} catch (error) {
 			const err = error as Error
 			console.error('Error fetching product:', err.message)
@@ -612,7 +630,10 @@ export const productApi = {
 				return []
 			}
 
-			return successData.data.map(transformApiProduct)
+			// Безопасная трансформация с фильтрацией null значений
+			return successData.data
+				.map(transformApiProduct)
+				.filter((p): p is Product => p !== null)
 		} catch (error) {
 			console.error('Error fetching popular products:', error)
 			throw error
@@ -643,7 +664,10 @@ export const productApi = {
 				return []
 			}
 
-			return successData.data.map(transformApiProduct)
+			// Безопасная трансформация с фильтрацией null значений
+			return successData.data
+				.map(transformApiProduct)
+				.filter((p): p is Product => p !== null)
 		} catch (error) {
 			console.error('Error fetching new products:', error)
 			throw error
