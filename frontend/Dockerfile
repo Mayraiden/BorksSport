@@ -34,6 +34,9 @@ ENV NEXT_TELEMETRY_DISABLED 1
 # Turbopack может иметь проблемы с разрешением путей в Docker окружении
 RUN npx next build
 
+# Проверяем что middleware собран (критично для безопасности)
+RUN test -f .next/server/middleware.js || (echo "ERROR: Middleware not built!" && exit 1)
+
 # Production образ
 FROM base AS runner
 WORKDIR /app

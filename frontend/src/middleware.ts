@@ -21,6 +21,11 @@ const BLOCKED_PATTERNS = [
 	/998y\.png/i,
 	/vc\.png/i,
 	/777y\.png/i,
+	// Блокируем digest параметры с уязвимостями (двойная защита)
+	/digest.*VULN/i,
+	/digest.*RCE/i,
+	/digest.*REACT/i,
+	/digest.*REACT2SHELL/i,
 ]
 
 // Блокируем подозрительные query параметры
