@@ -9,9 +9,6 @@ services:
       POSTGRES_DB: strapi
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    ports:
-      - '5432:5432'
-      - '5433:5432'
     networks:
       - strapi_network
     healthcheck:
@@ -66,7 +63,7 @@ services:
       COMMERCEML_BASIC_AUTH_PASSWORD: ${COMMERCEML_BASIC_AUTH_PASSWORD:-}
       COMMERCEML_LOG_REQUESTS: ${COMMERCEML_LOG_REQUESTS:-false}
 
-      # CDEK Integration 
+      # CDEK Integration
       CDEK_API_URL: ${CDEK_API_URL:-https://api.edu.cdek.ru/v2}
       CDEK_CLIENT_ID: ${CDEK_CLIENT_ID:-}
       CDEK_CLIENT_SECRET: ${CDEK_CLIENT_SECRET:-}
