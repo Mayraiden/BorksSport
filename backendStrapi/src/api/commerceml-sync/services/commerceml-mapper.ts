@@ -317,16 +317,9 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 				commerceMLProduct.unit ||
 				null
 
-			// Пытаемся извлечь числовой ID из externalId
-			let sbisId: number | undefined
-			if (typeof externalId === 'string') {
-				const numericMatch = externalId.match(/\d+/)
-				if (numericMatch) {
-					sbisId = parseInt(numericMatch[0], 10)
-				}
-			} else if (typeof externalId === 'number') {
-				sbisId = externalId
-			}
+			// Для CommerceML не вычисляем sbisId из UUID.
+			// Надежный ключ upsert — sbisExternalId (исходный Ид из CommerceML).
+			const sbisId: number | undefined = undefined
 
 			return {
 				name,

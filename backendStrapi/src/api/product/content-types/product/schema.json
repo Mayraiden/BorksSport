@@ -55,7 +55,8 @@
 			"unique": true
 		},
 		"sbisExternalId": {
-			"type": "string"
+			"type": "string",
+			"unique": true
 		},
 		"sbisNomNumber": {
 			"type": "string"
