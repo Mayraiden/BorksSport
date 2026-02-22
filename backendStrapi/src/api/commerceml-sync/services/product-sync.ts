@@ -6,6 +6,8 @@
 import type { Core } from '@strapi/strapi'
 import type { MappedProduct } from './commerceml-mapper'
 
+export type CategoryType = 'sport' | 'productType' | 'subcategory' | 'brand'
+
 export interface SyncStats {
 	saved: number
 	updated: number
@@ -124,6 +126,67 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 	}
 
 	/**
+	 * Находит или создаёт категорию по имени и типу
+	 * @param name - Название категории
+	 * @param type - Тип категории
+	 * @param parentId - ID родительской категории (для subcategory)
+	 * @returns Strapi ID категории или undefined
+	 */
+	async function ensureCategory(
+		name: string,
+		type: CategoryType,
+		parentId?: number
+	): Promise<number | undefined> {
+		if (!name || !name.trim()) {
+			return undefined
+		}
+
+		const level = type === 'sport' ? 0 : type === 'productType' ? 1 : 2
+
+		// Ищем по name (type может быть не заполнен у старых категорий)
+		let existing = await strapi.db.query('api::category.category').findOne({
+			where: { name: name.trim() },
+		})
+
+		if (existing) {
+			// Обновляем type и parent если нужно
+			const updates: Record<string, unknown> = {}
+			if (existing.type !== type) {
+				updates.type = type
+			}
+			if (level !== existing.level) {
+				updates.level = level
+			}
+			if (parentId && existing.parent !== parentId) {
+				updates.parent = parentId
+			}
+			if (Object.keys(updates).length > 0) {
+				await strapi.entityService.update('api::category.category', existing.id, {
+					data: updates,
+				})
+			}
+			return typeof existing.id === 'number' ? existing.id : parseInt(String(existing.id), 10)
+		}
+
+		// Создаём новую категорию
+		const categoryData: any = {
+			name: name.trim(),
+			level,
+			type,
+			isActive: true,
+		}
+		if (parentId) {
+			categoryData.parent = parentId
+		}
+
+		const created = await strapi.entityService.create('api::category.category', {
+			data: categoryData,
+		})
+		strapi.log.debug(`[CommerceML Product Sync] Created category: ${name} (type: ${type})`)
+		return typeof created.id === 'number' ? created.id : parseInt(String(created.id), 10)
+	}
+
+	/**
 	 * Находит категорию товара и строит путь до корня
 	 * @param categoryId - UUID категории из XML
 	 * @param categoryMap - Map UUID -> Strapi ID
@@ -177,12 +240,18 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 	/**
 	 * Синхронизирует один продукт (upsert по sbisExternalId)
 	 * @param mappedProduct - Маппированный продукт
-	 * @param categoryId - ID категории (опционально)
+	 * @param categoryIds - ID категорий (legacy category и новые связи)
 	 * @returns Результат операции
 	 */
 	async function syncProduct(
 		mappedProduct: MappedProduct,
-		categoryId?: number
+		categoryIds?: {
+			category?: number
+			sportCategory?: number
+			productCategory?: number
+			subcategory?: number
+			brand?: number
+		}
 	): Promise<{ success: boolean; created: boolean; productId?: number; error?: string }> {
 		try {
 			// Ищем существующий продукт по sbisExternalId
@@ -212,9 +281,23 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 				published: true, // По умолчанию публикуем
 			}
 
-			// Добавляем категорию если указана
-			if (categoryId) {
-				productData.category = categoryId
+			// Добавляем категории
+			if (categoryIds) {
+				if (categoryIds.category) {
+					productData.category = categoryIds.category
+				}
+				if (categoryIds.sportCategory) {
+					productData.sportCategory = categoryIds.sportCategory
+				}
+				if (categoryIds.productCategory) {
+					productData.productCategory = categoryIds.productCategory
+				}
+				if (categoryIds.subcategory) {
+					productData.subcategory = categoryIds.subcategory
+				}
+				if (categoryIds.brand) {
+					productData.brand = categoryIds.brand
+				}
 			}
 
 			let result
@@ -279,18 +362,23 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 
 		// Синхронизируем продукты
 		for (const product of mappedProducts) {
-			let categoryId: number | undefined = undefined
+			const categoryIds: {
+				category?: number
+				sportCategory?: number
+				productCategory?: number
+				subcategory?: number
+				brand?: number
+			} = {}
+
 			let categoryName: string | undefined = undefined
 			let rootCategoryName: string | undefined = undefined
 
-			// Если есть categoryMap и categories, используем их для поиска категории
+			// Если есть categoryMap и categories из XML, используем их
 			if (categoryMap && categories && product.categoryId) {
 				const categoryInfo = findCategoryPath(product.categoryId, categoryMap, categories)
-				categoryId = categoryInfo.categoryId
+				categoryIds.category = categoryInfo.categoryId
 				categoryName = categoryInfo.categoryName
 				rootCategoryName = categoryInfo.rootCategoryName
-
-				// Обновляем product с найденными данными
 				product.categoryName = categoryName
 				product.rootCategoryName = rootCategoryName
 			} else if (product.categoryName) {
@@ -299,11 +387,36 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 					where: { name: product.categoryName },
 				})
 				if (category) {
-					categoryId = category.id
+					categoryIds.category = category.id
 				}
 			}
 
-			const result = await syncProduct(product, categoryId)
+			// Резолвим новые связи из имён (sportCategoryName, productCategoryName, subcategoryName, brandName)
+			if (product.sportCategoryName) {
+				categoryIds.sportCategory = await ensureCategory(product.sportCategoryName, 'sport')
+				if (!rootCategoryName) {
+					product.rootCategoryName = product.sportCategoryName
+				}
+			}
+			if (product.productCategoryName) {
+				categoryIds.productCategory = await ensureCategory(product.productCategoryName, 'productType')
+			}
+			if (product.subcategoryName) {
+				const productCategoryId = categoryIds.productCategory
+				categoryIds.subcategory = await ensureCategory(
+					product.subcategoryName,
+					'subcategory',
+					productCategoryId
+				)
+				if (!categoryName) {
+					product.categoryName = product.subcategoryName
+				}
+			}
+			if (product.brandName) {
+				categoryIds.brand = await ensureCategory(product.brandName, 'brand')
+			}
+
+			const result = await syncProduct(product, categoryIds)
 
 			if (result.success) {
 				if (result.created) {

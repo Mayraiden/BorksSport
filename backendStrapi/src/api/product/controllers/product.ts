@@ -146,6 +146,86 @@ export default factories.createCoreController(
 					}
 				}
 
+				// Трансформация фильтров для новых связей (productCategory, subcategory, brand, sportCategory)
+				const andConditions: any[] = []
+
+				// Фильтр category (Обувь, Сумки и т.д.) или brand (OSAKA и т.д.)
+				const categoryFilter = parsedFilters.category
+				if (categoryFilter && typeof categoryFilter === 'object') {
+					const nameFilter = categoryFilter.name
+					const eqValue = nameFilter?.$eq
+					if (eqValue && typeof eqValue === 'string') {
+						andConditions.push({
+							$or: [
+								{ productCategory: { name: { $eq: eqValue } } },
+								{ subcategory: { parent: { name: { $eq: eqValue } } } },
+								{ category: { name: { $eq: eqValue } } },
+								{ brand: { name: { $eq: eqValue } } },
+							],
+						})
+						delete parsedFilters.category
+					}
+				}
+				// Обработка filters[$or][0][category][name][$eq] (множественные category/brand)
+				if (parsedFilters.$or && Array.isArray(parsedFilters.$or)) {
+					const categoryOrItems: any[] = []
+					const otherOrItems: any[] = []
+					for (const item of parsedFilters.$or) {
+						if (item?.category?.name?.$eq) {
+							const v = item.category.name.$eq
+							categoryOrItems.push(
+								{ productCategory: { name: { $eq: v } } },
+								{ subcategory: { parent: { name: { $eq: v } } } },
+								{ category: { name: { $eq: v } } },
+								{ brand: { name: { $eq: v } } }
+							)
+						} else {
+							otherOrItems.push(item)
+						}
+					}
+					if (categoryOrItems.length > 0) {
+						andConditions.push({ $or: categoryOrItems })
+					}
+					parsedFilters.$or = otherOrItems.length > 0 ? otherOrItems : undefined
+					if (!parsedFilters.$or) delete parsedFilters.$or
+				}
+
+				// Фильтр sport (Бейсбол и т.д.) или rootCategoryName
+				const rootFilter = parsedFilters.rootCategoryName
+				const sportFilter = parsedFilters.sportCategory
+				const sportValue = rootFilter
+					? (typeof rootFilter === 'object' && rootFilter.$eq ? rootFilter.$eq : rootFilter)
+					: sportFilter?.name?.$eq
+				if (sportValue) {
+					andConditions.push({
+						$or: [
+							{ sportCategory: { name: { $eq: sportValue } } },
+							{ rootCategoryName: { $eq: sportValue } },
+						],
+					})
+					delete parsedFilters.rootCategoryName
+					delete parsedFilters.sportCategory
+				}
+
+				// Фильтр brand (если пришёл напрямую) — добавляем fallback на category
+				const brandFilter = parsedFilters.brand
+				if (brandFilter && typeof brandFilter === 'object') {
+					const brandEq = brandFilter.name?.$eq
+					if (brandEq) {
+						andConditions.push({
+							$or: [
+								{ brand: { name: { $eq: brandEq } } },
+								{ category: { name: { $eq: brandEq } } },
+							],
+						})
+						delete parsedFilters.brand
+					}
+				}
+
+				if (andConditions.length > 0) {
+					parsedFilters.$and = [...(parsedFilters.$and || []), ...andConditions]
+				}
+
 				// Объединяем фильтры с фильтром published: true и stock > 0 по умолчанию
 				const baseFilters: Record<string, unknown> = {
 					published: true,
@@ -176,13 +256,24 @@ export default factories.createCoreController(
 					`Products in DB: total=${totalInDb}, published=${totalPublished}`
 				)
 
-				// Определяем, нужно ли populate категории для фильтрации
-				// Если фильтруем по category, нужно загрузить связь
-				const needsCategoryPopulate = 
-					query.filters && 
-					typeof query.filters === 'object' && 
-					('category' in query.filters || 
-					 (typeof query.filters === 'object' && Object.keys(query.filters).some(key => key.includes('category'))))
+				// Populate категорий для фильтрации и отображения
+				const categoryPopulate = [
+					'category',
+					'sportCategory',
+					'productCategory',
+					'subcategory',
+					'brand',
+				]
+				const needsCategoryPopulate =
+					query.filters &&
+					typeof query.filters === 'object' &&
+					('category' in query.filters ||
+						'rootCategoryName' in query.filters ||
+						'brand' in query.filters ||
+						'sportCategory' in query.filters ||
+						Object.keys(query.filters).some((k) =>
+							k.includes('category') || k.includes('Category') || k.includes('brand')
+						))
 
 				// Исправляем сортировку по цене: товары с ценой 0 или NULL должны быть в конце при сортировке по убыванию
 				const sortParam = query.sort || 'name:asc'
@@ -212,7 +303,7 @@ export default factories.createCoreController(
 						{
 							filters: filtersWithPrice,
 							sort: 'price:desc',
-							populate: needsCategoryPopulate ? ['category'] : undefined,
+							populate: needsCategoryPopulate ? (categoryPopulate as any) : undefined,
 						}
 					)
 					
@@ -222,7 +313,7 @@ export default factories.createCoreController(
 						{
 							filters: filtersWithZeroPrice,
 							sort: 'name:asc', // Сортируем по имени для товаров с нулевой ценой
-							populate: needsCategoryPopulate ? ['category'] : undefined,
+							populate: needsCategoryPopulate ? (categoryPopulate as any) : undefined,
 						}
 					)
 					
@@ -236,7 +327,7 @@ export default factories.createCoreController(
 						{
 							filters,
 							sort: sortParam,
-							populate: needsCategoryPopulate ? ['category'] : undefined,
+							populate: needsCategoryPopulate ? (categoryPopulate as any) : undefined,
 						}
 					)
 				}

@@ -205,6 +205,11 @@ export default factories.createCoreController(
 					isActive: true,
 				}
 
+				// Опционально: фильтр по типу категории (sport, productType, subcategory, brand)
+				if (query.type && ['sport', 'productType', 'subcategory', 'brand'].includes(String(query.type))) {
+					filters.type = query.type
+				}
+
 				// Merge additional filters if provided
 				if (query.filters && typeof query.filters === 'object') {
 					Object.assign(filters, query.filters)

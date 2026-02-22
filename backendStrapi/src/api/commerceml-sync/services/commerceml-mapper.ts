@@ -10,6 +10,7 @@ import {
 	extractColor,
 	extractDimensions,
 } from '../../sbis-sync/utils/data-extractor'
+import { SUBCATEGORY_TO_PRODUCT_CATEGORY } from '../config/category-mapping'
 
 export interface CommerceMLProduct {
 	Ид?: string
@@ -56,6 +57,10 @@ export interface MappedProduct {
 	categoryName?: string
 	rootCategoryName?: string
 	categoryId?: string // UUID категории из XML
+	sportCategoryName?: string
+	productCategoryName?: string
+	subcategoryName?: string
+	brandName?: string
 	size?: string
 	color?: string
 	length?: number
@@ -239,6 +244,20 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 			const size = extractSize(characteristicsMap, name)
 			const color = extractColor(characteristicsMap, name)
 
+			// Извлекаем категории из характеристик (для фильтрации)
+			const sportCategoryName =
+				characteristicsMap['Вид спорта'] ||
+				characteristicsMap['Вид спорт'] ||
+				undefined
+			const subcategoryName =
+				characteristicsMap['Категория товара'] ||
+				characteristicsMap['Категория това'] ||
+				undefined
+			const brandName = characteristicsMap['Бренд'] || undefined
+			const productCategoryName = subcategoryName
+				? (SUBCATEGORY_TO_PRODUCT_CATEGORY[subcategoryName] || subcategoryName)
+				: undefined
+
 			// Габариты
 			const dimensions = extractDimensions({
 				...commerceMLProduct,
@@ -331,6 +350,10 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 				categoryId: productCategoryId || undefined,
 				categoryName: undefined, // Будет установлено при синхронизации
 				rootCategoryName: undefined, // Будет установлено при синхронизации
+				sportCategoryName: sportCategoryName || undefined,
+				productCategoryName: productCategoryName || undefined,
+				subcategoryName: subcategoryName || undefined,
+				brandName: brandName || undefined,
 				size: size || undefined,
 				color: color || undefined,
 				length: dimensions.length || undefined,

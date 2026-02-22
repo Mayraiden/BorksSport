@@ -327,11 +327,9 @@ export const productApi = {
 			)
 		}
 
-		// Category filter (level 1 - product categories like "Сумки", "Мячи")
-		// Используем связь category для фильтрации по имени категории
+		// Category filter (level 1 - product categories like "Обувь", "Сумки")
 		if (params.category) {
 			console.log('🔍 [Filter] Category filter:', params.category)
-			// Если category содержит запятую, это множественные значения
 			if (params.category.includes(',')) {
 				const categories = params.category.split(',').filter(Boolean)
 				categories.forEach((category, index) => {
@@ -341,52 +339,39 @@ export const productApi = {
 					)
 				})
 			} else {
-				// Одна категория
-				const categoryValue = params.category.trim()
-				console.log('🔍 [Filter] Filtering by category name:', categoryValue)
-				searchParams.append('filters[category][name][$eq]', categoryValue)
+				searchParams.append('filters[category][name][$eq]', params.category.trim())
 			}
 		}
 
-		// Brand filter (level 2 - brands like "Easton", "Rawlings")
-		// Используем связь category для фильтрации по имени бренда
+		// Brand filter (level 2 - brands like "OSAKA", "Rawlings")
 		if (params.brand) {
 			console.log('🔍 [Filter] Brand filter:', params.brand)
-			// Если brand содержит запятую, это множественные значения
 			if (params.brand.includes(',')) {
 				const brands = params.brand.split(',').filter(Boolean)
 				brands.forEach((brand, index) => {
 					searchParams.append(
-						`filters[$or][${index}][category][name][$eq]`,
+						`filters[$or][${index}][brand][name][$eq]`,
 						brand.trim()
 					)
 				})
 			} else {
-				// Один бренд
-				const brandValue = params.brand.trim()
-				console.log('🔍 [Filter] Filtering by brand name:', brandValue)
-				searchParams.append('filters[category][name][$eq]', brandValue)
+				searchParams.append('filters[brand][name][$eq]', params.brand.trim())
 			}
 		}
 
 		// Sport type filter (level 0 - main categories like "Бейсбол и Софтбол")
-		// Используем rootCategoryName для фильтрации по главным категориям
 		if (params.sport) {
 			console.log('🔍 [Filter] Sport type filter:', params.sport)
-			// Если sport содержит запятую, это множественные значения
 			if (params.sport.includes(',')) {
 				const sports = params.sport.split(',').filter(Boolean)
 				sports.forEach((sport, index) => {
 					searchParams.append(
-						`filters[$or][${index}][rootCategoryName][$eq]`,
+						`filters[$or][${index}][sportCategory][name][$eq]`,
 						sport.trim()
 					)
 				})
 			} else {
-				// Один вид спорта
-				const sportValue = params.sport.trim()
-				console.log('🔍 [Filter] Filtering by rootCategoryName:', sportValue)
-				searchParams.append('filters[rootCategoryName][$eq]', sportValue)
+				searchParams.append('filters[sportCategory][name][$eq]', params.sport.trim())
 			}
 		}
 
