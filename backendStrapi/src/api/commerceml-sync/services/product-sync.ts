@@ -15,18 +15,37 @@ export interface SyncStats {
 	total: number
 }
 
+interface ResetCatalogStats {
+	productsBefore: number
+	productsRelationsCleared: number
+	categoriesBefore: number
+	categoriesDeleted: number
+}
+
 export default ({ strapi }: { strapi: Core.Strapi }) => {
 	function normalizeName(value?: string | null): string {
 		return (value || '').trim().toLowerCase()
 	}
 
-	async function resetCatalogState(): Promise<void> {
+	async function resetCatalogState(): Promise<ResetCatalogStats> {
 		strapi.log.warn('[CommerceML Product Sync] Strict rebuild: resetting categories and product relations')
 
 		const products = await strapi.entityService.findMany('api::product.product', {
 			fields: ['id'],
 			limit: -1,
 		})
+		const categories = await strapi.entityService.findMany('api::category.category', {
+			fields: ['id', 'level'],
+			sort: ['level:desc', 'id:desc'],
+			limit: -1,
+		})
+
+		const stats: ResetCatalogStats = {
+			productsBefore: products.length,
+			productsRelationsCleared: 0,
+			categoriesBefore: categories.length,
+			categoriesDeleted: 0,
+		}
 
 		for (const product of products) {
 			await strapi.entityService.update('api::product.product', product.id, {
@@ -40,13 +59,20 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 					rootCategoryName: null,
 				},
 			})
+			stats.productsRelationsCleared++
 		}
 
-		await strapi.db.query('api::category.category').updateMany({
-			where: {},
-			data: { parent: null },
-		})
-		await strapi.db.query('api::category.category').deleteMany({ where: {} })
+		// Удаляем категории с нижних уровней к верхним, чтобы не упираться в self-relation parent.
+		for (const category of categories) {
+			await strapi.entityService.delete('api::category.category', category.id)
+			stats.categoriesDeleted++
+		}
+
+		strapi.log.info(
+			`[CommerceML Product Sync] Strict rebuild reset done: productsBefore=${stats.productsBefore}, relationsCleared=${stats.productsRelationsCleared}, categoriesBefore=${stats.categoriesBefore}, categoriesDeleted=${stats.categoriesDeleted}`
+		)
+
+		return stats
 	}
 
 	function inferCategoryType(level: number): CategoryType {
@@ -153,7 +179,10 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 		const lowerLevelCount = categories.filter((category) => (category.level || 0) >= 2).length
 
 		if (options?.strictRebuild) {
-			await resetCatalogState()
+			const resetStats = await resetCatalogState()
+			strapi.log.info(
+				`[CommerceML Product Sync] Strict rebuild pre-stage completed: products=${resetStats.productsBefore}, categories=${resetStats.categoriesBefore}`
+			)
 		}
 
 		// Сначала создаем/обновляем все категории без parent (чтобы они существовали)

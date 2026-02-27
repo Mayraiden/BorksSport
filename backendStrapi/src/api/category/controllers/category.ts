@@ -64,20 +64,29 @@ export default factories.createCoreController(
 					'api::category.category'
 				)
 
-				// Remove relations first if necessary
-				await strapi.db.query('api::category.category').updateMany({
-					where: {},
-					data: { parent: null },
-				})
+				const categories = await strapi.entityService.findMany(
+					'api::category.category',
+					{
+						fields: ['id', 'level'],
+						sort: ['level:desc', 'id:desc'],
+						limit: -1,
+					}
+				)
 
-				const result = await strapi.db
-					.query('api::category.category')
-					.deleteMany({ where: {} })
+				let deleted = 0
+				for (const category of categories) {
+					await strapi.entityService.delete(
+						'api::category.category',
+						category.id
+					)
+					deleted++
+				}
 
-				const deleted =
-					typeof result === 'number' ? result : (result?.count ?? 0)
 				const afterCount = await strapi.entityService.count(
 					'api::category.category'
+				)
+				strapi.log.info(
+					`[Category Controller] clearAll completed: before=${beforeCount}, deleted=${deleted}, after=${afterCount}`
 				)
 
 				ctx.body = {
