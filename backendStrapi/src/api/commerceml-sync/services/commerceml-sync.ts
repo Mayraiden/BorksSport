@@ -77,7 +77,9 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 			const productSyncService = getProductSyncService()
 			let categoryMap = new Map<string, number>()
 			if (categories.length > 0) {
-				categoryMap = await productSyncService.syncCategories(categories)
+				categoryMap = await productSyncService.syncCategories(categories, {
+					strictRebuild: true,
+				})
 				strapi.log.info(
 					`[CommerceML Sync] Categories synced: ${categoryMap.size} categories processed`
 				)

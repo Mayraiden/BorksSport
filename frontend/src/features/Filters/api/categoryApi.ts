@@ -44,11 +44,13 @@ export const categoryApi = {
 
 	/**
 	 * Получить категории по уровню вложенности
-	 * @param level - Уровень вложенности (0 - виды спорта, 1 - категории товаров, 2 - бренды)
+	 * @param level - Уровень вложенности (0 - виды спорта, 1 - категории товаров, 2+ - нижние уровни)
+	 * @param type - Тип категории (sport, productType, subcategory, brand)
 	 */
-	async getCategoriesByLevel(level: number): Promise<MainCategory[]> {
+	async getCategoriesByLevel(level: number, type?: string): Promise<MainCategory[]> {
 		try {
-			const response = await fetch(`${API_URL}/api/categories/by-level/${level}`)
+			const query = type ? `?type=${encodeURIComponent(type)}` : ''
+			const response = await fetch(`${API_URL}/api/categories/by-level/${level}${query}`)
 
 			if (!response.ok) {
 				throw new Error(`API error: ${response.status}`)
@@ -62,7 +64,7 @@ export const categoryApi = {
 
 			return data.data
 		} catch (error) {
-			console.error(`Error fetching categories for level ${level}:`, error)
+			console.error(`Error fetching categories for level ${level}${type ? ` (${type})` : ''}:`, error)
 			throw error
 		}
 	},

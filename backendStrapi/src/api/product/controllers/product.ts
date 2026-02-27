@@ -149,7 +149,7 @@ export default factories.createCoreController(
 				// Трансформация фильтров для новых связей (productCategory, subcategory, brand, sportCategory)
 				const andConditions: any[] = []
 
-				// Фильтр category (Обувь, Сумки и т.д.) или brand (OSAKA и т.д.)
+				// Фильтр category (дружелюбный fallback: productCategory -> subcategory.parent -> subcategory -> legacy category)
 				const categoryFilter = parsedFilters.category
 				if (categoryFilter && typeof categoryFilter === 'object') {
 					const nameFilter = categoryFilter.name
@@ -159,14 +159,14 @@ export default factories.createCoreController(
 							$or: [
 								{ productCategory: { name: { $eq: eqValue } } },
 								{ subcategory: { parent: { name: { $eq: eqValue } } } },
+								{ subcategory: { name: { $eq: eqValue } } },
 								{ category: { name: { $eq: eqValue } } },
-								{ brand: { name: { $eq: eqValue } } },
 							],
 						})
 						delete parsedFilters.category
 					}
 				}
-				// Обработка filters[$or][0][category][name][$eq] (множественные category/brand)
+				// Обработка filters[$or][0][category][name][$eq] (множественные category)
 				if (parsedFilters.$or && Array.isArray(parsedFilters.$or)) {
 					const categoryOrItems: any[] = []
 					const otherOrItems: any[] = []
@@ -176,8 +176,8 @@ export default factories.createCoreController(
 							categoryOrItems.push(
 								{ productCategory: { name: { $eq: v } } },
 								{ subcategory: { parent: { name: { $eq: v } } } },
+								{ subcategory: { name: { $eq: v } } },
 								{ category: { name: { $eq: v } } },
-								{ brand: { name: { $eq: v } } }
 							)
 						} else {
 							otherOrItems.push(item)
@@ -207,7 +207,7 @@ export default factories.createCoreController(
 					delete parsedFilters.sportCategory
 				}
 
-				// Фильтр brand (если пришёл напрямую) — добавляем fallback на category
+				// Фильтр brand (без перехвата товарных категорий)
 				const brandFilter = parsedFilters.brand
 				if (brandFilter && typeof brandFilter === 'object') {
 					const brandEq = brandFilter.name?.$eq
@@ -216,6 +216,7 @@ export default factories.createCoreController(
 							$or: [
 								{ brand: { name: { $eq: brandEq } } },
 								{ category: { name: { $eq: brandEq } } },
+								{ categoryName: { $eq: brandEq } },
 							],
 						})
 						delete parsedFilters.brand

@@ -16,12 +16,13 @@ export const useMainCategories = () => {
 
 /**
  * Хук для получения категорий по уровню вложенности
- * @param level - Уровень вложенности (0 - виды спорта, 1 - категории товаров, 2 - бренды)
+ * @param level - Уровень вложенности
+ * @param type - Тип категории (опционально)
  */
-export const useCategoriesByLevel = (level: number) => {
+export const useCategoriesByLevel = (level: number, type?: string) => {
 	return useQuery({
-		queryKey: ['categories', 'by-level', level],
-		queryFn: () => categoryApi.getCategoriesByLevel(level),
+		queryKey: ['categories', 'by-level', level, type || 'any'],
+		queryFn: () => categoryApi.getCategoriesByLevel(level, type),
 		staleTime: 10 * 60 * 1000, // 10 минут
 		gcTime: 30 * 60 * 1000, // 30 минут
 		refetchOnWindowFocus: false,

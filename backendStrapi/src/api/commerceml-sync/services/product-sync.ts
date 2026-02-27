@@ -16,18 +16,145 @@ export interface SyncStats {
 }
 
 export default ({ strapi }: { strapi: Core.Strapi }) => {
+	function normalizeName(value?: string | null): string {
+		return (value || '').trim().toLowerCase()
+	}
+
+	async function resetCatalogState(): Promise<void> {
+		strapi.log.warn('[CommerceML Product Sync] Strict rebuild: resetting categories and product relations')
+
+		const products = await strapi.entityService.findMany('api::product.product', {
+			fields: ['id'],
+			limit: -1,
+		})
+
+		for (const product of products) {
+			await strapi.entityService.update('api::product.product', product.id, {
+				data: {
+					category: null,
+					sportCategory: null,
+					productCategory: null,
+					subcategory: null,
+					brand: null,
+					categoryName: null,
+					rootCategoryName: null,
+				},
+			})
+		}
+
+		await strapi.db.query('api::category.category').updateMany({
+			where: {},
+			data: { parent: null },
+		})
+		await strapi.db.query('api::category.category').deleteMany({ where: {} })
+	}
+
+	function inferCategoryType(level: number): CategoryType {
+		if (level === 0) return 'sport'
+		if (level === 1) return 'productType'
+		return 'subcategory'
+	}
+
+	function buildCategoriesByXmlId(categories: any[]): Map<string, any> {
+		const map = new Map<string, any>()
+		for (const category of categories) {
+			const xmlId = category.Ид || category.Id || category.id
+			if (!xmlId) continue
+			map.set(xmlId, category)
+		}
+		return map
+	}
+
+	function buildCategoryChain(xmlCategoryId: string, categoriesByXmlId: Map<string, any>): any[] {
+		const chain: any[] = []
+		const visited = new Set<string>()
+		let currentId: string | null = xmlCategoryId
+
+		while (currentId && !visited.has(currentId)) {
+			visited.add(currentId)
+			const node = categoriesByXmlId.get(currentId)
+			if (!node) break
+			chain.push(node)
+			currentId = node.parentId || null
+		}
+
+		return chain.reverse()
+	}
+
+	function pickChainNodeByName(chain: any[], name?: string): any | undefined {
+		if (!name) return undefined
+		const normalized = normalizeName(name)
+		if (!normalized) return undefined
+		return chain.find((node) => normalizeName(node.Наименование || node.Name || node.name) === normalized)
+	}
+
+	function resolveProductCategoryNodes(chain: any[], mappedProduct: MappedProduct): {
+		sportNode?: any
+		productCategoryNode?: any
+		brandNode?: any
+		subcategoryNode?: any
+		legacyCategoryNode?: any
+	} {
+		if (chain.length === 0) return {}
+
+		const sportNode = chain[0]
+		const productCategoryNode = chain[1] || chain[0]
+
+		let brandNode = pickChainNodeByName(chain, mappedProduct.brandName)
+		let subcategoryNode = pickChainNodeByName(chain, mappedProduct.subcategoryName)
+
+		if (!brandNode && chain.length >= 4) {
+			brandNode = chain[2]
+		}
+
+		if (!subcategoryNode) {
+			if (chain.length >= 4) {
+				const candidate = chain[chain.length - 1]
+				if (!brandNode || (candidate.Ид || candidate.Id || candidate.id) !== (brandNode.Ид || brandNode.Id || brandNode.id)) {
+					subcategoryNode = candidate
+				}
+			} else if (chain.length === 3) {
+				const third = chain[2]
+				const isThirdBrand =
+					normalizeName(mappedProduct.brandName) &&
+					normalizeName(mappedProduct.brandName) === normalizeName(third.Наименование || third.Name || third.name)
+				if (!isThirdBrand) {
+					subcategoryNode = third
+				} else {
+					brandNode = third
+				}
+			}
+		}
+
+		const legacyCategoryNode = subcategoryNode || brandNode || productCategoryNode || sportNode
+
+		return {
+			sportNode,
+			productCategoryNode,
+			brandNode,
+			subcategoryNode,
+			legacyCategoryNode,
+		}
+	}
+
 	/**
 	 * Синхронизирует категории из CommerceML с построением иерархии
 	 * @param categories - Массив категорий из extractCategories()
 	 * @returns Map: UUID категории -> Strapi ID категории
 	 */
-	async function syncCategories(categories: any[]): Promise<Map<string, number>> {
+	async function syncCategories(categories: any[], options?: { strictRebuild?: boolean }): Promise<Map<string, number>> {
 		const categoryMap = new Map<string, number>() // UUID -> Strapi ID
-		const categoryNameMap = new Map<string, number>() // Название -> Strapi ID (для поиска)
 
 		strapi.log.info(
 			`[CommerceML Product Sync] Starting sync of ${categories.length} categories...`
 		)
+		const level0Count = categories.filter((category) => (category.level || 0) === 0).length
+		const level1Count = categories.filter((category) => (category.level || 0) === 1).length
+		const lowerLevelCount = categories.filter((category) => (category.level || 0) >= 2).length
+
+		if (options?.strictRebuild) {
+			await resetCatalogState()
+		}
 
 		// Сначала создаем/обновляем все категории без parent (чтобы они существовали)
 		// Сортируем по уровню, чтобы сначала обрабатывать родительские категории
@@ -73,6 +200,7 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 					isActive: true,
 					sbisId: numericId,
 					sbisParentId: parentNumericId || null,
+					type: inferCategoryType(level),
 				}
 
 				if (parentStrapiId) {
@@ -109,7 +237,6 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 
 				// Сохраняем маппинг
 				categoryMap.set(categoryId, strapiCategoryId)
-				categoryNameMap.set(categoryName, strapiCategoryId)
 			} catch (error: any) {
 				strapi.log.error(
 					`[CommerceML Product Sync] Failed to sync category ${category.Наименование}:`,
@@ -121,120 +248,11 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 		strapi.log.info(
 			`[CommerceML Product Sync] Categories synced: ${categoryMap.size} categories processed`
 		)
+		strapi.log.info(
+			`[CommerceML Product Sync] Category tree stats: level0=${level0Count}, level1=${level1Count}, level2plus=${lowerLevelCount}`
+		)
 
 		return categoryMap
-	}
-
-	/**
-	 * Находит или создаёт категорию по имени и типу
-	 * @param name - Название категории
-	 * @param type - Тип категории
-	 * @param parentId - ID родительской категории (для subcategory)
-	 * @returns Strapi ID категории или undefined
-	 */
-	async function ensureCategory(
-		name: string,
-		type: CategoryType,
-		parentId?: number
-	): Promise<number | undefined> {
-		if (!name || !name.trim()) {
-			return undefined
-		}
-
-		const level = type === 'sport' ? 0 : type === 'productType' ? 1 : 2
-
-		// Ищем по name (type может быть не заполнен у старых категорий)
-		let existing = await strapi.db.query('api::category.category').findOne({
-			where: { name: name.trim() },
-		})
-
-		if (existing) {
-			// Обновляем type и parent если нужно
-			const updates: Record<string, unknown> = {}
-			if (existing.type !== type) {
-				updates.type = type
-			}
-			if (level !== existing.level) {
-				updates.level = level
-			}
-			if (parentId && existing.parent !== parentId) {
-				updates.parent = parentId
-			}
-			if (Object.keys(updates).length > 0) {
-				await strapi.entityService.update('api::category.category', existing.id, {
-					data: updates,
-				})
-			}
-			return typeof existing.id === 'number' ? existing.id : parseInt(String(existing.id), 10)
-		}
-
-		// Создаём новую категорию
-		const categoryData: any = {
-			name: name.trim(),
-			level,
-			type,
-			isActive: true,
-		}
-		if (parentId) {
-			categoryData.parent = parentId
-		}
-
-		const created = await strapi.entityService.create('api::category.category', {
-			data: categoryData,
-		})
-		strapi.log.debug(`[CommerceML Product Sync] Created category: ${name} (type: ${type})`)
-		return typeof created.id === 'number' ? created.id : parseInt(String(created.id), 10)
-	}
-
-	/**
-	 * Находит категорию товара и строит путь до корня
-	 * @param categoryId - UUID категории из XML
-	 * @param categoryMap - Map UUID -> Strapi ID
-	 * @param categories - Массив всех категорий из extractCategories()
-	 * @returns Объект с информацией о категории
-	 */
-	function findCategoryPath(
-		categoryId: string,
-		categoryMap: Map<string, number>,
-		categories: any[]
-	): { categoryId?: number; categoryName?: string; rootCategoryName?: string } {
-		if (!categoryId) {
-			return {}
-		}
-
-		// Находим категорию в массиве
-		const category = categories.find((c) => (c.Ид || c.Id || c.id) === categoryId)
-		if (!category) {
-			return {}
-		}
-
-		const strapiCategoryId = categoryMap.get(categoryId)
-		const categoryName = category.Наименование || category.Name || category.name
-
-		// Строим путь до корня (level 0)
-		let currentCategory = category
-		let rootCategoryName: string | undefined = undefined
-
-		while (currentCategory) {
-			if (currentCategory.level === 0) {
-				rootCategoryName = currentCategory.Наименование || currentCategory.Name || currentCategory.name
-				break
-			}
-			// Ищем родителя
-			if (currentCategory.parentId) {
-				currentCategory = categories.find(
-					(c) => (c.Ид || c.Id || c.id) === currentCategory.parentId
-				)
-			} else {
-				break
-			}
-		}
-
-		return {
-			categoryId: strapiCategoryId,
-			categoryName,
-			rootCategoryName,
-		}
 	}
 
 	/**
@@ -360,6 +378,17 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 			`[CommerceML Product Sync] Starting sync of ${mappedProducts.length} products...`
 		)
 
+		const categoriesByXmlId =
+			categoryMap && categories ? buildCategoriesByXmlId(categories) : new Map<string, any>()
+		const diagnostics = {
+			fallbackToUpperLevel: 0,
+			missingBrand: 0,
+			missingProductCategory: 0,
+			missingSportCategory: 0,
+			brandAssigned: 0,
+		}
+		const uniqueBrandCategoryIds = new Set<number>()
+
 		// Синхронизируем продукты
 		for (const product of mappedProducts) {
 			const categoryIds: {
@@ -373,47 +402,70 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 			let categoryName: string | undefined = undefined
 			let rootCategoryName: string | undefined = undefined
 
-			// Если есть categoryMap и categories из XML, используем их
 			if (categoryMap && categories && product.categoryId) {
-				const categoryInfo = findCategoryPath(product.categoryId, categoryMap, categories)
-				categoryIds.category = categoryInfo.categoryId
-				categoryName = categoryInfo.categoryName
-				rootCategoryName = categoryInfo.rootCategoryName
+				const chain = buildCategoryChain(product.categoryId, categoriesByXmlId)
+				const resolved = resolveProductCategoryNodes(chain, product)
+
+				const sportXmlId = resolved.sportNode?.Ид || resolved.sportNode?.Id || resolved.sportNode?.id
+				const productCategoryXmlId =
+					resolved.productCategoryNode?.Ид ||
+					resolved.productCategoryNode?.Id ||
+					resolved.productCategoryNode?.id
+				const brandXmlId = resolved.brandNode?.Ид || resolved.brandNode?.Id || resolved.brandNode?.id
+				const subcategoryXmlId =
+					resolved.subcategoryNode?.Ид ||
+					resolved.subcategoryNode?.Id ||
+					resolved.subcategoryNode?.id
+				const legacyXmlId =
+					resolved.legacyCategoryNode?.Ид ||
+					resolved.legacyCategoryNode?.Id ||
+					resolved.legacyCategoryNode?.id
+
+				if (sportXmlId) {
+					categoryIds.sportCategory = categoryMap.get(sportXmlId)
+					rootCategoryName =
+						resolved.sportNode?.Наименование || resolved.sportNode?.Name || resolved.sportNode?.name
+				}
+				if (productCategoryXmlId) {
+					categoryIds.productCategory = categoryMap.get(productCategoryXmlId)
+				}
+				if (brandXmlId) {
+					categoryIds.brand = categoryMap.get(brandXmlId)
+				}
+				if (subcategoryXmlId) {
+					categoryIds.subcategory = categoryMap.get(subcategoryXmlId)
+				}
+				if (legacyXmlId) {
+					categoryIds.category = categoryMap.get(legacyXmlId)
+					categoryName =
+						resolved.legacyCategoryNode?.Наименование ||
+						resolved.legacyCategoryNode?.Name ||
+						resolved.legacyCategoryNode?.name
+				}
+
+				if (!categoryIds.sportCategory) diagnostics.missingSportCategory++
+				if (!categoryIds.productCategory) {
+					diagnostics.missingProductCategory++
+					if (categoryIds.sportCategory) {
+						categoryIds.productCategory = categoryIds.sportCategory
+						diagnostics.fallbackToUpperLevel++
+					}
+				}
+				if (!categoryIds.brand) diagnostics.missingBrand++
+				if (categoryIds.brand) {
+					diagnostics.brandAssigned++
+					uniqueBrandCategoryIds.add(categoryIds.brand)
+				}
+
 				product.categoryName = categoryName
 				product.rootCategoryName = rootCategoryName
 			} else if (product.categoryName) {
-				// Fallback: ищем по названию (старый способ)
 				const category = await strapi.db.query('api::category.category').findOne({
 					where: { name: product.categoryName },
 				})
 				if (category) {
 					categoryIds.category = category.id
 				}
-			}
-
-			// Резолвим новые связи из имён (sportCategoryName, productCategoryName, subcategoryName, brandName)
-			if (product.sportCategoryName) {
-				categoryIds.sportCategory = await ensureCategory(product.sportCategoryName, 'sport')
-				if (!rootCategoryName) {
-					product.rootCategoryName = product.sportCategoryName
-				}
-			}
-			if (product.productCategoryName) {
-				categoryIds.productCategory = await ensureCategory(product.productCategoryName, 'productType')
-			}
-			if (product.subcategoryName) {
-				const productCategoryId = categoryIds.productCategory
-				categoryIds.subcategory = await ensureCategory(
-					product.subcategoryName,
-					'subcategory',
-					productCategoryId
-				)
-				if (!categoryName) {
-					product.categoryName = product.subcategoryName
-				}
-			}
-			if (product.brandName) {
-				categoryIds.brand = await ensureCategory(product.brandName, 'brand')
 			}
 
 			const result = await syncProduct(product, categoryIds)
@@ -431,6 +483,9 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 
 		strapi.log.info(
 			`[CommerceML Product Sync] Sync completed: ${stats.saved} saved, ${stats.updated} updated, ${stats.errors} errors`
+		)
+		strapi.log.info(
+			`[CommerceML Product Sync] Diagnostics: missingSport=${diagnostics.missingSportCategory}, missingProductCategory=${diagnostics.missingProductCategory}, missingBrand=${diagnostics.missingBrand}, fallbackToUpper=${diagnostics.fallbackToUpperLevel}, brandNodes=${uniqueBrandCategoryIds.size}, productsWithBrand=${diagnostics.brandAssigned}`
 		)
 
 		return stats
@@ -586,5 +641,6 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 		syncCategories,
 		syncPrices,
 		syncRests,
+		resetCatalogState,
 	}
 }

@@ -28,8 +28,8 @@ export const Filters = ({ isMobile = false, onApply }: FiltersProps) => {
 	// level 1: Категории товаров (сумки, мячи и т.д.)
 	// level 2: Бренды
 	const { data: sportTypes } = useMainCategories() // level 0
-	const { data: productCategories } = useCategoriesByLevel(1) // level 1
-	const { data: brands } = useCategoriesByLevel(2) // level 2
+	const { data: productCategories } = useCategoriesByLevel(1, 'productType') // level 1
+	const { data: brands } = useCategoriesByLevel(2, 'brand') // level 2
 
 	// Очищаем старые значения фильтров при загрузке новых данных
 	useEffect(() => {
