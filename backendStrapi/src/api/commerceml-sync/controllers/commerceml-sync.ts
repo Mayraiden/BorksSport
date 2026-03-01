@@ -814,6 +814,8 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 			// Обрабатываем XML в зависимости от типа
 			let result
 			if (actualType === 'catalog') {
+				const requestedSyncMode =
+					ctx.query.syncMode || ctx.query.sync_mode || ctx.request.body?.syncMode || ctx.request.body?.sync_mode
 				result = await strapi
 					.service('api::commerceml-sync.commerceml-sync')
 					.processCatalog(xmlString, tempImageMap, {

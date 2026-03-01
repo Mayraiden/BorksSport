@@ -328,7 +328,6 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 		const uniqueBrandCategoryIds = new Set<number>()
 
 		const dbCategories = await strapi.entityService.findMany('api::category.category', {
-			fields: ['id', 'name', 'type', 'level'],
 			populate: ['parent'],
 			limit: -1,
 		})
