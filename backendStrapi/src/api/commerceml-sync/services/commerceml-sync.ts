@@ -8,6 +8,8 @@ import * as fs from 'fs'
 import * as path from 'path'
 
 export default ({ strapi }: { strapi: Core.Strapi }) => {
+	type SyncMode = 'full' | 'delta'
+
 	// Получаем сервисы через lazy loading
 	const getXmlParserService = () => strapi.service('api::commerceml-sync.xml-parser')
 	const getMapperService = () => strapi.service('api::commerceml-sync.commerceml-mapper')
@@ -47,7 +49,36 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 	 * @param tempImageMap - Map: имя файла -> Buffer (временные файлы из ZIP)
 	 * @returns Результат синхронизации
 	 */
-	async function processCatalog(xmlString: string, tempImageMap?: Map<string, Buffer>) {
+	function resolveSyncMode(parsedXML: any, requestedMode?: string): SyncMode {
+		const envModeRaw = (process.env.COMMERCEML_SYNC_MODE || 'auto').toLowerCase()
+		const envMode = ['auto', 'full', 'delta'].includes(envModeRaw) ? envModeRaw : 'auto'
+		const requested = (requestedMode || '').toLowerCase()
+		if (requested === 'full' || requested === 'delta') {
+			return requested
+		}
+		if (envMode === 'full' || envMode === 'delta') {
+			return envMode
+		}
+
+		const commercialInfo =
+			parsedXML?.КоммерческаяИнформация ||
+			parsedXML?.commercialInformation ||
+			parsedXML
+		const catalog = commercialInfo?.Каталог || commercialInfo?.catalog || commercialInfo?.Catalog
+		const onlyChanges = catalog?.['@_СодержитТолькоИзменения']
+
+		if (onlyChanges === false || String(onlyChanges).toLowerCase() === 'false') {
+			return 'full'
+		}
+
+		return 'delta'
+	}
+
+	async function processCatalog(
+		xmlString: string,
+		tempImageMap?: Map<string, Buffer>,
+		options?: { requestedMode?: string }
+	) {
 		try {
 			strapi.log.info('[CommerceML Sync] Processing catalog.xml...')
 
@@ -62,6 +93,8 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 			if (!xmlParserService.validateStructure(parsedXML, 'catalog')) {
 				throw new Error('Invalid catalog XML structure')
 			}
+			const syncMode = resolveSyncMode(parsedXML, options?.requestedMode)
+			strapi.log.info(`[CommerceML Sync] Catalog sync mode resolved: ${syncMode}`)
 
 			// Извлекаем классификатор и категории
 			const mapperService = getMapperService()
@@ -69,21 +102,6 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 			const propertiesMap = classifier
 				? mapperService.extractPropertiesMap(classifier)
 				: new Map<string, string>()
-
-			// Извлекаем категории с иерархией
-			const categories = mapperService.extractCategories(parsedXML)
-
-			// Синхронизируем категории сначала (построение иерархии)
-			const productSyncService = getProductSyncService()
-			let categoryMap = new Map<string, number>()
-			if (categories.length > 0) {
-				categoryMap = await productSyncService.syncCategories(categories, {
-					strictRebuild: true,
-				})
-				strapi.log.info(
-					`[CommerceML Sync] Categories synced: ${categoryMap.size} categories processed`
-				)
-			}
 
 			// Извлекаем продукты
 			const products = mapperService.extractProducts(parsedXML)
@@ -255,6 +273,22 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 						total: products.length,
 					},
 				}
+			}
+
+			// Категории теперь строятся из фактических товарных свойств (sport/category/brand).
+			const categories = mapperService.extractCategoriesFromMappedProducts(mappedProducts)
+			const productSyncService = getProductSyncService()
+			let categoryMap = new Map<string, number>()
+			if (categories.length > 0) {
+				categoryMap = await productSyncService.syncCategories(categories, {
+					strictRebuild: syncMode === 'full',
+					mode: syncMode,
+				})
+				strapi.log.info(
+					`[CommerceML Sync] Categories synced from product properties: ${categoryMap.size}`
+				)
+			} else if (syncMode === 'full') {
+				throw new Error('Full sync aborted: no categories could be derived from current XML')
 			}
 
 			// Синхронизируем продукты с мапой категорий

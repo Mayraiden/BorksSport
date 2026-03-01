@@ -10,7 +10,6 @@ import {
 	extractColor,
 	extractDimensions,
 } from '../../sbis-sync/utils/data-extractor'
-import { SUBCATEGORY_TO_PRODUCT_CATEGORY } from '../config/category-mapping'
 
 export interface CommerceMLProduct {
 	Ид?: string
@@ -74,6 +73,26 @@ export interface MappedProduct {
 }
 
 export default ({ strapi }: { strapi: Core.Strapi }) => {
+	function normalizeText(value?: string | null): string {
+		return (value || '').trim().toLowerCase().replace(/\s+/g, ' ')
+	}
+
+	function pickCharacteristicValue(
+		characteristicsMap: Record<string, any>,
+		aliases: string[]
+	): string | undefined {
+		const normalizedAliases = aliases.map(normalizeText)
+		for (const [key, rawValue] of Object.entries(characteristicsMap)) {
+			if (normalizedAliases.includes(normalizeText(key))) {
+				const value = String(rawValue || '').trim()
+				if (value) {
+					return value
+				}
+			}
+		}
+		return undefined
+	}
+
 	/**
 	 * Извлекает свойства из классификатора для маппинга ID свойств в названия
 	 * @param classifier - Классификатор из XML
@@ -245,18 +264,29 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 			const color = extractColor(characteristicsMap, name)
 
 			// Извлекаем категории из характеристик (для фильтрации)
-			const sportCategoryName =
-				characteristicsMap['Вид спорта'] ||
-				characteristicsMap['Вид спорт'] ||
-				undefined
-			const subcategoryName =
-				characteristicsMap['Категория товара'] ||
-				characteristicsMap['Категория това'] ||
-				undefined
-			const brandName = characteristicsMap['Бренд'] || undefined
-			const productCategoryName = subcategoryName
-				? (SUBCATEGORY_TO_PRODUCT_CATEGORY[subcategoryName] || subcategoryName)
-				: undefined
+			const sportCategoryName = pickCharacteristicValue(characteristicsMap, [
+				'Вид спорта',
+				'Вид спорт',
+				'Тип спорту',
+				'Тип спорта',
+			])
+			const productCategoryName = pickCharacteristicValue(characteristicsMap, [
+				'Категория товара',
+				'Категория Товара',
+				'Категория това',
+				'Категория товар',
+			])
+			const subcategoryName = pickCharacteristicValue(characteristicsMap, [
+				'Тип товара',
+				'Типа товара',
+				'Вид товара',
+				'Видтовара',
+				'Ви товара',
+			])
+			const brandName = pickCharacteristicValue(characteristicsMap, [
+				'Бренд',
+				'Брэнд',
+			])
 
 			// Габариты
 			const dimensions = extractDimensions({
@@ -393,6 +423,69 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 		}
 
 		return mapped
+	}
+
+	function extractCategoriesFromMappedProducts(mappedProducts: MappedProduct[]): any[] {
+		const result: any[] = []
+		const seen = new Set<string>()
+
+		const makeId = (parts: string[]) => parts.map(normalizeText).join('::')
+
+		for (const product of mappedProducts) {
+			const sportName = (product.sportCategoryName || '').trim()
+			const productCategoryName = (product.productCategoryName || '').trim()
+			const brandName = (product.brandName || '').trim()
+
+			if (!sportName || !productCategoryName) {
+				continue
+			}
+
+			const sportId = makeId(['sport', sportName])
+			if (!seen.has(sportId)) {
+				seen.add(sportId)
+				result.push({
+					Ид: sportId,
+					Наименование: sportName,
+					level: 0,
+					parentId: null,
+					parentNumericId: null,
+					numericId: null,
+					type: 'sport',
+				})
+			}
+
+			const productCategoryId = makeId(['productType', sportName, productCategoryName])
+			if (!seen.has(productCategoryId)) {
+				seen.add(productCategoryId)
+				result.push({
+					Ид: productCategoryId,
+					Наименование: productCategoryName,
+					level: 1,
+					parentId: sportId,
+					parentNumericId: null,
+					numericId: null,
+					type: 'productType',
+				})
+			}
+
+			if (brandName) {
+				const brandId = makeId(['brand', sportName, productCategoryName, brandName])
+				if (!seen.has(brandId)) {
+					seen.add(brandId)
+					result.push({
+						Ид: brandId,
+						Наименование: brandName,
+						level: 2,
+						parentId: productCategoryId,
+						parentNumericId: null,
+						numericId: null,
+						type: 'brand',
+					})
+				}
+			}
+		}
+
+		return result
 	}
 
 	/**
@@ -600,6 +693,7 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 	return {
 		mapProduct,
 		mapProducts,
+		extractCategoriesFromMappedProducts,
 		extractProducts,
 		extractCategories,
 		extractClassifier,

@@ -154,6 +154,7 @@ export default factories.createCoreController(
 				if (categoryFilter && typeof categoryFilter === 'object') {
 					const nameFilter = categoryFilter.name
 					const eqValue = nameFilter?.$eq
+					const inValues = Array.isArray(nameFilter?.$in) ? nameFilter.$in : []
 					if (eqValue && typeof eqValue === 'string') {
 						andConditions.push({
 							$or: [
@@ -163,6 +164,22 @@ export default factories.createCoreController(
 								{ category: { name: { $eq: eqValue } } },
 							],
 						})
+						delete parsedFilters.category
+					} else if (inValues.length > 0) {
+						const categoryOrItems: any[] = []
+						for (const rawValue of inValues) {
+							const value = String(rawValue || '').trim()
+							if (!value) continue
+							categoryOrItems.push(
+								{ productCategory: { name: { $eq: value } } },
+								{ subcategory: { parent: { name: { $eq: value } } } },
+								{ subcategory: { name: { $eq: value } } },
+								{ category: { name: { $eq: value } } }
+							)
+						}
+						if (categoryOrItems.length > 0) {
+							andConditions.push({ $or: categoryOrItems })
+						}
 						delete parsedFilters.category
 					}
 				}
@@ -196,6 +213,9 @@ export default factories.createCoreController(
 				const sportValue = rootFilter
 					? (typeof rootFilter === 'object' && rootFilter.$eq ? rootFilter.$eq : rootFilter)
 					: sportFilter?.name?.$eq
+				const sportInValues = Array.isArray(sportFilter?.name?.$in)
+					? sportFilter.name.$in
+					: []
 				if (sportValue) {
 					andConditions.push({
 						$or: [
@@ -205,20 +225,37 @@ export default factories.createCoreController(
 					})
 					delete parsedFilters.rootCategoryName
 					delete parsedFilters.sportCategory
+				} else if (sportInValues.length > 0) {
+					const sportOrItems = sportInValues
+						.map((raw: any) => String(raw || '').trim())
+						.filter(Boolean)
+						.flatMap((value: string) => ([
+							{ sportCategory: { name: { $eq: value } } },
+							{ rootCategoryName: { $eq: value } },
+						]))
+					if (sportOrItems.length > 0) {
+						andConditions.push({ $or: sportOrItems })
+					}
+					delete parsedFilters.rootCategoryName
+					delete parsedFilters.sportCategory
 				}
 
 				// Фильтр brand (без перехвата товарных категорий)
 				const brandFilter = parsedFilters.brand
 				if (brandFilter && typeof brandFilter === 'object') {
 					const brandEq = brandFilter.name?.$eq
+					const brandIn = Array.isArray(brandFilter.name?.$in) ? brandFilter.name.$in : []
 					if (brandEq) {
-						andConditions.push({
-							$or: [
-								{ brand: { name: { $eq: brandEq } } },
-								{ category: { name: { $eq: brandEq } } },
-								{ categoryName: { $eq: brandEq } },
-							],
-						})
+						andConditions.push({ brand: { name: { $eq: brandEq } } })
+						delete parsedFilters.brand
+					} else if (brandIn.length > 0) {
+						const brandOrItems = brandIn
+							.map((raw: any) => String(raw || '').trim())
+							.filter(Boolean)
+							.map((value: string) => ({ brand: { name: { $eq: value } } }))
+						if (brandOrItems.length > 0) {
+							andConditions.push({ $or: brandOrItems })
+						}
 						delete parsedFilters.brand
 					}
 				}

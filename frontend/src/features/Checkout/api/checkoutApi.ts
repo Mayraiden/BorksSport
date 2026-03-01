@@ -558,5 +558,46 @@ export const checkoutApi = {
 			return []
 		}
 	},
+
+	/**
+	 * Определить город пользователя по IP-адресу,
+	 * затем сопоставить с городом СДЭК для получения кода
+	 */
+	async detectCity(): Promise<{
+		code: number
+		city: string
+		region: string
+	} | null> {
+		try {
+			const geoResponse = await fetch('https://ipapi.co/json/', {
+				signal: AbortSignal.timeout(5000),
+			})
+
+			if (!geoResponse.ok) return null
+
+			const geoData: { city?: string; region?: string } =
+				await geoResponse.json()
+
+			if (!geoData.city) return null
+
+			checkoutLogger.group('detectCity → geo result', {
+				city: geoData.city,
+				region: geoData.region,
+			})
+
+			const cities = await checkoutApi.searchCities(geoData.city)
+
+			if (cities.length === 0) return null
+
+			return {
+				code: cities[0].code,
+				city: cities[0].city,
+				region: cities[0].region,
+			}
+		} catch (error) {
+			checkoutLogger.error('detectCity failed', error)
+			return null
+		}
+	},
 }
 

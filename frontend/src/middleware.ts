@@ -108,7 +108,7 @@ export function middleware(request: NextRequest) {
 	response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
 	response.headers.set(
 		'Content-Security-Policy',
-		"default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https:;"
+		"default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline' https://api-maps.yandex.ru https://yandex.ru https://yastatic.net https://*.maps.yandex.net; style-src 'self' 'unsafe-inline' https://yastatic.net; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https:;"
 	)
 	response.headers.set('Permissions-Policy', 'geolocation=(), microphone=(), camera=()')
 

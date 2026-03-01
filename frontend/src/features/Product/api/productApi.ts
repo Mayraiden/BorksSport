@@ -334,7 +334,7 @@ export const productApi = {
 				const categories = params.category.split(',').filter(Boolean)
 				categories.forEach((category, index) => {
 					searchParams.append(
-						`filters[$or][${index}][category][name][$eq]`,
+						`filters[category][name][$in][${index}]`,
 						category.trim()
 					)
 				})
@@ -350,7 +350,7 @@ export const productApi = {
 				const brands = params.brand.split(',').filter(Boolean)
 				brands.forEach((brand, index) => {
 					searchParams.append(
-						`filters[$or][${index}][brand][name][$eq]`,
+						`filters[brand][name][$in][${index}]`,
 						brand.trim()
 					)
 				})
@@ -366,7 +366,7 @@ export const productApi = {
 				const sports = params.sport.split(',').filter(Boolean)
 				sports.forEach((sport, index) => {
 					searchParams.append(
-						`filters[$or][${index}][sportCategory][name][$eq]`,
+						`filters[sportCategory][name][$in][${index}]`,
 						sport.trim()
 					)
 				})

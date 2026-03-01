@@ -154,6 +154,7 @@ export default factories.createCoreController(
 				const filters: any = {
 					level: 0,
 					isActive: true,
+					type: 'sport',
 				}
 
 				// Merge additional filters if provided
@@ -235,7 +236,7 @@ export default factories.createCoreController(
 
 				// Для уровня 2 (бренды) применяем дедупликацию и фильтрацию
 				let processedCategories = categories
-				if (levelNumber === 2) {
+				if (levelNumber === 2 && query.type !== 'brand') {
 					// Нормализуем имена для дедупликации (приводим к нижнему регистру, убираем лишние пробелы)
 					const normalizeName = (name: string) => {
 						return name.trim().toLowerCase().replace(/\s+/g, ' ')

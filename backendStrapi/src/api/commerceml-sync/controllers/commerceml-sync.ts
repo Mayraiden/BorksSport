@@ -326,7 +326,6 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 		})
 
 		const mode = ctx.query.mode || ctx.request.body?.mode || ctx.request.query?.mode
-
 		// GET запрос с mode=checkauth - проверка авторизации
 		if (ctx.request.method === 'GET' && mode === 'checkauth') {
 			return this.handleCheckAuth(ctx, strapi)
@@ -817,7 +816,9 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 			if (actualType === 'catalog') {
 				result = await strapi
 					.service('api::commerceml-sync.commerceml-sync')
-					.processCatalog(xmlString, tempImageMap)
+					.processCatalog(xmlString, tempImageMap, {
+						requestedMode: String(requestedSyncMode || ''),
+					})
 			} else if (actualType === 'offers') {
 				result = await strapi
 					.service('api::commerceml-sync.commerceml-sync')
@@ -906,9 +907,13 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 			}
 
 			// Обрабатываем catalog
+			const requestedSyncMode =
+				ctx.query.syncMode || ctx.query.sync_mode || ctx.request.body?.syncMode || ctx.request.body?.sync_mode
 			const result = await strapi
 				.service('api::commerceml-sync.commerceml-sync')
-				.processCatalog(xmlString)
+				.processCatalog(xmlString, undefined, {
+					requestedMode: String(requestedSyncMode || ''),
+				})
 
 			// CommerceML протокол требует plain text ответ "success" после получения файла
 			// Не JSON!
@@ -1121,9 +1126,13 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 
 			let result
 			if (type === 'catalog') {
+				const requestedSyncMode =
+					ctx.query.syncMode || ctx.query.sync_mode || ctx.request.body?.syncMode || ctx.request.body?.sync_mode
 				result = await strapi
 					.service('api::commerceml-sync.commerceml-sync')
-					.processCatalog(xml)
+					.processCatalog(xml, undefined, {
+						requestedMode: String(requestedSyncMode || ''),
+					})
 			} else if (type === 'offers') {
 				result = await strapi
 					.service('api::commerceml-sync.commerceml-sync')

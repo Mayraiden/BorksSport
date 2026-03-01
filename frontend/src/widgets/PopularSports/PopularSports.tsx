@@ -7,12 +7,24 @@ import { getCategoryImage } from '@/shared/helpers/categoryImageMap'
 
 export const PopularSports = () => {
 	const { data: categories, isLoading, error } = useMainCategories()
+	const uniqueCategories = useMemo(() => {
+		if (!categories) return []
+		const seen = new Set<string>()
+		return categories.filter((category) => {
+			const key = (category.name || '').trim().toLowerCase().replace(/\s+/g, ' ')
+			if (!key || seen.has(key)) {
+				return false
+			}
+			seen.add(key)
+			return true
+		})
+	}, [categories])
 
 	// Определяем классы контейнера в зависимости от количества категорий
 	const containerClasses = useMemo(() => {
-		if (!categories || categories.length === 0) return ''
+		if (!uniqueCategories || uniqueCategories.length === 0) return ''
 
-		const count = categories.length
+		const count = uniqueCategories.length
 
 		if (count <= 2) {
 			// 1-2 элемента: большие карточки по центру с ограничением ширины
@@ -31,13 +43,13 @@ export const PopularSports = () => {
 			// 6+ элементов: стандартная сетка
 			return 'grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 max-sm:gap-3'
 		}
-	}, [categories])
+	}, [uniqueCategories])
 
 	// Определяем классы карточек в зависимости от количества
 	const cardClasses = useMemo(() => {
-		if (!categories || categories.length === 0) return ''
+		if (!uniqueCategories || uniqueCategories.length === 0) return ''
 
-		const count = categories.length
+		const count = uniqueCategories.length
 		const baseClasses = 'h-59 pb-5 flex bg-center bg-no-repeat bg-cover rounded-lg overflow-hidden transition-transform duration-300 ease-in-out hover:scale-105 max-sm:h-40'
 
 		if (count <= 2) {
@@ -47,7 +59,7 @@ export const PopularSports = () => {
 			// 3+ элементов: стандартные карточки
 			return baseClasses
 		}
-	}, [categories])
+	}, [uniqueCategories])
 
 	if (isLoading) {
 		return (
@@ -67,7 +79,7 @@ export const PopularSports = () => {
 		)
 	}
 
-	if (error || !categories || categories.length === 0) {
+	if (error || !uniqueCategories || uniqueCategories.length === 0) {
 		return null
 	}
 
@@ -78,7 +90,7 @@ export const PopularSports = () => {
 			</h2>
 
 			<ul className={`w-full ${containerClasses} text-[#f5f5f5]`}>
-				{categories.map((category) => {
+				{uniqueCategories.map((category) => {
 					const imageUrl = getCategoryImage(category.name)
 					const catalogUrl = `/catalog?sport=${encodeURIComponent(category.name)}`
 
