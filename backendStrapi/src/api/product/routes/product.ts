@@ -48,36 +48,6 @@ export default {
 			},
 		},
 		{
-			method: 'GET',
-			path: '/products/test-sbis-auth',
-			handler: 'product.testSbisAuth',
-			config: {
-				auth: false,
-				policies: [],
-				middlewares: [],
-			},
-		},
-		{
-			method: 'POST',
-			path: '/products/sync-from-sbis',
-			handler: 'product.syncFromSbis',
-			config: {
-				auth: false,
-				policies: [],
-				middlewares: [],
-			},
-		},
-		{
-			method: 'GET',
-			path: '/products/sync-from-sbis',
-			handler: 'product.syncFromSbis',
-			config: {
-				auth: false,
-				policies: [],
-				middlewares: [],
-			},
-		},
-		{
 			method: 'DELETE',
 			path: '/products/clear-all',
 			handler: 'product.clearAll',

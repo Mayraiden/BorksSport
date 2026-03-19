@@ -1,7 +1,6 @@
 import type { StrapiApp } from '@strapi/strapi/admin'
 import ruTranslations from './translations/ru.json'
 import ClearCollectionButton from './components/ClearCollectionButton'
-import SyncProductsButton from './components/SyncProductsButton'
 
 export default {
 	config: {
@@ -27,12 +26,6 @@ export default {
 			name: 'clear-collection',
 			// передаем готовый компонент
 			Component: ClearCollectionButton,
-		})
-		// Кнопка синхронизации товаров из СБИС (показывается только для products)
-		// @ts-ignore
-		cm?.injectComponent?.('listView', 'actions', {
-			name: 'sync-products',
-			Component: SyncProductsButton,
 		})
 	},
 }

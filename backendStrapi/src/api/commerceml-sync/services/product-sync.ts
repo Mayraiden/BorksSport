@@ -276,10 +276,72 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 		}
 	): Promise<{ success: boolean; created: boolean; productId?: number; error?: string }> {
 		try {
+			const normalize = (v?: string | null): string =>
+				String(v || '')
+					.trim()
+					.toLowerCase()
+			const normalizedExternalId = normalize(mappedProduct.sbisExternalId)
+
 			// Ищем существующий продукт по sbisExternalId
-			const existingProduct = await strapi.db.query('api::product.product').findOne({
+			let existingProduct = await strapi.db.query('api::product.product').findOne({
 				where: { sbisExternalId: mappedProduct.sbisExternalId },
 			})
+
+			// Fallback 1: case-insensitive/trim exact match
+			if (!existingProduct && normalizedExternalId) {
+				const candidates = await strapi.db.query('api::product.product').findMany({
+					where: {
+						sbisExternalId: { $notNull: true },
+					},
+					select: ['id', 'sbisExternalId', 'name', 'article', 'model', 'size', 'color'],
+				})
+				existingProduct = (candidates as any[]).find(
+					(p) => normalize(p.sbisExternalId) === normalizedExternalId
+				)
+			}
+
+			// Fallback 2: CommerceML externalId can be unstable after '#'
+			// Ищем лучший матч по baseId + атрибутам варианта.
+			if (!existingProduct && normalizedExternalId.includes('#')) {
+				const baseId = normalizedExternalId.split('#')[0]
+				if (baseId) {
+					const candidates = await strapi.db.query('api::product.product').findMany({
+						where: {
+							sbisExternalId: { $containsi: `${baseId}#` },
+						},
+						select: ['id', 'sbisExternalId', 'name', 'article', 'model', 'size', 'color'],
+					})
+
+					const target = {
+						name: normalize(mappedProduct.name),
+						article: normalize(mappedProduct.article),
+						model: normalize(mappedProduct.model),
+						size: normalize(mappedProduct.size),
+						color: normalize(mappedProduct.color),
+					}
+
+					let best: any = null
+					let bestScore = -1
+					for (const c of candidates as any[]) {
+						let score = 0
+						if (normalize(c.article) && normalize(c.article) === target.article) score += 3
+						if (normalize(c.model) && normalize(c.model) === target.model) score += 3
+						if (normalize(c.size) && normalize(c.size) === target.size) score += 2
+						if (normalize(c.color) && normalize(c.color) === target.color) score += 2
+						if (normalize(c.name) && normalize(c.name) === target.name) score += 1
+
+						if (score > bestScore) {
+							bestScore = score
+							best = c
+						}
+					}
+
+					// Требуем минимально уверенный матч, чтобы не склеивать разные товары
+					if (best && bestScore >= 5) {
+						existingProduct = best
+					}
+				}
+			}
 
 			const productData: any = {
 				name: mappedProduct.name,

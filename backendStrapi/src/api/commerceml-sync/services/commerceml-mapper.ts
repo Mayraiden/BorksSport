@@ -9,7 +9,7 @@ import {
 	extractSize,
 	extractColor,
 	extractDimensions,
-} from '../../sbis-sync/utils/data-extractor'
+} from '../utils/data-extractor'
 
 export interface CommerceMLProduct {
 	Ид?: string
