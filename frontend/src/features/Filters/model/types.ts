@@ -65,11 +65,6 @@ export const filterValuesToProductFilters = (
 		}
 	}
 
-	// Genders
-	if (filterValues.genders && Array.isArray(filterValues.genders)) {
-		// Аналогично
-	}
-
 	return result
 }
 

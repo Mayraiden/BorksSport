@@ -424,22 +424,22 @@ export default factories.createCoreController(
 					)
 				}
 
-				// Дедупликация: группируем товары по article (только CommerceML, без sbisNomNumber)
+				// Дедупликация: группируем товары по model (CommerceML вариации).
+				// Если model отсутствует — не группируем (каждый товар = отдельная карточка).
 				// В каталоге показываем только один товар из группы (представитель)
 				// Варианты будут подтягиваться при открытии страницы товара через findOne
 				
-				// Нормализуем артикул для сравнения (trim, но сохраняем регистр)
-				const normalizeArticle = (article: string | null | undefined): string | null => {
-					if (!article || typeof article !== 'string') return null
-					return article.trim() || null
+				// Нормализуем модель для сравнения (trim, но сохраняем регистр)
+				const normalizeModel = (model: string | null | undefined): string | null => {
+					if (!model || typeof model !== 'string') return null
+					return model.trim() || null
 				}
 
 				const productGroups = new Map<string, any>()
 
 				for (const product of products) {
-					// Используем только article для группировки (CommerceML)
-					const normalizedArticle = normalizeArticle(product.article)
-					const groupKey = normalizedArticle || `single-${product.id}`
+					const normalizedModel = normalizeModel(product.model)
+					const groupKey = normalizedModel || `single-${product.id}`
 					
 					// Если группа еще не встречалась, добавляем товар как представитель
 					if (!productGroups.has(groupKey)) {
@@ -457,7 +457,7 @@ export default factories.createCoreController(
 				const uniqueProducts = Array.from(productGroups.values())
 
 				strapi.log.info(
-					`[Product Controller] After deduplication: ${uniqueProducts.length} unique products (grouped by article), before: ${products.length}`
+					`[Product Controller] After deduplication: ${uniqueProducts.length} unique products (grouped by model), before: ${products.length}`
 				)
 
 				// Применяем пагинацию после дедупликации

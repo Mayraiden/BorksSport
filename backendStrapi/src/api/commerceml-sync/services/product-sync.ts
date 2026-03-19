@@ -235,6 +235,7 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 				name: mappedProduct.name,
 				description: mappedProduct.description,
 				article: mappedProduct.article,
+					model: mappedProduct.model || null,
 				price: mappedProduct.price,
 				sbisExternalId: mappedProduct.sbisExternalId,
 				sbisId: mappedProduct.sbisId,

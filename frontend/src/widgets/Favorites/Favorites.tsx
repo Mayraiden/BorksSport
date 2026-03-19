@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { ItemCard } from '@/shared/ui/ItemCard'
 import { ProfileDropdown } from '@/shared/ui/ProfileDropdown'
 import { useAuthStore } from '@/features/Auth/model/store'
@@ -113,9 +114,22 @@ export const Favorites = () => {
 					</h1>
 					<ProfileDropdown />
 				</div>
-				<p className="text-gray max-sm:text-sm">
-					У вас пока нет избранных товаров
-				</p>
+				<div className="bg-white rounded-[4px] p-5 max-sm:p-4 flex flex-col items-center gap-5 max-sm:gap-3">
+					<h2 className="text-xl font-bold leading-[1.05] text-[#121212] max-sm:text-lg">
+						У вас пока нет избранных товаров
+					</h2>
+					<p className="text-base font-normal leading-[1.3125] text-[#121212] text-center max-sm:text-sm">
+						Перейдите в каталог, чтобы добавить товары в избранное.
+					</p>
+					<Link
+						href="/catalog"
+						className="px-6 py-4 max-sm:px-4 max-sm:py-3 max-sm:w-full max-sm:text-center bg-[#7B1931] text-[#F5F5F5] rounded-[4px] hover:bg-[#6a1529] transition-colors"
+					>
+						<span className="text-xs font-normal leading-[1.75]">
+							Перейти в каталог
+						</span>
+					</Link>
+				</div>
 			</section>
 		)
 	}

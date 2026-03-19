@@ -60,6 +60,7 @@ export interface MappedProduct {
 	productCategoryName?: string
 	subcategoryName?: string
 	brandName?: string
+	model?: string
 	size?: string
 	color?: string
 	length?: number
@@ -288,6 +289,32 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 				'Брэнд',
 			])
 
+			// Модель (группировка вариаций в каталоге)
+			const modelName = pickCharacteristicValue(characteristicsMap, [
+				'Модель',
+				'Модел',
+				'Модель товара',
+				'НаименованиеМодели',
+				'Наименование модели',
+				'Model',
+			])
+
+			// Если в характеристиках нет отдельного атрибута "Модель",
+			// пробуем взять код модели из имени (обычно это токен с буквами+цифрами).
+			const modelFromName = (() => {
+				if (!name) return undefined
+				const tokens = String(name).match(/\b[A-Z0-9][A-Z0-9-]{3,}\b/g) || []
+				for (const tokenRaw of tokens) {
+					const token = tokenRaw.trim()
+					// Исключаем артикулы вида X12345
+					if (/^X\d+$/i.test(token)) continue
+					// Нужно минимум одна буква и одна цифра, чтобы не брать размеры/US/и т.п.
+					if (!/[A-Z]/i.test(token) || !/\d/.test(token)) continue
+					return token.toUpperCase().replace(/[^A-Z0-9-]/g, '')
+				}
+				return undefined
+			})()
+
 			// Габариты
 			const dimensions = extractDimensions({
 				...commerceMLProduct,
@@ -384,6 +411,7 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 				productCategoryName: productCategoryName || undefined,
 				subcategoryName: subcategoryName || undefined,
 				brandName: brandName || undefined,
+				model: modelName || modelFromName || undefined,
 				size: size || undefined,
 				color: color || undefined,
 				length: dimensions.length || undefined,

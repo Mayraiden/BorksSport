@@ -8,7 +8,7 @@ type ProductTabsProps = {
 	className?: string
 }
 
-type TabType = 'characteristics' | 'description' | 'delivery'
+type TabType = 'characteristics' | 'description'
 
 export const ProductTabs = ({ product, className = '' }: ProductTabsProps) => {
 	const [activeTab, setActiveTab] = useState<TabType>('characteristics')
@@ -16,7 +16,6 @@ export const ProductTabs = ({ product, className = '' }: ProductTabsProps) => {
 	const tabs = [
 		{ id: 'characteristics' as TabType, label: 'Характеристики' },
 		{ id: 'description' as TabType, label: 'Описание' },
-		{ id: 'delivery' as TabType, label: 'Доставка' },
 	]
 
 	const renderTabContent = () => {
@@ -83,28 +82,6 @@ export const ProductTabs = ({ product, className = '' }: ProductTabsProps) => {
 								Описание не указано
 							</div>
 						)}
-					</div>
-				)
-			case 'delivery':
-				const deliveryItems =
-					product.delivery && product.delivery.length > 0
-						? product.delivery
-						: [
-								'Самовывоз по адресу: Уточнить адрес',
-								'СДЭК доставка по Москве: Уточнить и прописать условия и/или стоимость',
-								'СДЭК доставка в другие города: Уточнить и прописать условия и/или стоимость',
-							]
-
-				return (
-					<div className="flex flex-col gap-2 max-sm:gap-2">
-						{deliveryItems.map((item, index) => (
-							<div key={index} className="flex items-start gap-2">
-								<span className="text-[#7B1931] mt-1 max-sm:mt-0.5">•</span>
-								<span className="text-base font-normal leading-[1.3125] text-[#121212] max-sm:text-sm">
-									{item}
-								</span>
-							</div>
-						))}
 					</div>
 				)
 			default:

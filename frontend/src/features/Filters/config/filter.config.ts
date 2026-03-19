@@ -58,24 +58,6 @@ export const FILTERS_CONFIG: FilterSection[] = [
 		],
 	},
 	{
-		id: 'gender',
-		label: 'Пол',
-		expanded: false,
-		filters: [
-			{
-				id: 'genders',
-				label: 'Выберите пол',
-				type: 'checkbox',
-				options: [
-					{ value: 'male', label: 'Мужской' },
-					{ value: 'female', label: 'Женский' },
-					{ value: 'unisex', label: 'Унисекс' },
-				],
-				default: [],
-			},
-		],
-	},
-	{
 		id: 'brand',
 		label: 'Бренд',
 		expanded: false,

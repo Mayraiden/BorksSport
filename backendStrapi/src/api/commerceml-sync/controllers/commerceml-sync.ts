@@ -4,13 +4,16 @@
  */
 
 import type { Core } from '@strapi/strapi'
-import { randomUUID } from 'crypto'
+import { createHash, randomUUID } from 'crypto'
 import { verifyBasicAuth } from '../utils/auth-middleware'
 import AdmZip from 'adm-zip'
 import * as fs from 'fs'
 import * as path from 'path'
 
 export default ({ strapi }: { strapi: Core.Strapi }) => {
+	// Защита от повторной полной обработки одного и того же ZIP-содержимого
+	// (например, при ретраях на этапе mode=import со стороны клиента).
+	const processedImports = new Set<string>() // key: `${type}:${sha256}`
 	/**
 	 * Определяет MIME тип по расширению файла
 	 */
@@ -672,6 +675,17 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 			return
 		}
 
+		// Идемпотентность: если клиент повторно вызывает mode=import
+		// с тем же содержимым ZIP, не делаем архивирование и извлечение картинок повторно.
+		const sha256 = createHash('sha256').update(fileBuffer).digest('hex')
+		const importKey = `${type}:${sha256}`
+		if (processedImports.has(importKey)) {
+			ctx.status = 200
+			ctx.body = 'success\nalready processed'
+			ctx.type = 'text/plain'
+			return
+		}
+
 		// Сохраняем копию исходного ZIP-архива
 		try {
 			const archiveDir = path.join(process.cwd(), 'data', 'commerceml-archives')
@@ -679,9 +693,6 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 				fs.mkdirSync(archiveDir, { recursive: true })
 			}
 
-			// Создаем уникальное имя файла с timestamp для избежания конфликтов
-			const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
-			
 			// Используем реальное имя файла из filePath (может быть .zip, если Saby отправил .xml)
 			// Но всегда сохраняем с расширением .zip, так как это ZIP-архив
 			const realFilename = path.basename(filePath)
@@ -691,11 +702,16 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 			if (!archiveFilename.toLowerCase().endsWith('.zip')) {
 				archiveFilename = archiveFilename.replace(/\.[^.]+$/, '') + '.zip'
 			}
-			
-			archiveFilename = `${timestamp}_${archiveFilename}`
+
+			// Дедупликация на уровне архива: одно и то же ZIP-содержимое получает одинаковое имя
+			const shaPrefix = sha256.slice(0, 12)
+			const baseName = archiveFilename.replace(/\.zip$/i, '')
+			archiveFilename = `${shaPrefix}_${baseName}.zip`
 			const archivePath = path.join(archiveDir, archiveFilename)
 
-			fs.writeFileSync(archivePath, fileBuffer)
+			if (!fs.existsSync(archivePath)) {
+				fs.writeFileSync(archivePath, fileBuffer)
+			}
 			strapi.log.info(`[CommerceML] Saved ZIP archive copy: ${archiveFilename} (${fileBuffer.length} bytes)`)
 		} catch (archiveError: any) {
 			// Не прерываем обработку, если не удалось сохранить копию
@@ -847,6 +863,7 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 			}
 
 			// Возвращаем успех
+			processedImports.add(importKey)
 			ctx.status = 200
 			ctx.body = 'success'
 			ctx.type = 'text/plain'
