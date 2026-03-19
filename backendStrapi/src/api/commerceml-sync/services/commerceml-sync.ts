@@ -296,8 +296,15 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 				throw new Error('Full sync aborted: no categories could be derived from current XML')
 			}
 
-			// Синхронизируем продукты с мапой категорий
-			const stats = await productSyncService.syncProducts(mappedProducts, categoryMap, categories)
+			// Синхронизируем продукты с мапой категорий.
+			// В syncProducts передаем ВСЕ узлы классификатора (включая глубже 2),
+			// чтобы маппинг по groupIds мог подняться по parentId к level 0..2,
+			// даже если сам product.groupIds ссылается на более глубокий узел.
+			const stats = await productSyncService.syncProducts(
+				mappedProducts,
+				categoryMap,
+				allCategoriesFromClassifier
+			)
 
 			strapi.log.info(
 				`[CommerceML Sync] Catalog processed: ${stats.saved} saved, ${stats.updated} updated, ${stats.errors} errors`

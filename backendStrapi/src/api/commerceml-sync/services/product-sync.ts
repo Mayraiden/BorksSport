@@ -377,29 +377,17 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 			brandAssigned: 0,
 		}
 		const uniqueBrandCategoryIds = new Set<number>()
+		const categoryMap = _categoryMap || new Map<string, number>() // UUID -> Strapi ID
 
-		const dbCategories = await strapi.entityService.findMany('api::category.category', {
-			populate: ['parent'],
-			limit: -1,
-		})
-
-		// Индекс по sbisId (numeric) для маппинга UUID(ов) из CommerceML
-		const categoryBySbisId = new Map<number, any>()
-		for (const category of dbCategories as any[]) {
-			if (typeof category.sbisId === 'number') {
-				categoryBySbisId.set(category.sbisId, category)
+		// Индекс по UUID из классификатора (включая уровни глубже 2)
+		// Нужен, чтобы можно было “подняться” по parentId до level 0..2,
+		// даже если product.groupIds ссылается на узел глубже.
+		const uuidToMeta = new Map<string, any>()
+		if (Array.isArray(_categories)) {
+			for (const c of _categories as any[]) {
+				const uuid = c?.Ид || c?.Id || c?.id
+				if (uuid) uuidToMeta.set(String(uuid), c)
 			}
-		}
-
-		// Должен совпадать с uuidToNumericId() в `commerceml-mapper.ts`
-		const uuidToNumericId = (uuid: string): number => {
-			let hash = 0
-			for (let i = 0; i < uuid.length; i++) {
-				const char = uuid.charCodeAt(i)
-				hash = (hash << 5) - hash + char
-				hash = hash & hash
-			}
-			return Math.abs(hash)
 		}
 
 		// Синхронизируем продукты
@@ -421,36 +409,77 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 						? [product.categoryId]
 						: []) || []
 
-			const matchedNodes = groupIds
-				.map((groupId) => {
-					const sbisId = uuidToNumericId(groupId)
-					return categoryBySbisId.get(sbisId)
-				})
-				.filter(Boolean)
+			// Новый матчинг: поднимаемся по parentId до level 0..2
+			// на основе uuidToMeta (классификатор), а Strapi ID берем из categoryMap.
+			let bestMatch:
+				| {
+						sportUuid?: string
+						productTypeUuid?: string
+						brandUuid?: string
+						sportName?: string
+						productTypeName?: string
+						brandName?: string
+				  }
+				| undefined
+			let bestScore = -1
 
-			// Берем самый глубокий найденный узел, а затем поднимаемся по parent до level=0/1/2
-			const deepestNode =
-				matchedNodes.length > 0
-					? [...matchedNodes].sort((a, b) => (b.level ?? 0) - (a.level ?? 0))[0]
-					: undefined
+			for (const groupId of groupIds) {
+				const startNode = uuidToMeta.get(groupId)
+				if (!startNode) continue
 
-			let sportNode: any = null
-			let productTypeNode: any = null
-			let brandNode: any = null
-			let cursor = deepestNode
-			while (cursor) {
-				if (cursor.level === 0 || cursor.type === 'sport') sportNode = cursor
-				if (cursor.level === 1 || cursor.type === 'productType') productTypeNode = cursor
-				if (cursor.level === 2 || cursor.type === 'brand') brandNode = cursor
+				let sportUuid: string | undefined
+				let productTypeUuid: string | undefined
+				let brandUuid: string | undefined
+				let sportName: string | undefined
+				let productTypeName: string | undefined
+				let brandName: string | undefined
 
-				cursor = typeof cursor.parent === 'object' ? cursor.parent : null
+				let cursor: any = startNode
+				while (cursor) {
+					const level = cursor.level ?? 0
+					const curUuid = cursor?.Ид || cursor?.Id || cursor?.id
+					const curName =
+						cursor?.Наименование || cursor?.Name || cursor?.name || undefined
+
+					if (level === 0) {
+						sportUuid = curUuid ? String(curUuid) : sportUuid
+						sportName = sportName || curName
+					} else if (level === 1) {
+						productTypeUuid = curUuid ? String(curUuid) : productTypeUuid
+						productTypeName = productTypeName || curName
+					} else if (level === 2) {
+						brandUuid = curUuid ? String(curUuid) : brandUuid
+						brandName = brandName || curName
+					}
+
+					const parentUuid = cursor?.parentId ? String(cursor.parentId) : undefined
+					cursor = parentUuid ? uuidToMeta.get(parentUuid) : undefined
+				}
+
+				const score = (sportUuid ? 1 : 0) + (productTypeUuid ? 1 : 0) + (brandUuid ? 1 : 0)
+				if (score > bestScore) {
+					bestScore = score
+					bestMatch = {
+						sportUuid,
+						productTypeUuid,
+						brandUuid,
+						sportName,
+						productTypeName,
+						brandName,
+					}
+				}
 			}
 
-			categoryIds.sportCategory = sportNode?.id
-			categoryIds.productCategory = productTypeNode?.id
-			categoryIds.brand = brandNode?.id
+			categoryIds.sportCategory = bestMatch?.sportUuid
+				? categoryMap.get(bestMatch.sportUuid)
+				: undefined
+			categoryIds.productCategory = bestMatch?.productTypeUuid
+				? categoryMap.get(bestMatch.productTypeUuid)
+				: undefined
+			categoryIds.brand = bestMatch?.brandUuid ? categoryMap.get(bestMatch.brandUuid) : undefined
 
 			if (!categoryIds.sportCategory) diagnostics.missingSportCategory++
+
 			if (!categoryIds.productCategory) {
 				diagnostics.missingProductCategory++
 				if (categoryIds.sportCategory) {
@@ -458,6 +487,7 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 					diagnostics.fallbackToUpperLevel++
 				}
 			}
+
 			if (!categoryIds.brand) diagnostics.missingBrand++
 			if (categoryIds.brand) {
 				diagnostics.brandAssigned++
@@ -468,9 +498,9 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 				categoryIds.brand || categoryIds.productCategory || categoryIds.sportCategory
 			categoryIds.category = legacyCategoryId
 
-			product.rootCategoryName = sportNode?.name || null
+			product.rootCategoryName = bestMatch?.sportName || null
 			product.categoryName =
-				brandNode?.name || productTypeNode?.name || sportNode?.name || null
+				bestMatch?.brandName || bestMatch?.productTypeName || bestMatch?.sportName || null
 
 			const result = await syncProduct(product, categoryIds)
 
