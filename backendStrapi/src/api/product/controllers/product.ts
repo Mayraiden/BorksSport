@@ -10,6 +10,7 @@ export default factories.createCoreController(
 		async find(ctx) {
 			try {
 				const { query } = ctx
+				const debugSportCounts = String((query as any).debugSportCounts || '').toLowerCase() === 'true'
 				const start = Number(query.start) || 0
 				const limit = Number(query.limit) || 20
 
@@ -217,6 +218,24 @@ export default factories.createCoreController(
 					? sportFilter.name.$in
 					: []
 				if (sportValue) {
+					if (debugSportCounts) {
+						const testCount = await strapi.entityService.count(
+							'api::product.product',
+							{
+								filters: {
+									published: true,
+									stock: { $gt: 0 },
+									$or: [
+										{ sportCategory: { name: { $eq: sportValue } } },
+										{ rootCategoryName: { $eq: sportValue } },
+									],
+								} as any,
+							}
+						)
+						strapi.log.info(
+							`[Product Controller][Debug] Count for sportValue="${sportValue}" with base published+stock: ${testCount}`
+						)
+					}
 					andConditions.push({
 						$or: [
 							{ sportCategory: { name: { $eq: sportValue } } },
@@ -226,6 +245,34 @@ export default factories.createCoreController(
 					delete parsedFilters.rootCategoryName
 					delete parsedFilters.sportCategory
 				} else if (sportInValues.length > 0) {
+					if (debugSportCounts) {
+						const countsByValue: Record<string, number> = {}
+						for (const v of sportInValues) {
+							const value = String(v || '').trim()
+							if (!value) continue
+							const testCount = await strapi.entityService.count(
+								'api::product.product',
+								{
+										filters: {
+										published: true,
+										stock: { $gt: 0 },
+										$or: [
+											{ sportCategory: { name: { $eq: value } } },
+											{ rootCategoryName: { $eq: value } },
+										],
+										} as any,
+								}
+							)
+							countsByValue[value] = testCount
+						}
+						strapi.log.info(
+							`[Product Controller][Debug] Count for sportInValues with base published+stock: ${JSON.stringify(
+								countsByValue,
+								null,
+								2
+							)}`
+						)
+					}
 					const sportOrItems = sportInValues
 						.map((raw: any) => String(raw || '').trim())
 						.filter(Boolean)
