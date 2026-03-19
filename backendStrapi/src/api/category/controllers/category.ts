@@ -220,6 +220,22 @@ export default factories.createCoreController(
 					filters.type = query.type
 				}
 
+				// Scoping для уровня 1 (productType) по выбранным видам спорта (level 0).
+				// Если пользователь выбрал один или несколько sport'ов, показываем только категории
+				// с parent sport в соответствующем наборе.
+				if (levelNumber === 1 && query.sports) {
+					const sports = String(query.sports)
+						.split(',')
+						.map((s) => s.trim())
+						.filter(Boolean)
+
+					if (sports.length > 0) {
+						filters.parent = {
+							name: { $in: sports },
+						}
+					}
+				}
+
 				// Merge additional filters if provided
 				if (query.filters && typeof query.filters === 'object') {
 					Object.assign(filters, query.filters)

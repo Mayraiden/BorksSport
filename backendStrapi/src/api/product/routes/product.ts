@@ -39,6 +39,16 @@ export default {
 		},
 		{
 			method: 'GET',
+			path: '/products/filter-options',
+			handler: 'product.getFilterOptions',
+			config: {
+				auth: false,
+				policies: [],
+				middlewares: [],
+			},
+		},
+		{
+			method: 'GET',
 			path: '/products/test-sbis-auth',
 			handler: 'product.testSbisAuth',
 			config: {

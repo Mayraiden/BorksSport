@@ -275,8 +275,13 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 				}
 			}
 
-			// Категории теперь строятся из фактических товарных свойств (sport/category/brand).
-			const categories = mapperService.extractCategoriesFromMappedProducts(mappedProducts)
+			// Категории строим из классификатора (Классификатор/Группы) — так “Вид спорта”
+			// берется из реальной иерархии, а не из характеристик товаров.
+			const allCategoriesFromClassifier = mapperService.extractCategories(parsedXML)
+			// UI-дерево у нас 3 уровня: 0 (sport) -> 1 (productType) -> 2 (brand)
+			const categories = allCategoriesFromClassifier.filter(
+				(c: any) => (c.level ?? 0) <= 2
+			)
 			const productSyncService = getProductSyncService()
 			let categoryMap = new Map<string, number>()
 			if (categories.length > 0) {
@@ -285,7 +290,7 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 					mode: syncMode,
 				})
 				strapi.log.info(
-					`[CommerceML Sync] Categories synced from product properties: ${categoryMap.size}`
+					`[CommerceML Sync] Categories synced from classifier: ${categoryMap.size}`
 				)
 			} else if (syncMode === 'full') {
 				throw new Error('Full sync aborted: no categories could be derived from current XML')

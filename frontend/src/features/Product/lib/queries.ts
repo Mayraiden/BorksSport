@@ -17,6 +17,8 @@ export const productKeys = {
 			category: filterParams.category || null,
 			brand: filterParams.brand || null,
 			sport: filterParams.sport || null,
+			colors: filterParams.colors ? [...filterParams.colors].sort().join('|') : null,
+			sizes: filterParams.sizes ? [...filterParams.sizes].sort().join('|') : null,
 			minPrice: filterParams.minPrice ?? null,
 			maxPrice: filterParams.maxPrice ?? null,
 			sortBy: filterParams.sortBy || null,

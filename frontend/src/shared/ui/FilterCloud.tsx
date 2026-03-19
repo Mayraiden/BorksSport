@@ -13,7 +13,7 @@ type FilterTag = {
 	id: string
 	label: string
 	value: string
-	type: 'category' | 'brand' | 'price' | 'sport' | 'search'
+	type: 'category' | 'brand' | 'price' | 'sport' | 'color' | 'size' | 'search'
 }
 
 /**
@@ -86,7 +86,7 @@ export const FilterCloud = memo(() => {
 			sports.forEach((sport) => {
 				// Найдем label из конфига
 				const sportConfig = FILTERS_CONFIG.find(
-					(section) => section.id === 'sport'
+					(section) => section.id === 'sportType'
 				)
 				const sportOption = sportConfig?.filters
 					.find((f) => f.id === 'sports')
@@ -97,6 +97,34 @@ export const FilterCloud = memo(() => {
 					label: sportOption?.label || sport,
 					value: sport,
 					type: 'sport',
+				})
+			})
+		}
+
+		// Colors
+		if (Array.isArray(appliedFiltersFromStore.colors) && appliedFiltersFromStore.colors.length > 0) {
+			appliedFiltersFromStore.colors.forEach((color) => {
+				const v = String(color || '').trim()
+				if (!v) return
+				tags.push({
+					id: `color-${v}`,
+					label: v,
+					value: v,
+					type: 'color',
+				})
+			})
+		}
+
+		// Sizes
+		if (Array.isArray(appliedFiltersFromStore.sizes) && appliedFiltersFromStore.sizes.length > 0) {
+			appliedFiltersFromStore.sizes.forEach((size) => {
+				const v = String(size || '').trim()
+				if (!v) return
+				tags.push({
+					id: `size-${v}`,
+					label: v,
+					value: v,
+					type: 'size',
 				})
 			})
 		}
@@ -198,6 +226,28 @@ export const FilterCloud = memo(() => {
 				} else {
 					// Если это последний вид спорта, удаляем
 					newFilters.sport = undefined
+				}
+				break
+			}
+
+			case 'color': {
+				const colors = Array.isArray(newFilters.colors) ? newFilters.colors : appliedFiltersFromStore.colors || []
+				const next = colors.map((c) => String(c).trim()).filter(Boolean).filter((c) => c !== tag.value)
+				if (next.length > 0) {
+					newFilters.colors = next
+				} else {
+					newFilters.colors = undefined
+				}
+				break
+			}
+
+			case 'size': {
+				const sizes = Array.isArray(newFilters.sizes) ? newFilters.sizes : appliedFiltersFromStore.sizes || []
+				const next = sizes.map((s) => String(s).trim()).filter(Boolean).filter((s) => s !== tag.value)
+				if (next.length > 0) {
+					newFilters.sizes = next
+				} else {
+					newFilters.sizes = undefined
 				}
 				break
 			}

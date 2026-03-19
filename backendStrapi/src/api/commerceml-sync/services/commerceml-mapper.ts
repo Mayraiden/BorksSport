@@ -55,6 +55,9 @@ export interface MappedProduct {
 	sbisId?: number
 	categoryName?: string
 	rootCategoryName?: string
+	// UUID(ы) из `<Товар><Группы><Ид>` (используем для маппинга на sport/productType/brand узлы классификатора)
+	groupIds?: string[]
+	// На всякий случай оставляем первый UUID как “categoryId” (legacy)
 	categoryId?: string // UUID категории из XML
 	sportCategoryName?: string
 	productCategoryName?: string
@@ -206,15 +209,19 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 				}
 			}
 
-			// Категории - в CommerceML это <Группы><Ид> (UUID категории)
-			// Название категории будет найдено позже через мапу категорий
-			let productCategoryId: string | undefined
+			// Категории - в CommerceML это `<Группы><Ид>` (UUID узла классификатора)
+			// Примечание: узел может соответствовать не только бренду, поэтому забираем ВСЕ ИД.
+			let groupIds: string[] = []
 			if (commerceMLProduct.Группы) {
-				const groupIds = commerceMLProduct.Группы.Ид || commerceMLProduct.Группы.Id || commerceMLProduct.Группы.id
-				if (groupIds) {
-					const groupIdsArray = Array.isArray(groupIds) ? groupIds : [groupIds]
-					// Берем первую группу (основную категорию товара)
-					productCategoryId = groupIdsArray[0]
+				const rawGroupIds =
+					commerceMLProduct.Группы.Ид ||
+					commerceMLProduct.Группы.Id ||
+					commerceMLProduct.Группы.id
+				if (rawGroupIds) {
+					const groupIdsArray = Array.isArray(rawGroupIds)
+						? rawGroupIds
+						: [rawGroupIds]
+					groupIds = groupIdsArray.map((id) => String(id)).filter(Boolean)
 				}
 			}
 
@@ -404,7 +411,8 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 				price: price || undefined,
 				sbisExternalId: String(externalId),
 				sbisId,
-				categoryId: productCategoryId || undefined,
+				groupIds: groupIds.length > 0 ? groupIds : undefined,
+				categoryId: groupIds[0] || undefined,
 				categoryName: undefined, // Будет установлено при синхронизации
 				rootCategoryName: undefined, // Будет установлено при синхронизации
 				sportCategoryName: sportCategoryName || undefined,

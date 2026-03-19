@@ -619,6 +619,83 @@ export default factories.createCoreController(
 		},
 
 		/**
+		 * Get distinct filter options for `color` and `size`
+		 * GET /api/products/filter-options?sport=...&category=...&brand=...
+		 */
+		async getFilterOptions(ctx) {
+			try {
+				const query = ctx.query as any
+
+				const toStringArray = (value: unknown): string[] => {
+					if (!value) return []
+					if (Array.isArray(value)) {
+						return value
+							.flatMap((v) => toStringArray(v))
+							.map((v) => String(v).trim())
+							.filter(Boolean)
+					}
+					return String(value)
+						.split(',')
+						.map((v) => v.trim())
+						.filter(Boolean)
+				}
+
+				const sports = toStringArray(query.sport)
+				const categories = toStringArray(query.category)
+				const brands = toStringArray(query.brand)
+
+				// Варианты (product) с stock>0 и опубликованные
+				const products = await strapi.entityService.findMany(
+					'api::product.product',
+					{
+						limit: -1,
+						fields: ['color', 'size'],
+						filters: {
+							published: true,
+							stock: { $gt: 0 },
+							...(sports.length > 0 ? { rootCategoryName: { $in: sports } } : {}),
+							...(categories.length > 0
+								? { productCategory: { name: { $in: categories } } }
+								: {}),
+							...(brands.length > 0
+								? { brand: { name: { $in: brands } } }
+								: {}),
+						},
+					}
+				)
+
+				const colors = new Set<string>()
+				const sizes = new Set<string>()
+
+				for (const p of products as any[]) {
+					if (typeof p.color === 'string') {
+						const v = p.color.trim()
+						if (v) colors.add(v)
+					}
+					if (typeof p.size === 'string') {
+						const v = p.size.trim()
+						if (v) sizes.add(v)
+					}
+				}
+
+				return {
+					success: true,
+					data: {
+						colors: [...colors].sort((a, b) => a.localeCompare(b, 'ru')),
+						sizes: [...sizes].sort((a, b) => a.localeCompare(b, 'ru')),
+					},
+				}
+			} catch (error: any) {
+				strapi.log.error('[Product Controller] getFilterOptions failed:', error?.message || error)
+				ctx.status = 500
+				return {
+					success: false,
+					error: error?.message || String(error),
+				}
+			}
+		},
+
+		/**
 		 * Sync products from SBIS
 		 * POST /api/products/sync-from-sbis
 		 * Использует новый рекурсивный метод для получения всех товаров

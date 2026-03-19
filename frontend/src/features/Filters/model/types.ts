@@ -65,6 +65,22 @@ export const filterValuesToProductFilters = (
 		}
 	}
 
+	// Colors (checkbox multi-select)
+	if (filterValues.colors && Array.isArray(filterValues.colors)) {
+		const colors = filterValues.colors as string[]
+		if (colors.length > 0) {
+			result.colors = colors
+		}
+	}
+
+	// Sizes (checkbox multi-select)
+	if (filterValues.sizes && Array.isArray(filterValues.sizes)) {
+		const sizes = filterValues.sizes as string[]
+		if (sizes.length > 0) {
+			result.sizes = sizes
+		}
+	}
+
 	return result
 }
 
@@ -134,6 +150,20 @@ export const productFiltersToFilterValues = (
 	} else {
 		// Если виды спорта удалены, очищаем
 		result.sports = []
+	}
+
+	// Colors
+	if (productFilters.colors && Array.isArray(productFilters.colors)) {
+		result.colors = productFilters.colors
+	} else {
+		result.colors = []
+	}
+
+	// Sizes
+	if (productFilters.sizes && Array.isArray(productFilters.sizes)) {
+		result.sizes = productFilters.sizes
+	} else {
+		result.sizes = []
 	}
 
 	// Search не хранится в filterValues, только в appliedFilters

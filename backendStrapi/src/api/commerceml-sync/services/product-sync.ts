@@ -82,6 +82,7 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 		}
 		if (level === 0) return 'sport'
 		if (level === 1) return 'productType'
+		if (level === 2) return 'brand'
 		return 'subcategory'
 	}
 
@@ -95,6 +96,7 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 		options?: { strictRebuild?: boolean; mode?: SyncMode }
 	): Promise<Map<string, number>> {
 		const categoryMap = new Map<string, number>() // UUID -> Strapi ID
+		const activeSbisIds = new Set<number>() // numeric IDs for pruning
 
 		strapi.log.info(
 			`[CommerceML Product Sync] Starting sync of ${categories.length} categories...`
@@ -156,6 +158,9 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 					sbisParentId: parentNumericId || null,
 					type: categoryType,
 				}
+				if (typeof numericId === 'number') {
+					activeSbisIds.add(numericId)
+				}
 
 				if (parentStrapiId) {
 					categoryData.parent = parentStrapiId
@@ -205,6 +210,51 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 		strapi.log.info(
 			`[CommerceML Product Sync] Category tree stats: level0=${level0Count}, level1=${level1Count}, level2plus=${lowerLevelCount}, brand=${brandCount}`
 		)
+
+		// Pruning: деактивируем категории sport/productType/brand уровня 0..2,
+		// которые не вошли в текущий синк (актуально для delta синков).
+		if (!options?.strictRebuild) {
+			try {
+				const staleCategories = await strapi.entityService.findMany(
+					'api::category.category',
+					{
+						filters: {
+							isActive: true,
+							level: { $lte: 2 },
+							type: { $in: ['sport', 'productType', 'brand'] },
+						},
+						limit: -1,
+					}
+				)
+
+				let prunedCount = 0
+				for (const stale of staleCategories as any[]) {
+					if (typeof stale.sbisId !== 'number') continue
+					if (!activeSbisIds.has(stale.sbisId)) {
+						await strapi.entityService.update(
+							'api::category.category',
+							stale.id,
+							{
+								data: {
+									isActive: false,
+								},
+							}
+						)
+						prunedCount++
+					}
+				}
+
+				if (prunedCount > 0) {
+					strapi.log.info(
+						`[CommerceML Product Sync] Pruned ${prunedCount} inactive categories (sport/productType/brand)`
+					)
+				}
+			} catch (err: any) {
+				strapi.log.warn(
+					`[CommerceML Product Sync] Pruning categories failed: ${err?.message || err}`
+				)
+			}
+		}
 
 		return categoryMap
 	}
@@ -332,23 +382,24 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 			populate: ['parent'],
 			limit: -1,
 		})
-		const categoryIndex = new Map<string, number>()
+
+		// Индекс по sbisId (numeric) для маппинга UUID(ов) из CommerceML
+		const categoryBySbisId = new Map<number, any>()
 		for (const category of dbCategories as any[]) {
-			const parentId =
-				typeof category.parent === 'object' && category.parent
-					? String(category.parent.id)
-					: 'null'
-			const key = `${normalizeName(category.name)}::${category.type || ''}::${parentId}`
-			categoryIndex.set(key, category.id)
+			if (typeof category.sbisId === 'number') {
+				categoryBySbisId.set(category.sbisId, category)
+			}
 		}
-		const getCategoryId = (
-			name: string | undefined,
-			type: CategoryType,
-			parentId?: number
-		): number | undefined => {
-			if (!name) return undefined
-			const key = `${normalizeName(name)}::${type}::${parentId ? String(parentId) : 'null'}`
-			return categoryIndex.get(key)
+
+		// Должен совпадать с uuidToNumericId() в `commerceml-mapper.ts`
+		const uuidToNumericId = (uuid: string): number => {
+			let hash = 0
+			for (let i = 0; i < uuid.length; i++) {
+				const char = uuid.charCodeAt(i)
+				hash = (hash << 5) - hash + char
+				hash = hash & hash
+			}
+			return Math.abs(hash)
 		}
 
 		// Синхронизируем продукты
@@ -361,17 +412,43 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 				brand?: number
 			} = {}
 
-			const sportCategoryId = getCategoryId(product.sportCategoryName, 'sport')
-			const productCategoryId = getCategoryId(
-				product.productCategoryName,
-				'productType',
-				sportCategoryId
-			)
-			const brandId = getCategoryId(product.brandName, 'brand', productCategoryId)
+			// Определяем sport/productType/brand не из характеристики `Вид спорта` товара,
+			// а из `<Товар><Группы><Ид>` (UUID узла классификатора).
+			const groupIds: string[] =
+				(product.groupIds && product.groupIds.length > 0
+					? product.groupIds
+					: product.categoryId
+						? [product.categoryId]
+						: []) || []
 
-			categoryIds.sportCategory = sportCategoryId
-			categoryIds.productCategory = productCategoryId
-			categoryIds.brand = brandId
+			const matchedNodes = groupIds
+				.map((groupId) => {
+					const sbisId = uuidToNumericId(groupId)
+					return categoryBySbisId.get(sbisId)
+				})
+				.filter(Boolean)
+
+			// Берем самый глубокий найденный узел, а затем поднимаемся по parent до level=0/1/2
+			const deepestNode =
+				matchedNodes.length > 0
+					? [...matchedNodes].sort((a, b) => (b.level ?? 0) - (a.level ?? 0))[0]
+					: undefined
+
+			let sportNode: any = null
+			let productTypeNode: any = null
+			let brandNode: any = null
+			let cursor = deepestNode
+			while (cursor) {
+				if (cursor.level === 0 || cursor.type === 'sport') sportNode = cursor
+				if (cursor.level === 1 || cursor.type === 'productType') productTypeNode = cursor
+				if (cursor.level === 2 || cursor.type === 'brand') brandNode = cursor
+
+				cursor = typeof cursor.parent === 'object' ? cursor.parent : null
+			}
+
+			categoryIds.sportCategory = sportNode?.id
+			categoryIds.productCategory = productTypeNode?.id
+			categoryIds.brand = brandNode?.id
 
 			if (!categoryIds.sportCategory) diagnostics.missingSportCategory++
 			if (!categoryIds.productCategory) {
@@ -390,9 +467,10 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 			const legacyCategoryId =
 				categoryIds.brand || categoryIds.productCategory || categoryIds.sportCategory
 			categoryIds.category = legacyCategoryId
-			product.rootCategoryName = product.sportCategoryName
+
+			product.rootCategoryName = sportNode?.name || null
 			product.categoryName =
-				product.brandName || product.productCategoryName || product.sportCategoryName
+				brandNode?.name || productTypeNode?.name || sportNode?.name || null
 
 			const result = await syncProduct(product, categoryIds)
 

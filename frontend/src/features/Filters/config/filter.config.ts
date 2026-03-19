@@ -78,4 +78,32 @@ export const FILTERS_CONFIG: FilterSection[] = [
 			},
 		],
 	},
+	{
+		id: 'color',
+		label: 'Цвет',
+		expanded: false,
+		filters: [
+			{
+				id: 'colors',
+				label: 'Выберите цвета',
+				type: 'checkbox',
+				options: [],
+				default: [],
+			},
+		],
+	},
+	{
+		id: 'size',
+		label: 'Размер',
+		expanded: false,
+		filters: [
+			{
+				id: 'sizes',
+				label: 'Выберите размеры',
+				type: 'checkbox',
+				options: [],
+				default: [],
+			},
+		],
+	},
 ]

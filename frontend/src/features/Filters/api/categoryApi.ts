@@ -46,10 +46,15 @@ export const categoryApi = {
 	 * Получить категории по уровню вложенности
 	 * @param level - Уровень вложенности (0 - виды спорта, 1 - категории товаров, 2+ - нижние уровни)
 	 * @param type - Тип категории (sport, productType, subcategory, brand)
+	 * @param sports - опционально: список названий sport'ов для scoping категории (parent.name IN ...)
 	 */
-	async getCategoriesByLevel(level: number, type?: string): Promise<MainCategory[]> {
+	async getCategoriesByLevel(level: number, type?: string, sports?: string[]): Promise<MainCategory[]> {
 		try {
-			const query = type ? `?type=${encodeURIComponent(type)}` : ''
+			const params = new URLSearchParams()
+			if (type) params.set('type', type)
+			if (sports && sports.length > 0) params.set('sports', sports.join(','))
+
+			const query = params.toString() ? `?${params.toString()}` : ''
 			const response = await fetch(`${API_URL}/api/categories/by-level/${level}${query}`)
 
 			if (!response.ok) {

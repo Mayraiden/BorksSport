@@ -375,6 +375,36 @@ export const productApi = {
 			}
 		}
 
+		// Colors filter (exact match, multi-select)
+		if (params.colors && Array.isArray(params.colors) && params.colors.length > 0) {
+			console.log('🔍 [Filter] Colors filter:', params.colors)
+			if (params.colors.length > 1) {
+				params.colors.forEach((color, index) => {
+					const value = String(color || '').trim()
+					if (!value) return
+					searchParams.append(`filters[color][$in][${index}]`, value)
+				})
+			} else {
+				const value = String(params.colors[0] || '').trim()
+				if (value) searchParams.append('filters[color][$eq]', value)
+			}
+		}
+
+		// Sizes filter (exact match, multi-select)
+		if (params.sizes && Array.isArray(params.sizes) && params.sizes.length > 0) {
+			console.log('🔍 [Filter] Sizes filter:', params.sizes)
+			if (params.sizes.length > 1) {
+				params.sizes.forEach((size, index) => {
+					const value = String(size || '').trim()
+					if (!value) return
+					searchParams.append(`filters[size][$in][${index}]`, value)
+				})
+			} else {
+				const value = String(params.sizes[0] || '').trim()
+				if (value) searchParams.append('filters[size][$eq]', value)
+			}
+		}
+
 		// Price range
 		if (params.minPrice !== undefined) {
 			searchParams.append('filters[price][$gte]', params.minPrice.toString())

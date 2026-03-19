@@ -45,6 +45,24 @@ const getFiltersFromUrl = (): Partial<ProductFilters> => {
 	const sport = params.get('sport')
 	if (sport) filters.sport = sport
 
+	// Colors
+	const colors = params.get('colors')
+	if (colors) {
+		filters.colors = colors
+			.split(',')
+			.map((c) => c.trim())
+			.filter(Boolean)
+	}
+
+	// Sizes
+	const sizes = params.get('sizes')
+	if (sizes) {
+		filters.sizes = sizes
+			.split(',')
+			.map((s) => s.trim())
+			.filter(Boolean)
+	}
+
 	// Price range
 	const minPrice = params.get('minPrice')
 	const maxPrice = params.get('maxPrice')
@@ -64,6 +82,8 @@ const updateUrl = (filters: Partial<ProductFilters>) => {
 	params.delete('category')
 	params.delete('brand')
 	params.delete('sport')
+	params.delete('colors')
+	params.delete('sizes')
 	params.delete('minPrice')
 	params.delete('maxPrice')
 
@@ -72,6 +92,8 @@ const updateUrl = (filters: Partial<ProductFilters>) => {
 	if (filters.category) params.set('category', filters.category)
 	if (filters.brand) params.set('brand', filters.brand)
 	if (filters.sport) params.set('sport', filters.sport)
+	if (filters.colors && filters.colors.length > 0) params.set('colors', filters.colors.join(','))
+	if (filters.sizes && filters.sizes.length > 0) params.set('sizes', filters.sizes.join(','))
 	if (filters.minPrice !== undefined)
 		params.set('minPrice', filters.minPrice.toString())
 	if (filters.maxPrice !== undefined)

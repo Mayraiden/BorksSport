@@ -1,11 +1,13 @@
 'use client'
 
 import { useEffect, useMemo } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { FilterSection } from '@features/Filters/ui/FiltersSection'
 import { FILTERS_CONFIG } from '@features/Filters/config/filter.config'
 import { useFilters } from '@features/Filters/lib/hooks'
 import { useMainCategories, useCategoriesByLevel } from '@features/Filters/lib/useCategories'
 import type { FilterSection as FilterSectionType } from '@shared/types/filters.types'
+import type { ApiResponse } from '@shared/types'
 
 import './Filters.css'
 
@@ -28,8 +30,57 @@ export const Filters = ({ isMobile = false, onApply }: FiltersProps) => {
 	// level 1: Категории товаров (сумки, мячи и т.д.)
 	// level 2: Бренды
 	const { data: sportTypes } = useMainCategories() // level 0
-	const { data: productCategories } = useCategoriesByLevel(1, 'productType') // level 1
+	const selectedSports = Array.isArray(filterValues.sports) ? filterValues.sports : []
+	const { data: productCategories } = useCategoriesByLevel(
+		1,
+		'productType',
+		selectedSports.length > 0 ? selectedSports : undefined
+	) // level 1
 	const { data: brands } = useCategoriesByLevel(2, 'brand') // level 2
+
+	const selectedCategories = Array.isArray(filterValues.categories)
+		? filterValues.categories
+		: []
+	const selectedBrands = Array.isArray(filterValues.brands) ? filterValues.brands : []
+
+	const API_URL =
+		process.env.NEXT_PUBLIC_STRAPI_URL ||
+		process.env.NEXT_STRAPI_URL ||
+		'http://localhost:1337'
+
+	const { data: colorSizeOptions } = useQuery({
+		queryKey: [
+			'products',
+			'filter-options',
+			selectedSports.slice().sort().join('|'),
+			selectedCategories.slice().sort().join('|'),
+			selectedBrands.slice().sort().join('|'),
+		],
+		queryFn: async () => {
+			const params = new URLSearchParams()
+			if (selectedSports.length > 0) params.set('sport', selectedSports.join(','))
+			if (selectedCategories.length > 0) params.set('category', selectedCategories.join(','))
+			if (selectedBrands.length > 0) params.set('brand', selectedBrands.join(','))
+
+			const qs = params.toString()
+			const url = `${API_URL}/api/products/filter-options${qs ? `?${qs}` : ''}`
+
+			const response = await fetch(url)
+			if (!response.ok) {
+				throw new Error(`Failed to fetch filter options: ${response.status}`)
+			}
+
+			const data: ApiResponse<{ colors: string[]; sizes: string[] }> = await response.json()
+			if (!data.success) {
+				throw new Error('Failed to fetch filter options')
+			}
+
+			return data.data
+		},
+		staleTime: 5 * 60 * 1000,
+		gcTime: 30 * 60 * 1000,
+		refetchOnWindowFocus: false,
+	})
 
 	// Очищаем старые значения фильтров при загрузке новых данных
 	useEffect(() => {
@@ -194,9 +245,51 @@ export const Filters = ({ isMobile = false, onApply }: FiltersProps) => {
 				}
 			}
 
+			// Обновляем секцию "Цвет"
+			if (section.id === 'color') {
+				return {
+					...section,
+					filters: section.filters.map((filter) => {
+						if (filter.id === 'colors') {
+							const options =
+								colorSizeOptions?.colors?.map((v) => ({
+									value: v,
+									label: v,
+								})) ?? []
+							return {
+								...filter,
+								options,
+							}
+						}
+						return filter
+					}),
+				}
+			}
+
+			// Обновляем секцию "Размер"
+			if (section.id === 'size') {
+				return {
+					...section,
+					filters: section.filters.map((filter) => {
+						if (filter.id === 'sizes') {
+							const options =
+								colorSizeOptions?.sizes?.map((v) => ({
+									value: v,
+									label: v,
+								})) ?? []
+							return {
+								...filter,
+								options,
+							}
+						}
+						return filter
+					}),
+				}
+			}
+
 			return section
 		}) as FilterSectionType[]
-	}, [sportTypes, productCategories, brands])
+	}, [sportTypes, productCategories, brands, colorSizeOptions])
 
 	// Синхронизация при монтировании
 	useEffect(() => {
