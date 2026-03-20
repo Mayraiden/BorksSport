@@ -130,7 +130,7 @@ jobs:
 
             # Вычисляем тег по фактическому commit hash на сервере
             IMAGE_TAG="release-$(git rev-parse --short=7 HEAD)"
-            BACKEND_IMAGE="${REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}"
+            export BACKEND_IMAGE="${REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}"
             echo "Using backend image: ${BACKEND_IMAGE}"
 
             # Авторизация в GHCR для приватных пакетов
