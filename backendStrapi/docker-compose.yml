@@ -18,10 +18,10 @@ services:
       retries: 5
 
   strapi:
-    image: ghcr.io/mayraiden/borkssport/backend-strapi:latest
-    pull_policy: always
+    image: ${BACKEND_IMAGE:?BACKEND_IMAGE is required}
     container_name: sportmagazine_strapi
     restart: unless-stopped
+    init: true
     environment:
       # Database
       DATABASE_CLIENT: postgres
@@ -94,6 +94,17 @@ services:
       - ./logs:/app/logs
     ports:
       - '127.0.0.1:1337:1337'
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=128m
+      - /run:rw,nosuid,nodev,size=8m
+    pids_limit: 512
+    mem_limit: 1024m
+    cpus: 2.0
     depends_on:
       postgres:
         condition: service_healthy

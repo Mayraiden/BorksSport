@@ -17,6 +17,8 @@ jobs:
   build:
     name: Build Docker Image
     runs-on: ubuntu-latest
+    outputs:
+      image_digest: ${{ steps.build_push.outputs.digest }}
     permissions:
       contents: read
       packages: write
@@ -43,10 +45,10 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=raw,value=latest
             type=sha,prefix=release-
       
       - name: Build and push
+        id: build_push
         uses: docker/build-push-action@v5
         with:
           context: ./frontend
@@ -88,10 +90,12 @@ jobs:
           SERVER_USER: ${{ secrets.SERVER_USER }}
           REGISTRY: ${{ env.REGISTRY }}
           IMAGE_NAME: ${{ env.IMAGE_NAME }}
+          IMAGE_DIGEST: ${{ needs.build.outputs.image_digest }}
         run: |
-          ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=60 -o ServerAliveCountMax=10 -o ConnectTimeout=30 -o TCPKeepAlive=yes ${SERVER_USER}@${SERVER_HOST} << 'EOF'
+          ssh -o StrictHostKeyChecking=yes -o UserKnownHostsFile=~/.ssh/known_hosts -o ServerAliveInterval=60 -o ServerAliveCountMax=10 -o ConnectTimeout=30 -o TCPKeepAlive=yes ${SERVER_USER}@${SERVER_HOST} << EOF
             set -e
             echo "🚀 Starting frontend deployment..."
+            export FRONTEND_IMAGE="${REGISTRY}/${IMAGE_NAME}@${IMAGE_DIGEST}"
             
             cd ~/sportmagazine
             
@@ -135,12 +139,9 @@ jobs:
             # Переходим в папку frontend
             cd frontend
             
-            # Логин в GHCR (если нужен для pull)
-            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ${{ env.REGISTRY }} -u ${{ github.actor }} --password-stdin || true
-            
-            # Pull готового образа
-            echo "📥 Pulling latest image from GHCR..."
-            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest || true
+            # Pull pinned-образа по digest
+            echo "📥 Pulling pinned frontend image..."
+            docker pull "${FRONTEND_IMAGE}"
             
             # Останавливаем текущий контейнер
             echo "🛑 Stopping current container..."
@@ -166,6 +167,10 @@ jobs:
               echo "⚠️ Frontend health check failed, but deployment completed"
               echo "Check logs for more information"
             fi
+
+            # Проверка IoC после старта контейнера
+            echo "🔍 Running post-deploy IoC check..."
+            bash ../scripts/security/check-container-iocs.sh sportmagazine-frontend
             
             echo "✅ Frontend deployment completed!"
           EOF

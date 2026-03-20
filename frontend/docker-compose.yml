@@ -1,9 +1,9 @@
 services:
   frontend:
-    image: ghcr.io/mayraiden/borkssport/frontend:latest
-    pull_policy: always
+    image: ${FRONTEND_IMAGE:?FRONTEND_IMAGE is required}
     container_name: sportmagazine-frontend
     restart: unless-stopped
+    init: true
     env_file:
       - .env
     environment:
@@ -13,6 +13,17 @@ services:
       NEXT_PUBLIC_STRAPI_URL: ${NEXT_PUBLIC_STRAPI_URL:-https://api.borkssport.ru}
     ports:
       - '127.0.0.1:3000:3000'
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m
+      - /run:rw,nosuid,nodev,size=8m
+    pids_limit: 256
+    mem_limit: 512m
+    cpus: 1.0
     networks:
       - frontend-network
 
