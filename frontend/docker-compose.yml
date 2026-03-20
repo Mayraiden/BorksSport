@@ -21,6 +21,7 @@ services:
     tmpfs:
       - /tmp:rw,noexec,nosuid,nodev,size=64m
       - /run:rw,nosuid,nodev,size=8m
+      - /app/.next/cache:rw,noexec,nosuid,nodev,size=128m
     pids_limit: 256
     mem_limit: 512m
     cpus: 1.0

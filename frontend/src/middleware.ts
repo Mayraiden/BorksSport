@@ -38,6 +38,7 @@ const BLOCKED_QUERY_PATTERNS = [
 
 // Блокируем системные пути
 const BLOCKED_PATHS = [
+	'/.next/',
 	'/dev/',
 	'/etc/',
 	'/var/',

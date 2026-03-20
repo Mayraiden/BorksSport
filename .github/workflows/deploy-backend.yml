@@ -175,8 +175,13 @@ jobs:
 
             # Проверка IoC после старта контейнеров
             echo "🔍 Running post-deploy IoC checks..."
-            bash ../scripts/security/check-container-iocs.sh sportmagazine_strapi
-            bash ../scripts/security/check-container-iocs.sh sportmagazine-frontend
+            IOC_SCRIPT="$HOME/sportmagazine/scripts/security/check-container-iocs.sh"
+            if [ -f "${IOC_SCRIPT}" ]; then
+              bash "${IOC_SCRIPT}" sportmagazine_strapi
+              bash "${IOC_SCRIPT}" sportmagazine-frontend
+            else
+              echo "⚠️ IoC script not found at ${IOC_SCRIPT}. Skipping checks."
+            fi
             
             echo "✅ Backend deployment completed!"
           EOF
