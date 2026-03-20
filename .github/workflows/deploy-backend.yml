@@ -86,12 +86,10 @@ jobs:
           SERVER_USER: ${{ secrets.SERVER_USER }}
           REGISTRY: ${{ env.REGISTRY }}
           IMAGE_NAME: ${{ env.IMAGE_NAME }}
-          IMAGE_TAG: release-${{ github.sha }}
         run: |
           ssh -o StrictHostKeyChecking=yes -o UserKnownHostsFile=~/.ssh/known_hosts -o ServerAliveInterval=60 -o ServerAliveCountMax=10 -o ConnectTimeout=30 -o TCPKeepAlive=yes ${SERVER_USER}@${SERVER_HOST} << EOF
             set -e
             echo "🚀 Starting backend deployment..."
-            export BACKEND_IMAGE="${REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}"
             
             cd ~/sportmagazine
             
@@ -123,6 +121,11 @@ jobs:
             
             # Переходим в папку backendStrapi
             cd backendStrapi
+
+            # Вычисляем тег по фактическому commit hash на сервере
+            IMAGE_TAG="release-$(git rev-parse HEAD)"
+            BACKEND_IMAGE="${REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}"
+            echo "Using backend image: ${BACKEND_IMAGE}"
             
             # Pull pinned-образа по digest
             echo "📥 Pulling pinned backend image..."
