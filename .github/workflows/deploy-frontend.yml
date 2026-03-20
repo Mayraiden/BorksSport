@@ -87,11 +87,15 @@ jobs:
           SERVER_USER: ${{ secrets.SERVER_USER }}
           REGISTRY: ${{ env.REGISTRY }}
           IMAGE_NAME: ${{ env.IMAGE_NAME }}
+          GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
+          GHCR_READ_TOKEN: ${{ secrets.GHCR_READ_TOKEN }}
         run: |
           ssh -o StrictHostKeyChecking=yes -o UserKnownHostsFile=~/.ssh/known_hosts -o ServerAliveInterval=60 -o ServerAliveCountMax=10 -o ConnectTimeout=30 -o TCPKeepAlive=yes ${SERVER_USER}@${SERVER_HOST} << 'EOF'
             set -e
             REGISTRY='${{ env.REGISTRY }}'
             IMAGE_NAME='${{ env.IMAGE_NAME }}'
+            GHCR_USERNAME='${{ secrets.GHCR_USERNAME }}'
+            GHCR_READ_TOKEN='${{ secrets.GHCR_READ_TOKEN }}'
             echo "🚀 Starting frontend deployment..."
             
             cd ~/sportmagazine
@@ -140,6 +144,13 @@ jobs:
             IMAGE_TAG="release-$(git rev-parse --short=7 HEAD)"
             FRONTEND_IMAGE="${REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}"
             echo "Using frontend image: ${FRONTEND_IMAGE}"
+
+            # Авторизация в GHCR для приватных пакетов
+            if [ -z "${GHCR_USERNAME}" ] || [ -z "${GHCR_READ_TOKEN}" ]; then
+              echo "❌ Missing GHCR_USERNAME/GHCR_READ_TOKEN secrets"
+              exit 1
+            fi
+            echo "${GHCR_READ_TOKEN}" | docker login "${REGISTRY}" -u "${GHCR_USERNAME}" --password-stdin
             
             # Pull pinned-образа по digest
             echo "📥 Pulling pinned frontend image..."
