@@ -137,7 +137,7 @@ jobs:
             cd frontend
 
             # Вычисляем тег по фактическому commit hash на сервере
-            IMAGE_TAG="release-$(git rev-parse HEAD)"
+            IMAGE_TAG="release-$(git rev-parse --short=7 HEAD)"
             FRONTEND_IMAGE="${REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}"
             echo "Using frontend image: ${FRONTEND_IMAGE}"
             
