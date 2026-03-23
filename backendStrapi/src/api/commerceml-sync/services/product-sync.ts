@@ -56,6 +56,7 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 					productCategory: null,
 					subcategory: null,
 					brand: null,
+					brandRef: null,
 					categoryName: null,
 					rootCategoryName: null,
 				},
@@ -84,6 +85,51 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 		if (level === 1) return 'productType'
 		if (level === 2) return 'brand'
 		return 'subcategory'
+	}
+
+	async function upsertGlobalBrand(
+		brandName: string,
+		cache?: Map<string, number>
+	): Promise<number | undefined> {
+		const normalizedName = normalizeName(brandName).replace(/\s+/g, ' ')
+		const displayName = String(brandName || '').trim()
+		if (!normalizedName || !displayName) return undefined
+
+		if (cache?.has(normalizedName)) {
+			return cache.get(normalizedName)
+		}
+
+		const existing = await strapi.db.query('api::brand.brand').findOne({
+			where: { normalizedName },
+			select: ['id', 'name'],
+		})
+
+		let brandId: number
+		if (existing) {
+			brandId = typeof existing.id === 'number' ? existing.id : parseInt(String(existing.id), 10)
+			// Обновляем display name, если отличается по смыслу
+			if (String(existing.name || '').trim() !== displayName) {
+				await strapi.entityService.update('api::brand.brand' as any, brandId, {
+					data: { name: displayName, isActive: true },
+				})
+			} else {
+				await strapi.entityService.update('api::brand.brand' as any, brandId, {
+					data: { isActive: true },
+				})
+			}
+		} else {
+			const created = await strapi.entityService.create('api::brand.brand' as any, {
+				data: {
+					name: displayName,
+					normalizedName,
+					isActive: true,
+				},
+			})
+			brandId = typeof created.id === 'number' ? created.id : parseInt(String(created.id), 10)
+		}
+
+		cache?.set(normalizedName, brandId)
+		return brandId
 	}
 
 	/**
@@ -273,6 +319,7 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 			productCategory?: number
 			subcategory?: number
 			brand?: number
+			brandRef?: number
 		}
 	): Promise<{ success: boolean; created: boolean; productId?: number; error?: string }> {
 		try {
@@ -369,6 +416,7 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 				productCategory: categoryIds?.productCategory ?? null,
 				subcategory: categoryIds?.subcategory ?? null,
 				brand: categoryIds?.brand ?? null,
+				brandRef: categoryIds?.brandRef ?? null,
 			}
 
 			let result
@@ -439,6 +487,7 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 			brandAssigned: 0,
 		}
 		const uniqueBrandCategoryIds = new Set<number>()
+		const globalBrandCache = new Map<string, number>()
 		const categoryMap = _categoryMap || new Map<string, number>() // UUID -> Strapi ID
 
 		// Индекс по UUID из классификатора (включая уровни глубже 2)
@@ -460,6 +509,7 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 				productCategory?: number
 				subcategory?: number
 				brand?: number
+				brandRef?: number
 			} = {}
 
 			// Определяем sport/productType/brand не из характеристики `Вид спорта` товара,
@@ -554,6 +604,13 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 			if (categoryIds.brand) {
 				diagnostics.brandAssigned++
 				uniqueBrandCategoryIds.add(categoryIds.brand)
+			}
+
+			const globalBrandName = String(
+				bestMatch?.brandName || product.brandName || ''
+			).trim()
+			if (globalBrandName) {
+				categoryIds.brandRef = await upsertGlobalBrand(globalBrandName, globalBrandCache)
 			}
 
 			const legacyCategoryId =
