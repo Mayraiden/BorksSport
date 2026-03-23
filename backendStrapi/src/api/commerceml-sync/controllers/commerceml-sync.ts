@@ -558,7 +558,14 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 			}
 
 			// Создаём директорию для временных файлов CommerceML
-			const tempDir = path.join(process.cwd(), 'data', 'commerceml')
+			// Используем uploads, так как root FS контейнера read-only.
+			const tempDir = path.join(
+				process.cwd(),
+				'public',
+				'uploads',
+				'commerceml',
+				'incoming'
+			)
 			if (!fs.existsSync(tempDir)) {
 				fs.mkdirSync(tempDir, { recursive: true })
 			}
@@ -621,7 +628,13 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 
 		// Путь к сохранённому файлу
 		// Saby может отправлять filename как .xml, но файл сохранён как .zip
-		const tempDir = path.join(process.cwd(), 'data', 'commerceml')
+		const tempDir = path.join(
+			process.cwd(),
+			'public',
+			'uploads',
+			'commerceml',
+			'incoming'
+		)
 		let filePath = path.join(tempDir, filename)
 		
 		// Если файл не найден и filename заканчивается на .xml, пробуем найти .zip версию
@@ -688,7 +701,13 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 
 		// Сохраняем копию исходного ZIP-архива
 		try {
-			const archiveDir = path.join(process.cwd(), 'data', 'commerceml-archives')
+			const archiveDir = path.join(
+				process.cwd(),
+				'public',
+				'uploads',
+				'commerceml',
+				'archives'
+			)
 			if (!fs.existsSync(archiveDir)) {
 				fs.mkdirSync(archiveDir, { recursive: true })
 			}
