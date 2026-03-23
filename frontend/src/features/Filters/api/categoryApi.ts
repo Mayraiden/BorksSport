@@ -11,6 +11,20 @@ export type MainCategory = {
 	children?: MainCategory[]
 }
 
+export type BrandCategory = {
+	id: number
+	name: string
+	slug: string
+	level: number
+	type?: 'brand'
+	showOnHome?: boolean
+	homeSort?: number
+	logo?: {
+		url?: string
+		alternativeText?: string | null
+	} | null
+}
+
 /**
  * API для работы с категориями
  */
@@ -70,6 +84,36 @@ export const categoryApi = {
 			return data.data
 		} catch (error) {
 			console.error(`Error fetching categories for level ${level}${type ? ` (${type})` : ''}:`, error)
+			throw error
+		}
+	},
+
+	/**
+	 * Получить бренды для главной (гибрид: ручные showOnHome + автодобор).
+	 */
+	async getHomeBrands(limit = 10): Promise<BrandCategory[]> {
+		try {
+			const params = new URLSearchParams()
+			params.set('type', 'brand')
+			params.set('home', 'true')
+			params.set('limit', String(limit))
+
+			const response = await fetch(
+				`${API_URL}/api/categories/by-level/2?${params.toString()}`
+			)
+
+			if (!response.ok) {
+				throw new Error(`API error: ${response.status}`)
+			}
+
+			const data: ApiResponse<BrandCategory[]> = await response.json()
+			if (!data.success) {
+				throw new Error('Failed to fetch home brands')
+			}
+
+			return data.data
+		} catch (error) {
+			console.error('Error fetching home brands:', error)
 			throw error
 		}
 	},

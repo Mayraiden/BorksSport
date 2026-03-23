@@ -241,12 +241,23 @@ export default factories.createCoreController(
 					Object.assign(filters, query.filters)
 				}
 
+				const queryType = String(query.type || '')
+				const isBrandLevel = levelNumber === 2 && queryType === 'brand'
+				const shouldPopulateLogo =
+					isBrandLevel || String(query.home || '').toLowerCase() === 'true'
+				const populateParam = query.populate || []
+				const populate = shouldPopulateLogo
+					? Array.isArray(populateParam)
+						? Array.from(new Set([...populateParam, 'logo']))
+						: ['logo']
+					: populateParam
+
 				const categories = await strapi.entityService.findMany(
 					'api::category.category',
 					{
 						filters,
 						sort: query.sort || 'sortOrder:asc,name:asc',
-						populate: query.populate || [],
+						populate,
 					}
 				)
 
@@ -302,6 +313,156 @@ export default factories.createCoreController(
 					strapi.log.info(
 						`[Category Controller] Level 2: ${categories.length} categories → ${processedCategories.length} unique brands after deduplication`
 					)
+				}
+
+				// Гибридная выдача для блока "Популярные бренды":
+				// 1) ручные бренды showOnHome=true (homeSort ASC)
+				// 2) автодобор брендами с товарным покрытием/популярностью
+				const isHomeRequest = String(query.home || '').toLowerCase() === 'true'
+				if (isBrandLevel && isHomeRequest) {
+					const parsedLimit = parseInt(String(query.limit || '10'), 10)
+					const limit = Number.isNaN(parsedLimit)
+						? 10
+						: Math.max(1, Math.min(parsedLimit, 50))
+
+					const normalizedName = (name: string) =>
+						String(name || '')
+							.trim()
+							.toLowerCase()
+							.replace(/\s+/g, ' ')
+
+					const manualBrands = [...processedCategories]
+						.filter((brand: any) => Boolean(brand.showOnHome))
+						.sort((a: any, b: any) => {
+							const aSort = Number(a.homeSort || 0)
+							const bSort = Number(b.homeSort || 0)
+							if (aSort !== bSort) return aSort - bSort
+							return String(a.name || '').localeCompare(String(b.name || ''), 'ru')
+						})
+
+					const selected: any[] = []
+					const selectedKeys = new Set<string>()
+					const selectedIds = new Set<number>()
+
+					const tryPushBrand = (brand: any) => {
+						if (!brand) return
+						const key = normalizedName(brand.name)
+						if (!key || selectedKeys.has(key) || selectedIds.has(brand.id)) return
+						selected.push(brand)
+						selectedKeys.add(key)
+						selectedIds.add(brand.id)
+					}
+
+					for (const brand of manualBrands) {
+						if (selected.length >= limit) break
+						tryPushBrand(brand)
+					}
+
+					const needsAutoFill = selected.length < limit
+					if (needsAutoFill) {
+						const autoCandidates = processedCategories.filter(
+							(brand: any) => !selectedIds.has(brand.id)
+						)
+						const autoCandidateIds = autoCandidates.map((brand: any) => brand.id)
+
+						if (autoCandidateIds.length > 0) {
+							const products = await strapi.entityService.findMany(
+								'api::product.product',
+								{
+									filters: {
+										brand: { id: { $in: autoCandidateIds } },
+										published: true,
+									},
+									fields: [
+										'id',
+										'stock',
+										'sbisPopularityScore',
+										'sbisSalesCount',
+										'sbisTotalQuantitySold',
+									],
+									populate: {
+										brand: {
+											fields: ['id'],
+										},
+									},
+									limit: -1,
+								}
+							)
+
+							const brandStats = new Map<
+								number,
+								{
+									brandId: number
+									productsCount: number
+									inStockCount: number
+									popularityScore: number
+									salesCount: number
+									quantitySold: number
+								}
+							>()
+
+							for (const product of products as any[]) {
+								const brandId = product?.brand?.id
+								if (typeof brandId !== 'number') continue
+
+								const current = brandStats.get(brandId) || {
+									brandId,
+									productsCount: 0,
+									inStockCount: 0,
+									popularityScore: 0,
+									salesCount: 0,
+									quantitySold: 0,
+								}
+
+								current.productsCount += 1
+								if (Number(product.stock || 0) > 0) {
+									current.inStockCount += 1
+								}
+								current.popularityScore += Number(product.sbisPopularityScore || 0)
+								current.salesCount += Number(product.sbisSalesCount || 0)
+								current.quantitySold += Number(product.sbisTotalQuantitySold || 0)
+
+								brandStats.set(brandId, current)
+							}
+
+							const autoSorted = autoCandidates
+								.map((brand: any) => ({
+									brand,
+									stats: brandStats.get(brand.id),
+								}))
+								.filter((item) => Boolean(item.stats && item.stats.productsCount > 0))
+								.sort((a, b) => {
+									const sa = a.stats!
+									const sb = b.stats!
+									if (sb.popularityScore !== sa.popularityScore) {
+										return sb.popularityScore - sa.popularityScore
+									}
+									if (sb.salesCount !== sa.salesCount) {
+										return sb.salesCount - sa.salesCount
+									}
+									if (sb.quantitySold !== sa.quantitySold) {
+										return sb.quantitySold - sa.quantitySold
+									}
+									if (sb.inStockCount !== sa.inStockCount) {
+										return sb.inStockCount - sa.inStockCount
+									}
+									if (sb.productsCount !== sa.productsCount) {
+										return sb.productsCount - sa.productsCount
+									}
+									return String(a.brand.name || '').localeCompare(
+										String(b.brand.name || ''),
+										'ru'
+									)
+								})
+
+							for (const item of autoSorted) {
+								if (selected.length >= limit) break
+								tryPushBrand(item.brand)
+							}
+						}
+					}
+
+					processedCategories = selected.slice(0, limit)
 				}
 
 				ctx.body = {
