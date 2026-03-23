@@ -1,7 +1,7 @@
 'use client'
 
 import { memo, useMemo } from 'react'
-import { X } from '@phosphor-icons/react'
+import { XIcon } from '@phosphor-icons/react/ssr'
 import { useFilters } from '@/features/Filters/lib/hooks'
 import { useFiltersStore } from '@/features/Filters/model/store'
 import { useSearch } from '@/shared/lib/contexts/SearchContext'
@@ -153,7 +153,7 @@ export const FilterCloud = memo(() => {
 				}
 				tags.push({
 					id: 'price',
-					label: `от ${formatPrice(min)} - до ${formatPrice(max)}`,
+					label: `от ${formatPrice(min)} до ${formatPrice(max)}`,
 					value: `price-${min}-${max}`,
 					type: 'price',
 				})
@@ -273,15 +273,15 @@ export const FilterCloud = memo(() => {
 			{filterTags.map((tag) => (
 				<div
 					key={tag.id}
-					className="group flex items-center gap-2 px-3 py-1.5 bg-gray-200 rounded-full hover:bg-gray-300 transition-colors duration-200"
+					className="flex items-center gap-2 pl-4 pr-1.5 py-1.5 bg-burgundy rounded-full transition-colors duration-200"
 				>
-					<span className="text-sm text-gray-700 font-medium">{tag.label}</span>
+					<span className="text-sm text-white font-medium">{tag.label}</span>
 					<button
 						onClick={() => handleRemoveFilter(tag)}
-						className="flex items-center justify-center w-4 h-4 rounded-full hover:bg-gray-400 transition-colors duration-200 text-gray-600 hover:text-gray-900"
+						className="flex items-center justify-center w-7 h-7 rounded-full cursor-pointer text-white hover:bg-white hover:text-black transition-colors duration-200"
 						aria-label={`Удалить фильтр ${tag.label}`}
 					>
-						<X size={14} weight="bold" />
+						<XIcon size={16} weight="bold" />
 					</button>
 				</div>
 			))}

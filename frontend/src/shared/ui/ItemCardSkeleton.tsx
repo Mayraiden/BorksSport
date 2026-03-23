@@ -13,12 +13,12 @@ export const ItemCardSkeleton = memo<ItemCardSkeletonProps>(
 				className={`w-full min-w-0 flex flex-col bg-white shadow-md ${className}`}
 			>
 				{/* Изображение */}
-				<div className="relative overflow-hidden h-64 bg-gray/20 animate-pulse" />
+				<div className="relative overflow-hidden h-[236px] bg-gray/20 animate-pulse" />
 
 				{/* Контент */}
 				<div className="w-full min-w-0 flex flex-col gap-1 p-3 flex-1">
-					{/* Название товара - 2 строки */}
-					<div className="min-h-[2.5rem] flex flex-col gap-1">
+					{/* Название товара - фиксированная высота на 2 строки */}
+					<div className="h-12 flex flex-col justify-center gap-1">
 						<div className="h-4 bg-gray/20 rounded animate-pulse w-full" />
 						<div className="h-4 bg-gray/20 rounded animate-pulse w-3/4" />
 					</div>

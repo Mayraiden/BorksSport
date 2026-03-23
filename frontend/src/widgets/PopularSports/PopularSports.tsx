@@ -27,8 +27,8 @@ export const PopularSports = () => {
 		const count = uniqueCategories.length
 
 		if (count <= 2) {
-			// 1-2 элемента: большие карточки по центру с ограничением ширины
-			return 'flex flex-wrap justify-center gap-3 max-sm:gap-3'
+			// 1-2 элемента: большие карточки по левому краю с ограничением ширины
+			return 'flex flex-wrap justify-start gap-3 max-sm:gap-3'
 		} else if (count <= 5) {
 			// 3-5 элементов: адаптивная сетка с оптимальным количеством колонок
 			if (count === 3) {

@@ -35,10 +35,10 @@ export const ICatalogModalColumn = ({
 	const selectedCategory = selectedPath[level]
 
 	return (
-		<div className="p-5 border-r-1 border-inherit flex flex-col h-full">
-			<div>
+		<div className="p-3 sm:p-5 border-r border-inherit last:border-r-0 flex flex-col h-full min-h-0 overflow-hidden">
+			<div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
 				{title && <h1 className="mb-5 text-base font-bold">{title}</h1>}
-				<ul className="flex flex-col gap-1">
+				<ul className="flex flex-col gap-1 pr-1">
 					{categories.map((category) => {
 						const isSelected = selectedCategory?.id === category.id
 						const hasChildren = category.children && category.children.length > 0
@@ -84,9 +84,9 @@ export const ICatalogModalColumn = ({
 			</div>
 			{/* Кнопка только для первой колонки (level 0) */}
 			{level === 0 && onClose && (
-				<div className="mt-auto pt-5">
+				<div className="mt-auto pt-4">
 					<Link
-						className="h-10 py-4 px-6 flex items-center justify-center bg-burgundy text-white rounded-md hover:bg-burgundy/90 transition-colors"
+						className="h-10 py-4 px-4 flex items-center justify-center bg-burgundy text-white rounded-md hover:bg-burgundy/90 transition-colors text-sm sm:text-base"
 						href={'/catalog'}
 						onClick={onClose}
 					>

@@ -49,7 +49,7 @@ export const ICatalogModalLink = ({
 
 	return (
 		<Link
-			className={`w-45 h-7 p-2 flex justify-between items-center rounded-md transition-colors whitespace-nowrap ${
+			className={`w-full min-w-0 h-8 px-2 py-1 flex justify-between items-center rounded-md transition-colors ${
 				isSelected
 					? 'bg-gray/30 text-burgundy font-medium'
 					: 'bg-white hover:bg-gray/20'
@@ -58,7 +58,7 @@ export const ICatalogModalLink = ({
 			onClick={handleClick}
 			onMouseEnter={handleMouseEnter}
 		>
-			<span>{text}</span>
+			<span className="truncate">{text}</span>
 			{hasChildren && <CaretRightIcon size={20} />}
 		</Link>
 	)

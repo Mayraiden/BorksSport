@@ -40,11 +40,11 @@ export const ProductSlider = ({
 		)
 	}
 
+	const isSingleImage = images.length <= 1
+
 	// Для infinity scroll с одним изображением дублируем его минимум 3 раза
 	const displayImages =
-		images.length === 1
-			? [...images, ...images, ...images]
-			: images.length === 2
+		images.length === 2
 				? [...images, ...images]
 				: images
 
@@ -54,7 +54,9 @@ export const ProductSlider = ({
 				modules={[Navigation]}
 				spaceBetween={0}
 				slidesPerView={1}
-				loop={true}
+				loop={!isSingleImage}
+				allowTouchMove={!isSingleImage}
+				simulateTouch={!isSingleImage}
 				onSwiper={setSwiperRef}
 				className="w-full h-120 rounded-[4px] overflow-hidden max-sm:h-64"
 			>
@@ -85,21 +87,25 @@ export const ProductSlider = ({
 				})}
 			</Swiper>
 
-			{/* Navigation arrows - всегда показываем для infinity scroll */}
-			<button
-				onClick={goToPrev}
-				className="absolute left-6.5 top-1/2 -translate-y-1/2 bg-burgundy text-white rounded-full w-10 h-10 flex items-center justify-center hover:bg-[#7B1931]/90 transition-colors duration-200 z-10 shadow-lg max-sm:left-2 max-sm:w-8 max-sm:h-8"
-				aria-label="Предыдущее изображение"
-			>
-				<CaretLeftIcon size={20} weight="bold" className="max-sm:w-4 max-sm:h-4" />
-			</button>
-			<button
-				onClick={goToNext}
-				className="absolute right-6.5 top-1/2 -translate-y-1/2 bg-burgundy text-white rounded-full w-10 h-10 flex items-center justify-center hover:bg-[#7B1931]/90 transition-colors duration-200 z-10 shadow-lg max-sm:right-2 max-sm:w-8 max-sm:h-8"
-				aria-label="Следующее изображение"
-			>
-				<CaretRightIcon size={20} weight="bold" className="max-sm:w-4 max-sm:h-4" />
-			</button>
+			{/* Navigation arrows - скрываем при одном изображении */}
+			{!isSingleImage && (
+				<>
+					<button
+						onClick={goToPrev}
+						className="absolute left-6.5 top-1/2 -translate-y-1/2 bg-burgundy text-white rounded-full w-10 h-10 flex items-center justify-center hover:bg-[#7B1931]/90 transition-colors duration-200 z-10 shadow-lg max-sm:left-2 max-sm:w-8 max-sm:h-8"
+						aria-label="Предыдущее изображение"
+					>
+						<CaretLeftIcon size={20} weight="bold" className="max-sm:w-4 max-sm:h-4" />
+					</button>
+					<button
+						onClick={goToNext}
+						className="absolute right-6.5 top-1/2 -translate-y-1/2 bg-burgundy text-white rounded-full w-10 h-10 flex items-center justify-center hover:bg-[#7B1931]/90 transition-colors duration-200 z-10 shadow-lg max-sm:right-2 max-sm:w-8 max-sm:h-8"
+						aria-label="Следующее изображение"
+					>
+						<CaretRightIcon size={20} weight="bold" className="max-sm:w-4 max-sm:h-4" />
+					</button>
+				</>
+			)}
 		</div>
 	)
 }

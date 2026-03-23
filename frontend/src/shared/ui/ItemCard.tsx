@@ -77,12 +77,12 @@ export const ItemCard = memo<ItemCardProps>(
 				className={`w-full min-w-0 flex flex-col bg-white shadow-md hover:shadow-lg transition-shadow duration-200 ${className}`}
 			>
 				<Link href={productUrl} onClick={onClick} className="block">
-					<div className="relative overflow-hidden h-64">
+					<div className="relative overflow-hidden h-[236px] bg-gray/10">
 						<Image
-							className="w-full h-full object-cover"
+							className="w-full h-full object-contain"
 							src={imageSrc}
 							width={236}
-							height={256}
+							height={236}
 							alt={mainImage.alt}
 							priority={false} // Don't prioritize images in grid
 							loading="lazy" // Lazy load images
@@ -104,7 +104,7 @@ export const ItemCard = memo<ItemCardProps>(
 						onClick={onClick}
 						className="hover:text-burgundy transition-colors duration-200"
 					>
-						<h3 className="text-base font-bold line-clamp-2 min-h-[2.5rem]">
+						<h3 className="text-base leading-6 font-bold line-clamp-2 h-12">
 							{displayProduct.name}
 						</h3>
 					</Link>

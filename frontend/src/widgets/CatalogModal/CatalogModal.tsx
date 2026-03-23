@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { ICatalogModalColumn } from '@/shared/ui/ICatalogModalColumn'
 import Link from 'next/link'
 import { useMainCategories } from '@/features/Filters/lib/useCategories'
@@ -16,6 +16,30 @@ type SelectedCategoryPath = MainCategory[]
 export const CatalogModal = ({ isOpen, onClose }: ICatalogModalProps) => {
 	const { data: mainCategories, isLoading } = useMainCategories()
 	const [selectedPath, setSelectedPath] = useState<SelectedCategoryPath>([])
+
+	// Блокируем прокрутку страницы, пока открыта модалка каталога.
+	useEffect(() => {
+		if (!isOpen) return
+
+		const scrollY = window.scrollY
+		const originalOverflow = document.body.style.overflow
+		const originalPosition = document.body.style.position
+		const originalTop = document.body.style.top
+		const originalWidth = document.body.style.width
+
+		document.body.style.overflow = 'hidden'
+		document.body.style.position = 'fixed'
+		document.body.style.top = `-${scrollY}px`
+		document.body.style.width = '100%'
+
+		return () => {
+			document.body.style.overflow = originalOverflow
+			document.body.style.position = originalPosition
+			document.body.style.top = originalTop
+			document.body.style.width = originalWidth
+			window.scrollTo(0, scrollY)
+		}
+	}, [isOpen])
 
 	// Сбрасываем путь при закрытии модалки
 	const handleClose = () => {
@@ -87,14 +111,14 @@ export const CatalogModal = ({ isOpen, onClose }: ICatalogModalProps) => {
 			{/* Overlay для закрытия по клику вне модала */}
 			<div className="fixed inset-0 bg-black/20 z-[100]" onClick={handleClose} style={{ WebkitBackfaceVisibility: 'visible', backfaceVisibility: 'visible' }} />
 
-			<aside className="fixed left-0 top-20 w-screen min-h-3/4 p-5 flex flex-col justify-between bg-white shadow-lg z-[101]" style={{ WebkitBackfaceVisibility: 'visible', backfaceVisibility: 'visible' }}>
-				<div className="h-full grid grid-cols-6 border border-gray/20">
+			<aside className="fixed left-0 right-0 top-20 w-screen h-[calc(100vh-5rem)] min-h-[420px] p-3 sm:p-4 bg-white shadow-lg z-[101] overflow-hidden" style={{ WebkitBackfaceVisibility: 'visible', backfaceVisibility: 'visible' }}>
+				<div className="h-full border border-gray/20 grid overflow-hidden grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-6">
 					{isLoading ? (
-						<div className="col-span-6 p-5 text-center text-gray">
+						<div className="col-span-full p-5 text-center text-gray">
 							Загрузка категорий...
 						</div>
 					) : columns.length === 0 ? (
-						<div className="col-span-6 p-5 text-center text-gray">
+						<div className="col-span-full p-5 text-center text-gray">
 							Категории не найдены
 						</div>
 					) : (
