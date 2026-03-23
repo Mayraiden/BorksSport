@@ -320,9 +320,9 @@ export default factories.createCoreController(
 				// 2) автодобор брендами с товарным покрытием/популярностью
 				const isHomeRequest = String(query.home || '').toLowerCase() === 'true'
 				if (isBrandLevel && isHomeRequest) {
-					const parsedLimit = parseInt(String(query.limit || '10'), 10)
+					const parsedLimit = parseInt(String(query.limit || '15'), 10)
 					const limit = Number.isNaN(parsedLimit)
-						? 10
+						? 15
 						: Math.max(1, Math.min(parsedLimit, 50))
 
 					const normalizedName = (name: string) =>
@@ -366,27 +366,25 @@ export default factories.createCoreController(
 						const autoCandidateIds = autoCandidates.map((brand: any) => brand.id)
 
 						if (autoCandidateIds.length > 0) {
+							const productsQuery: any = {
+								filters: {
+									brand: { id: { $in: autoCandidateIds } },
+									published: true,
+								},
+								fields: [
+									'id',
+									'stock',
+									'sbisPopularityScore',
+									'sbisSalesCount',
+									'sbisTotalQuantitySold',
+								],
+								populate: ['brand'],
+								limit: -1,
+							}
+
 							const products = await strapi.entityService.findMany(
 								'api::product.product',
-								{
-									filters: {
-										brand: { id: { $in: autoCandidateIds } },
-										published: true,
-									},
-									fields: [
-										'id',
-										'stock',
-										'sbisPopularityScore',
-										'sbisSalesCount',
-										'sbisTotalQuantitySold',
-									],
-									populate: {
-										brand: {
-											fields: ['id'],
-										},
-									},
-									limit: -1,
-								}
+								productsQuery
 							)
 
 							const brandStats = new Map<

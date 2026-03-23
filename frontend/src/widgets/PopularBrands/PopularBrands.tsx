@@ -19,7 +19,7 @@ const getMediaUrl = (url?: string): string | null => {
 export const PopularBrands = () => {
 	const { data: brands = [] } = useQuery({
 		queryKey: ['brands', 'home'],
-		queryFn: () => categoryApi.getHomeBrands(10),
+		queryFn: () => categoryApi.getHomeBrands(15),
 		staleTime: 5 * 60 * 1000,
 		gcTime: 30 * 60 * 1000,
 		refetchOnWindowFocus: false,

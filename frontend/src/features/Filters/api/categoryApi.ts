@@ -91,7 +91,7 @@ export const categoryApi = {
 	/**
 	 * Получить бренды для главной (гибрид: ручные showOnHome + автодобор).
 	 */
-	async getHomeBrands(limit = 10): Promise<BrandCategory[]> {
+	async getHomeBrands(limit = 15): Promise<BrandCategory[]> {
 		try {
 			const params = new URLSearchParams()
 			params.set('type', 'brand')
