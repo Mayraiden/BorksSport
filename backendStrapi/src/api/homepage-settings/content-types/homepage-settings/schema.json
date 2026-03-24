@@ -3,7 +3,7 @@
 	"collectionName": "homepage_settings",
 	"info": {
 		"singularName": "homepage-settings",
-		"pluralName": "homepage-settings",
+		"pluralName": "homepage-settings-items",
 		"displayName": "Homepage Settings",
 		"description": "Controls hero and homepage section visibility"
 	},
