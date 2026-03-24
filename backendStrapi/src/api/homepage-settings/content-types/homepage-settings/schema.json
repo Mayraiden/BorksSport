@@ -1,0 +1,37 @@
+{
+	"kind": "singleType",
+	"collectionName": "homepage_settings",
+	"info": {
+		"singularName": "homepage-settings",
+		"pluralName": "homepage-settings",
+		"displayName": "Homepage Settings",
+		"description": "Controls hero and homepage section visibility"
+	},
+	"options": {
+		"draftAndPublish": false
+	},
+	"attributes": {
+		"heroTitle": {
+			"type": "string",
+			"required": false
+		},
+		"heroImage": {
+			"type": "media",
+			"multiple": false,
+			"required": false,
+			"allowedTypes": ["images"]
+		},
+		"showHits": {
+			"type": "boolean",
+			"default": true
+		},
+		"showDiscounts": {
+			"type": "boolean",
+			"default": true
+		},
+		"showNew": {
+			"type": "boolean",
+			"default": true
+		}
+	}
+}
