@@ -2,7 +2,6 @@ import type {
 	CheckoutFormData,
 	OrderResponse,
 	DeliveryAddress,
-	OrderItem,
 	PaymentSessionResponse,
 	PaymentStatusResponse,
 	ShippingAddress,
@@ -129,6 +128,13 @@ export const checkoutApi = {
 				if (response.status === 401) {
 					throw new Error('Необходимо войти в аккаунт')
 				}
+				if (response.status === 403) {
+					const errorData = await response.json().catch(() => ({}))
+					if (errorData.code === 'EMAIL_NOT_CONFIRMED') {
+						throw new Error('Подтвердите email, чтобы оформить заказ')
+					}
+					throw new Error(errorData.message || 'Действие недоступно')
+				}
 				if (response.status === 400) {
 					const errorData = await response.json().catch(() => ({}))
 					checkoutLogger.group('POST /api/orders ← error', {
@@ -178,7 +184,7 @@ export const checkoutApi = {
 	 */
 	async calculateDeliveryCost(
 		address: DeliveryAddress,
-		items: OrderItem[],
+		cartItems: CartItemDisplay[],
 		deliveryType: 'door' | 'pvz' = 'door',
 		tariffCode?: number
 	): Promise<{
@@ -195,19 +201,24 @@ export const checkoutApi = {
 	}> {
 		try {
 			// Преобразуем товары в пакеты для СДЭК
-			// Для расчета используем базовые значения веса и габаритов
-			// В будущем можно получать реальные данные из API продуктов
-			const packages = items.map((item) => {
-				// Базовые значения: 1 кг, 30x20x15 см
-				// В реальном проекте здесь нужно получать данные из API продукта
-				const weightPerItem = 1000 // 1 кг в граммах
-				const totalWeight = weightPerItem * item.quantity
+			// Uses real product dimensions when available; falls back to safe defaults.
+			const packages = cartItems.map((cartItem) => {
+				const quantity = Number(cartItem.quantity || 1)
+				const product = cartItem.product
+
+				// Weight is expected in grams in our system (from Saby).
+				const weightPerUnit = Number(product.weight || 1000) // default 1000g
+				const totalWeight = Math.max(1, Math.round(weightPerUnit * quantity))
+
+				const length = Number(product.length || 0) || undefined
+				const width = Number(product.width || 0) || undefined
+				const height = Number(product.height || 0) || undefined
 
 				return {
 					weight: totalWeight,
-					length: 30, // см
-					width: 20, // см
-					height: 15, // см
+					length,
+					width,
+					height,
 				}
 			})
 
@@ -326,6 +337,9 @@ export const checkoutApi = {
 
 		if (!response.ok) {
 			const errorData = await response.json().catch(() => ({}))
+			if (response.status === 403 && errorData.code === 'EMAIL_NOT_CONFIRMED') {
+				throw new Error('Подтвердите email, чтобы перейти к оплате')
+			}
 			checkoutLogger.group('POST /api/payments/tochka/session ← error', {
 				status: response.status,
 				error: errorData,

@@ -17,6 +17,7 @@ import {
 	type RegisterFormData,
 } from '@/shared/lib/validations/auth'
 import { useAuthStore } from '../model/store'
+import { isEmailAuthDisabled } from '@/shared/config/emailAuth'
 
 // Функция для форматирования телефона с маской +7
 const formatPhoneNumber = (value: string): string => {
@@ -92,7 +93,11 @@ export const RegisterForm = () => {
 	const handleRegister = (data: RegisterFormData) => {
 		registerUser(data, {
 			onSuccess: () => {
-				router.push('/profile')
+				if (isEmailAuthDisabled()) {
+					router.push('/')
+					return
+				}
+				router.push(`/auth/confirm-email?email=${encodeURIComponent(data.email)}`)
 			},
 			onError: () => {
 				// Ошибка обрабатывается через useAuthStore

@@ -2,6 +2,11 @@ import { factories } from '@strapi/strapi'
 
 type PaymentStatus = 'pending' | 'paid' | 'failed' | 'refunded'
 
+const isEmailAuthDisabled = () => {
+	const raw = process.env.EMAIL_AUTH_DISABLED
+	return raw === '1' || raw === 'true' || raw === 'yes'
+}
+
 type JsonValue =
 	| string
 	| number
@@ -31,6 +36,38 @@ const resolveUserId = async (strapi: any, ctx: any): Promise<number | null> => {
 	}
 
 	return userId ?? null
+}
+
+const requireConfirmedUser = async (strapi: any, ctx: any, userId: number): Promise<boolean> => {
+	if (isEmailAuthDisabled()) {
+		return true
+	}
+
+	const user = await strapi.db.query('plugin::users-permissions.user').findOne({
+		where: { id: userId },
+		select: ['id', 'confirmed'],
+	})
+
+	if (!user) {
+		ctx.status = 401
+		ctx.body = {
+			success: false,
+			message: 'User not authenticated',
+		}
+		return false
+	}
+
+	if (!user.confirmed) {
+		ctx.status = 403
+		ctx.body = {
+			success: false,
+			code: 'EMAIL_NOT_CONFIRMED',
+			message: 'Please confirm your email before payment',
+		}
+		return false
+	}
+
+	return true
 }
 
 const mapRemoteStatusToLocal = (remoteStatus: string): {
@@ -149,6 +186,11 @@ export default factories.createCoreController(
 						success: false,
 						message: 'User not authenticated',
 					}
+					return
+				}
+
+				const canPay = await requireConfirmedUser(strapi, ctx, userId)
+				if (!canPay) {
 					return
 				}
 
@@ -302,6 +344,11 @@ export default factories.createCoreController(
 						success: false,
 						message: 'User not authenticated',
 					}
+					return
+				}
+
+				const canPay = await requireConfirmedUser(strapi, ctx, userId)
+				if (!canPay) {
 					return
 				}
 

@@ -11,14 +11,14 @@ type PaymentMethodFormProps = {
 
 type OnlinePaymentProvider = 'sbp' | 'card'
 
-const ONLINE_ICONS: Record<OnlinePaymentProvider, { src: string; alt: string }> = {
-	sbp: { src: '/payment/sbp.png', alt: 'СБП' },
-	card: { src: '/payment/card.png', alt: 'Банковская карта' },
+const ONLINE_LABELS: Record<OnlinePaymentProvider, string> = {
+	sbp: 'СБП',
+	card: 'Картой',
 }
 
-const DELIVERY_ICONS: Record<'cash' | 'card', { src: string; alt: string }> = {
-	card: { src: '/payment/card.png', alt: 'Картой' },
-	cash: { src: '/payment/cash.png', alt: 'Наличные' },
+const DELIVERY_LABELS: Record<'cash' | 'card', string> = {
+	card: 'картой',
+	cash: 'наличными',
 }
 
 type PaymentCardProps = {
@@ -29,14 +29,24 @@ type PaymentCardProps = {
 
 const SelectedBadge = () => (
 	<div className="absolute top-2 left-2 w-5 h-5 max-sm:w-4 max-sm:h-4 rounded-full bg-[#7B1931] flex items-center justify-center">
-		<svg className="w-3 h-3 max-sm:w-2.5 max-sm:h-2.5 text-white" viewBox="0 0 12 12" fill="none">
-			<path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+		<svg
+			className="w-3 h-3 max-sm:w-2.5 max-sm:h-2.5 text-white"
+			viewBox="0 0 12 12"
+			fill="none"
+		>
+			<path
+				d="M2 6l3 3 5-5"
+				stroke="currentColor"
+				strokeWidth="2"
+				strokeLinecap="round"
+				strokeLinejoin="round"
+			/>
 		</svg>
 	</div>
 )
 
 const PaymentCard = ({ provider, isSelected, onSelect }: PaymentCardProps) => {
-	const icon = ONLINE_ICONS[provider]
+	const label = ONLINE_LABELS[provider]
 	return (
 		<button
 			type="button"
@@ -44,12 +54,14 @@ const PaymentCard = ({ provider, isSelected, onSelect }: PaymentCardProps) => {
 			className={`relative w-[160px] max-sm:w-full h-[90px] max-sm:h-[70px] bg-gray-100 rounded-lg border transition-all ${
 				isSelected
 					? 'border-[#7B1931] border-2'
-					: 'border-gray-200 hover:border-gray-300'
+					: 'border-gray-200 hover:border-gray-400 hover:bg-gray-200'
 			}`}
 		>
 			{isSelected && <SelectedBadge />}
 			<div className="w-full h-full flex items-center justify-center p-3">
-				<img src={icon.src} alt={icon.alt} className="max-h-[50px] max-sm:max-h-[36px] object-contain" />
+				<span className="text-base max-sm:text-sm font-medium text-black">
+					{label}
+				</span>
 			</div>
 		</button>
 	)
@@ -66,7 +78,8 @@ const CashOnDeliveryCard = ({
 	isSelected,
 	onSelect,
 }: CashOnDeliveryCardProps) => {
-	const icon = DELIVERY_ICONS[method]
+	const label = DELIVERY_LABELS[method]
+
 	return (
 		<button
 			type="button"
@@ -74,12 +87,14 @@ const CashOnDeliveryCard = ({
 			className={`relative w-[160px] max-sm:w-full h-[90px] max-sm:h-[70px] bg-gray-100 rounded-lg border transition-all ${
 				isSelected
 					? 'border-[#7B1931] border-2'
-					: 'border-gray-200 hover:border-gray-300'
+					: 'border-gray-200 hover:border-gray-400 hover:bg-gray-200'
 			}`}
 		>
 			{isSelected && <SelectedBadge />}
 			<div className="w-full h-full flex items-center justify-center p-3">
-				<img src={icon.src} alt={icon.alt} className="max-h-[50px] max-sm:max-h-[36px] object-contain" />
+				<span className="text-base max-sm:text-sm font-medium text-black capitalize">
+					{label}
+				</span>
 			</div>
 		</button>
 	)

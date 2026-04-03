@@ -109,7 +109,6 @@ export const DeliveryMethodForm = ({
 		checkoutApi.detectCity().then((city) => {
 			if (city) setDetectedCity(city)
 		}).finally(() => setIsDetectingCity(false))
-	// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [])
 
 	const handleConfirmCity = () => {
@@ -267,26 +266,15 @@ export const DeliveryMethodForm = ({
 			setCalculationError(null)
 
 			try {
-				const deliveryAddress =
-					address ||
-					(data.address.type === 'delivery'
-						? data.address.deliveryAddress
-						: undefined)
+				const deliveryAddress = address || currentDeliveryAddress || undefined
 
 				if (!deliveryAddress || !deliveryAddress.city) {
 					return
 				}
 
-				// Преобразуем товары в формат для расчета
-				const orderItems: OrderItem[] = cartItems.map((item) => ({
-					productId: item.product.id,
-					quantity: item.quantity,
-					price: item.product.price,
-				}))
-
 				const result = await checkoutApi.calculateDeliveryCost(
 					deliveryAddress,
-					orderItems,
+					cartItems,
 					deliveryType
 				)
 
@@ -302,10 +290,8 @@ export const DeliveryMethodForm = ({
 				setIsCalculating(false)
 			}
 		},
-		// eslint-disable-next-line react-hooks/exhaustive-deps
 		[
 			items.length,
-			data.address.type,
 			currentDeliveryAddress, // Используем currentDeliveryAddress вместо data.address.deliveryAddress для корректной работы с union типами
 			cartItems,
 			onChange,

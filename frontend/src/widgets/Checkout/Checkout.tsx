@@ -11,6 +11,7 @@ import { checkoutApi } from '@/features/Checkout/api/checkoutApi'
 import { validateCheckoutForm, hasErrors } from '@/features/Checkout/lib/validation'
 import { useAuthStore } from '@/features/Auth/model/store'
 import { cartApi, type CartItemDisplay } from '@/features/Cart/api/cartApi'
+import { isEmailAuthDisabled } from '@/shared/config/emailAuth'
 import type {
 	CheckoutFormData,
 	CheckoutFormErrors,
@@ -23,6 +24,7 @@ import type {
 export const Checkout = () => {
 	const router = useRouter()
 	const { isAuthenticated, jwt, user } = useAuthStore()
+	const isEmailConfirmed = isEmailAuthDisabled() ? true : !!user?.confirmed
 	const [cartItems, setCartItems] = useState<CartItemDisplay[]>([])
 	const [isLoading, setIsLoading] = useState(true)
 	const [isSubmitting, setIsSubmitting] = useState(false)
@@ -149,6 +151,14 @@ export const Checkout = () => {
 
 		if (!isAuthenticated || !jwt) {
 			router.push('/auth')
+			return
+		}
+
+		if (!isEmailConfirmed) {
+			setErrors({
+				general: 'Подтвердите email, чтобы оформить заказ и перейти к оплате.',
+			})
+			router.push(`/auth/confirm-email?email=${encodeURIComponent(user?.email || '')}`)
 			return
 		}
 
@@ -286,6 +296,23 @@ export const Checkout = () => {
 						</div>
 					)}
 
+					{!isEmailConfirmed && (
+						<div className="bg-yellow-50 border border-yellow-300 rounded-md p-4 max-sm:p-3 text-yellow-800 max-sm:text-sm">
+							Подтвердите email, чтобы оформить заказ и оплату.
+							<div className="mt-2">
+								<button
+									type="button"
+									className="text-sm underline"
+									onClick={() =>
+										router.push(`/auth/confirm-email?email=${encodeURIComponent(user?.email || '')}`)
+									}
+								>
+									Открыть подтверждение email
+								</button>
+							</div>
+						</div>
+					)}
+
 					{/* Данные покупателя */}
 					<CustomerDataForm
 						data={formData.customer}
@@ -358,14 +385,14 @@ export const Checkout = () => {
 						{/* Кнопка подтверждения */}
 						<button
 							type="submit"
-							disabled={isSubmitting}
+							disabled={isSubmitting || !isEmailConfirmed}
 							className={`w-full py-4 max-sm:py-3 px-6 max-sm:px-4 rounded-md text-base max-sm:text-sm font-normal leading-[1.3125] transition-colors ${
-								isSubmitting
+								isSubmitting || !isEmailConfirmed
 									? 'bg-gray-300 text-gray-500 cursor-not-allowed'
 									: 'bg-[#7B1931] text-[#F5F5F5] hover:bg-[#6a1529]'
 							}`}
 						>
-							{isSubmitting ? 'Обработка...' : 'Подтвердить заказ'}
+							{isSubmitting ? 'Обработка...' : !isEmailConfirmed ? 'Подтвердите email' : 'Подтвердить заказ'}
 						</button>
 					</div>
 				</div>

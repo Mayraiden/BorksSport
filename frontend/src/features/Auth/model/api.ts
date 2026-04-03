@@ -11,6 +11,11 @@ const API_URL =
 	process.env.NEXT_STRAPI_URL ||
 	'http://localhost:1337'
 
+type ConfirmEmailResult = {
+	success: boolean
+	message?: string
+}
+
 export const strapiAuth = {
 	register: async (data: RegisterFormData) => {
 		try {
@@ -191,5 +196,41 @@ export const strapiAuth = {
 		} catch (error) {
 			throw error
 		}
+	},
+
+	resendConfirmationEmail: async (email: string): Promise<ConfirmEmailResult> => {
+		const response = await fetch(`${API_URL}/api/auth/resend-confirmation`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			credentials: 'include',
+			body: JSON.stringify({ email }),
+		})
+
+		const result = await response.json().catch(() => ({}))
+
+		if (!response.ok) {
+			throw new Error(result?.message || result?.error?.message || 'Не удалось отправить письмо подтверждения')
+		}
+
+		return {
+			success: true,
+			message: result?.message || 'Письмо подтверждения отправлено',
+		}
+	},
+
+	confirmEmail: async (confirmationToken: string): Promise<ConfirmEmailResult> => {
+		const params = new URLSearchParams()
+		params.set('confirmation', confirmationToken)
+		const response = await fetch(`${API_URL}/api/auth/confirm-email?${params.toString()}`, {
+			method: 'GET',
+			credentials: 'include',
+		})
+
+		if (!response.ok) {
+			const result = await response.json().catch(() => ({}))
+			throw new Error(result?.message || result?.error?.message || 'Не удалось подтвердить email')
+		}
+
+		return { success: true, message: 'Email подтвержден' }
 	},
 }

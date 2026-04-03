@@ -90,6 +90,11 @@ interface CDEKOrderRequest {
 	number?: string
 	tariff_code: number
 	comment?: string
+	/**
+	 * PVZ / delivery point code in CDEK.
+	 * Used for tariff modes that deliver to a pickup point.
+	 */
+	delivery_point?: string
 	from_location: CDEKLocation
 	to_location: CDEKLocation
 	recipient: {

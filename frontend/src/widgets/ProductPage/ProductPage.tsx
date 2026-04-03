@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
 import type { Product } from '@/shared/types'
 import { ProductSlider } from '@/shared/ui/ProductSlider'
 import { ColorSelector } from '@/shared/ui/ColorSelector'
@@ -42,13 +42,16 @@ export const ProductPage = ({ product, className = '' }: ProductPageProps) => {
 	}, [product])
 
 	// Проверяем, есть ли вариант с указанным цветом и размером
-	const hasVariant = (color: string | null, size: string | null): boolean => {
-		return allVariants.some((variant) => {
-			const colorMatch = color ? variant.color === color : !variant.color
-			const sizeMatch = size ? variant.size === size : !variant.size
-			return colorMatch && sizeMatch && variant.stock && variant.stock > 0
-		})
-	}
+	const hasVariant = useCallback(
+		(color: string | null, size: string | null): boolean => {
+			return allVariants.some((variant) => {
+				const colorMatch = color ? variant.color === color : !variant.color
+				const sizeMatch = size ? variant.size === size : !variant.size
+				return colorMatch && sizeMatch && variant.stock && variant.stock > 0
+			})
+		},
+		[allVariants]
+	)
 
 	// Получаем доступные размеры для выбранного цвета
 	const availableSizes = useMemo(() => {
@@ -58,7 +61,7 @@ export const ProductPage = ({ product, className = '' }: ProductPageProps) => {
 		return product.sizes.filter((size) => {
 			return hasVariant(selectedColor.name, size.value)
 		})
-	}, [product, selectedColorId, allVariants])
+	}, [product, selectedColorId, hasVariant])
 
 	// Получаем доступные цвета для выбранного размера
 	const availableColors = useMemo(() => {
@@ -68,23 +71,23 @@ export const ProductPage = ({ product, className = '' }: ProductPageProps) => {
 		return product.colors.filter((color) => {
 			return hasVariant(color.name, selectedSize.value)
 		})
-	}, [product, selectedSizeId, allVariants])
+	}, [product, selectedSizeId, hasVariant])
 
 	// Получаем размер по умолчанию для цвета
-	const getDefaultSizeForColor = (colorName: string): string | undefined => {
+	const getDefaultSizeForColor = useCallback((colorName: string): string | undefined => {
 		const sizesForColor = product.sizes.filter((size) => {
 			return hasVariant(colorName, size.value)
 		})
 		return sizesForColor[0]?.id
-	}
+	}, [product.sizes, hasVariant])
 
 	// Получаем цвет по умолчанию для размера
-	const getDefaultColorForSize = (sizeValue: string): string | undefined => {
+	const getDefaultColorForSize = useCallback((sizeValue: string): string | undefined => {
 		const colorsForSize = product.colors.filter((color) => {
 			return hasVariant(color.name, sizeValue)
 		})
 		return colorsForSize[0]?.id
-	}
+	}, [product.colors, hasVariant])
 
 	// Автоматически подбираем вариант при изменении цвета
 	useEffect(() => {
@@ -100,7 +103,13 @@ export const ProductPage = ({ product, className = '' }: ProductPageProps) => {
 				setSelectedSizeId(defaultSizeId)
 			}
 		}
-	}, [selectedColorId, product, selectedSizeId])
+	}, [
+		selectedColorId,
+		product,
+		selectedSizeId,
+		hasVariant,
+		getDefaultSizeForColor,
+	])
 
 	// Автоматически подбираем вариант при изменении размера
 	useEffect(() => {
@@ -116,7 +125,13 @@ export const ProductPage = ({ product, className = '' }: ProductPageProps) => {
 				setSelectedColorId(defaultColorId)
 			}
 		}
-	}, [selectedSizeId, product, selectedColorId])
+	}, [
+		selectedSizeId,
+		product,
+		selectedColorId,
+		hasVariant,
+		getDefaultColorForSize,
+	])
 
 	// Находим выбранный вариант товара на основе выбранных размера и цвета
 	const selectedVariant = useMemo(() => {

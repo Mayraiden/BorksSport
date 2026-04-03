@@ -18,6 +18,7 @@ export type IUserStoreType = {
 	jwt: string | null
 
 	isAuthenticated: boolean
+	isEmailConfirmed: boolean
 	isLoading: boolean
 	isRestoring: boolean
 	error: string | null

@@ -8,6 +8,7 @@ export const useAuthStore = create<IUserStoreType>()(
 			user: null,
 			jwt: null, // Access token - хранится только в памяти, не в localStorage
 			isAuthenticated: false,
+			isEmailConfirmed: false,
 			isLoading: false,
 			isRestoring: false, // Флаг восстановления сессии
 			error: null,
@@ -16,7 +17,11 @@ export const useAuthStore = create<IUserStoreType>()(
 				const state = get()
 				// Синхронизируем isAuthenticated: true только если есть user И jwt
 				const shouldBeAuthenticated = !!user && !!state.jwt
-				set({ user, isAuthenticated: shouldBeAuthenticated })
+				set({
+					user,
+					isAuthenticated: shouldBeAuthenticated,
+					isEmailConfirmed: !!user?.confirmed,
+				})
 			},
 			setJwt: (jwt: string | null) => {
 				const state = get()
@@ -38,6 +43,7 @@ export const useAuthStore = create<IUserStoreType>()(
 					user: null, 
 					jwt: null, 
 					isAuthenticated: false,
+					isEmailConfirmed: false,
 					isRestoring: false,
 					error: null
 				})
@@ -57,11 +63,13 @@ export const useAuthStore = create<IUserStoreType>()(
 					// Синхронизируем isAuthenticated на основе user и jwt
 					if (state.user && state.jwt) {
 						state.isAuthenticated = true
+						state.isEmailConfirmed = !!state.user.confirmed
 						if (process.env.NODE_ENV === 'development') {
 							console.log('[AuthStore] Rehydrated: user and jwt found, isAuthenticated = true')
 						}
 					} else {
 						state.isAuthenticated = false
+						state.isEmailConfirmed = false
 						if (process.env.NODE_ENV === 'development') {
 							console.log('[AuthStore] Rehydrated: no user or jwt, isAuthenticated = false')
 						}

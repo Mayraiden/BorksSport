@@ -1,5 +1,10 @@
 import { factories } from '@strapi/strapi'
 
+const isEmailAuthDisabled = () => {
+	const raw = process.env.EMAIL_AUTH_DISABLED
+	return raw === '1' || raw === 'true' || raw === 'yes'
+}
+
 /**
  * Генерирует номер заказа в формате Ozon: YYYYMMDD-XXXX
  * Где YYYYMMDD - дата создания заказа, XXXX - последовательный номер за день
@@ -86,37 +91,68 @@ async function generateOrderNumber(strapi: any, maxRetries = 10): Promise<string
 	return fallbackNumber
 }
 
+const resolveUserId = async (strapi: any, ctx: any): Promise<number | null> => {
+	let userId = ctx.state.user?.id
+
+	if (!userId) {
+		const authHeader = ctx.request.header?.authorization
+		if (authHeader && authHeader.startsWith('Bearer ')) {
+			const token = authHeader.substring(7)
+
+			try {
+				const { id } = await strapi.plugins['users-permissions'].services.jwt.verify(token)
+				userId = id
+			} catch {
+				// ignore token errors, will fall back to 401 below
+			}
+		}
+	}
+
+	return userId ?? null
+}
+
+const requireConfirmedUser = async (strapi: any, ctx: any, userId: number): Promise<boolean> => {
+	if (isEmailAuthDisabled()) {
+		return true
+	}
+
+	const user = await strapi.db.query('plugin::users-permissions.user').findOne({
+		where: { id: userId },
+		select: ['id', 'confirmed'],
+	})
+
+	if (!user) {
+		ctx.status = 401
+		ctx.body = {
+			success: false,
+			message: 'User not authenticated',
+		}
+		return false
+	}
+
+	if (!user.confirmed) {
+		ctx.status = 403
+		ctx.body = {
+			success: false,
+			code: 'EMAIL_NOT_CONFIRMED',
+			message: 'Please confirm your email before placing an order',
+		}
+		return false
+	}
+
+	return true
+}
+
 export default factories.createCoreController(
 	'api::order.order',
 	({ strapi }) => ({
-		async resolveUserId(ctx: any) {
-			let userId = ctx.state.user?.id
-
-			if (!userId) {
-				const authHeader = ctx.request.header?.authorization
-				if (authHeader && authHeader.startsWith('Bearer ')) {
-					const token = authHeader.substring(7)
-
-					try {
-						const { id } = await strapi.plugins[
-							'users-permissions'
-						].services.jwt.verify(token)
-						userId = id
-					} catch (tokenError) {
-						// ignore token errors, will fall back to 401 below
-					}
-				}
-			}
-
-			return userId
-		},
 		/**
 		 * Get user orders
 		 * GET /api/orders
 		 */
 		async find(ctx) {
 			try {
-				const userId = await this.resolveUserId(ctx)
+				const userId = await resolveUserId(strapi, ctx)
 
 				if (!userId) {
 					ctx.status = 401
@@ -127,8 +163,13 @@ export default factories.createCoreController(
 					return
 				}
 
+				const canCreateOrder = await requireConfirmedUser(strapi, ctx, userId)
+				if (!canCreateOrder) {
+					return
+				}
+
 				const orders = await strapi.entityService.findMany('api::order.order', {
-					filters: { user: userId },
+					filters: { user: { id: userId } },
 					sort: 'createdAt:desc',
 				})
 
@@ -164,7 +205,7 @@ export default factories.createCoreController(
 					cdekPvzAddress,
 					paymentProvider,
 				} = ctx.request.body
-				const userId = await this.resolveUserId(ctx)
+				const userId = await resolveUserId(strapi, ctx)
 
 				if (!userId) {
 					ctx.status = 401
@@ -324,8 +365,26 @@ export default factories.createCoreController(
 								(sum: number, pkg: any) => sum + pkg.weight,
 								0
 							)
+							const combinedLength = packages
+								.map((pkg: any) => Number(pkg.length))
+								.filter((value: number) => Number.isFinite(value) && value > 0)
+							const combinedWidth = packages
+								.map((pkg: any) => Number(pkg.width))
+								.filter((value: number) => Number.isFinite(value) && value > 0)
+							const combinedHeight = packages
+								.map((pkg: any) => Number(pkg.height))
+								.filter((value: number) => Number.isFinite(value) && value > 0)
+
+							// For a single combined package we keep dimensions as max of each axis.
+							// This is a conservative approximation that avoids losing dimensions entirely.
+							const combinedDims = {
+								length: combinedLength.length ? Math.max(...combinedLength) : undefined,
+								width: combinedWidth.length ? Math.max(...combinedWidth) : undefined,
+								height: combinedHeight.length ? Math.max(...combinedHeight) : undefined,
+							}
 							const combinedPackage = {
 								weight: totalWeight,
+								...combinedDims,
 								items: packages.flatMap((pkg: any) => pkg.items || []),
 							}
 
@@ -334,9 +393,9 @@ export default factories.createCoreController(
 								city: deliveryAddress.city,
 							}
 
-							// Если ПВЗ доставка, используем код ПВЗ
+							// Если ПВЗ доставка, передаем код ПВЗ отдельным полем delivery_point
 							if (orderDeliveryType === 'pvz' && cdekPvzCode) {
-								toLocation.code = parseInt(cdekPvzCode, 10) || undefined
+								// cdekPvzCode is a PVZ (delivery point) code (string), not a city numeric code
 							} else {
 								// Для доставки до двери нужен адрес
 								toLocation.address = `${deliveryAddress.street}, ${deliveryAddress.house}${
@@ -354,6 +413,9 @@ export default factories.createCoreController(
 									address: cdekService.config.warehouse.address,
 								},
 								to_location: toLocation,
+								...(orderDeliveryType === 'pvz' && cdekPvzCode
+									? { delivery_point: cdekPvzCode }
+									: {}),
 								recipient: {
 									name: customerData.name || 'Получатель',
 									phones: [
@@ -384,6 +446,18 @@ export default factories.createCoreController(
 							orderId: order.id,
 							error: cdekError.message,
 						})
+						try {
+							await strapi.entityService.update('api::order.order', order.id, {
+								data: {
+									cdekStatus: 'CREATION_FAILED',
+								},
+							})
+						} catch (persistError: any) {
+							strapi.log.error('CDEK: Failed to persist creation failure status', {
+								orderId: order.id,
+								error: persistError.message,
+							})
+						}
 						// Order is still created locally, but CDEK integration failed
 					}
 				}
@@ -409,7 +483,7 @@ export default factories.createCoreController(
 		async findOne(ctx) {
 			try {
 				const { id } = ctx.params
-				const userId = await this.resolveUserId(ctx)
+				const userId = await resolveUserId(strapi, ctx)
 
 				if (!userId) {
 					ctx.status = 401

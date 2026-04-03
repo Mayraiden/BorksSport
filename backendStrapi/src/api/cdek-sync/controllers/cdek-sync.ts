@@ -1,5 +1,43 @@
 import type { Core } from '@strapi/strapi'
 
+const mapCdekStatusToOrderStatus = (
+	rawStatus: unknown
+): 'shipped' | 'delivered' | undefined => {
+	const value = String(rawStatus ?? '').trim()
+	if (!value) return undefined
+
+	const normalized = value.toLowerCase()
+
+	// Delivered / handed to recipient
+	if (
+		normalized.includes('delivered') ||
+		normalized.includes('handed') ||
+		normalized.includes('received') ||
+		normalized.includes('вручен') ||
+		normalized.includes('доставлен')
+	) {
+		return 'delivered'
+	}
+
+	// In transit / shipped / accepted
+	if (
+		normalized.includes('shipped') ||
+		normalized.includes('in_transit') ||
+		normalized.includes('transit') ||
+		normalized.includes('accepted') ||
+		normalized.includes('created') ||
+		normalized.includes('pickup') ||
+		normalized.includes('передан') ||
+		normalized.includes('принят') ||
+		normalized.includes('в пути') ||
+		normalized.includes('отправ')
+	) {
+		return 'shipped'
+	}
+
+	return undefined
+}
+
 export default ({ strapi }: { strapi: Core.Strapi }) => ({
 	/**
 	 * Тест авторизации в СДЭК
@@ -267,10 +305,14 @@ export default ({ strapi }: { strapi: Core.Strapi }) => ({
 				})
 
 				if (order.length > 0) {
+					const nextCdekStatus = webhookData.entity.status
+					const mappedOrderStatus = mapCdekStatusToOrderStatus(nextCdekStatus)
+
 					// Обновляем статус заказа
 					await strapi.entityService.update('api::order.order', order[0].id, {
 						data: {
-							cdekStatus: webhookData.entity.status,
+							cdekStatus: nextCdekStatus,
+							...(mappedOrderStatus ? { status: mappedOrderStatus } : {}),
 							// Дополнительные поля по необходимости
 						},
 					})

@@ -2,7 +2,6 @@
 
 import { useState, useMemo, useEffect } from 'react'
 import { ICatalogModalColumn } from '@/shared/ui/ICatalogModalColumn'
-import Link from 'next/link'
 import { useMainCategories } from '@/features/Filters/lib/useCategories'
 import type { MainCategory } from '@/features/Filters/api/categoryApi'
 
@@ -63,8 +62,7 @@ export const CatalogModal = ({ isOpen, onClose }: ICatalogModalProps) => {
 	// Обработчик наведения на категорию
 	const handleCategoryHover = (
 		category: MainCategory,
-		level: number,
-		e: React.MouseEvent
+		level: number
 	) => {
 		// Обрезаем путь до текущего уровня и добавляем новую категорию
 		const newPath = selectedPath.slice(0, level)

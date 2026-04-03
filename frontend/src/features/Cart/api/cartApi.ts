@@ -63,6 +63,11 @@ const transformApiProduct = (apiProduct: ApiProduct): Product => {
 		},
 		size: apiProduct.size || null,
 		color: apiProduct.color || null,
+		weight: apiProduct.weight ?? null,
+		length: apiProduct.length ?? null,
+		width: apiProduct.width ?? null,
+		height: apiProduct.height ?? null,
+		stock: apiProduct.stock ?? null,
 	}
 }
 

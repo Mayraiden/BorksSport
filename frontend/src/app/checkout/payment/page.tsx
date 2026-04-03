@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { checkoutApi } from '@/features/Checkout/api/checkoutApi'
 import { useAuthStore } from '@/features/Auth/model/store'
+import { isEmailAuthDisabled } from '@/shared/config/emailAuth'
 import type {
 	PaymentSessionResponse,
 	PaymentStatus,
@@ -35,6 +36,9 @@ const PaymentPageContent = () => {
 	const searchParams = useSearchParams()
 	const router = useRouter()
 	const { jwt, isAuthenticated } = useAuthStore()
+	const isEmailConfirmed = useAuthStore((state) =>
+		isEmailAuthDisabled() ? true : !!state.user?.confirmed
+	)
 
 	const orderIdParam = searchParams.get('orderId')
 	const paymentIdParam = searchParams.get('paymentId')
@@ -99,6 +103,10 @@ const PaymentPageContent = () => {
 			}
 			return
 		}
+		if (!isEmailConfirmed) {
+			setError('Подтвердите email, чтобы пользоваться оплатой.')
+			return
+		}
 
 		try {
 			setIsRefreshing(true)
@@ -132,7 +140,7 @@ const PaymentPageContent = () => {
 		} finally {
 			setIsRefreshing(false)
 		}
-	}, [jwt, paymentId, persistSession])
+	}, [isEmailConfirmed, jwt, paymentId, persistSession])
 
 	useEffect(() => {
 		if (!isAuthenticated || !paymentId) {
@@ -264,9 +272,9 @@ const PaymentPageContent = () => {
 						<button
 							type="button"
 							onClick={handleOpenPayment}
-							disabled={!session?.paymentUrl}
+							disabled={!session?.paymentUrl || !isEmailConfirmed}
 							className={`flex-1 py-3 max-sm:py-2.5 px-4 max-sm:px-3 rounded-md text-white text-sm max-sm:text-xs transition-colors ${
-								session?.paymentUrl
+								session?.paymentUrl && isEmailConfirmed
 									? 'bg-[#7B1931] hover:bg-[#6a1529]'
 									: 'bg-gray-300 cursor-not-allowed'
 							}`}
@@ -276,7 +284,7 @@ const PaymentPageContent = () => {
 						<button
 							type="button"
 							onClick={refreshStatus}
-							disabled={isRefreshing || !isAuthenticated}
+							disabled={isRefreshing || !isAuthenticated || !isEmailConfirmed}
 							className={`flex-1 py-3 max-sm:py-2.5 px-4 max-sm:px-3 rounded-md text-sm max-sm:text-xs transition-colors border ${
 								isRefreshing
 									? 'border-gray-200 text-gray-400 bg-gray-100 cursor-wait'
@@ -285,6 +293,17 @@ const PaymentPageContent = () => {
 						>
 							{isRefreshing ? 'Обновление...' : 'Проверить статус'}
 						</button>
+					</div>
+				)}
+
+				{!isEmailConfirmed && (
+					<div className="bg-yellow-50 border border-yellow-200 text-yellow-800 p-4 max-sm:p-3 rounded-md text-sm max-sm:text-xs">
+						Подтвердите email, чтобы продолжить оплату.
+						<div className="mt-2">
+							<Link className="underline" href="/auth/confirm-email">
+								Перейти к подтверждению email
+							</Link>
+						</div>
 					</div>
 				)}
 
