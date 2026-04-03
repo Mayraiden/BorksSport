@@ -24,20 +24,11 @@ export default {
    * run jobs, or perform some special logic.
    */
   async bootstrap({ strapi }: { strapi: Core.Strapi }) {
-    if (!strapi.plugins['email']) {
-      strapi.log.warn('Email plugin is not loaded. Email confirmation will not work.');
-      return;
-    }
-
-    if (isEmailAuthDisabled()) {
-      strapi.log.warn('EMAIL_AUTH_DISABLED is enabled. Email confirmation is turned off.');
-    }
-
     const frontendUrlRaw =
       process.env.FRONTEND_URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
     const frontendUrl = frontendUrlRaw.replace(/\/+$/, '');
 
-    // Synchronize users-permissions advanced auth settings across environments.
+    // Synchronize users-permissions advanced auth settings even если плагин email выключен (см. config/plugins.ts).
     const advancedStore = strapi.store({
       type: 'plugin',
       name: 'users-permissions',
@@ -53,6 +44,15 @@ export default {
         email_confirmation_redirection: `${frontendUrl}/auth/confirm-email?status=success`,
       },
     });
+
+    if (isEmailAuthDisabled()) {
+      strapi.log.warn('EMAIL_AUTH_DISABLED: плагин email отключён, подтверждение по почте выключено в advanced store.');
+    }
+
+    if (!strapi.plugins['email']) {
+      strapi.log.warn('Email plugin is not loaded. Skipping email templates / Mailgun settings.');
+      return;
+    }
 
     const emailStore = strapi.store({
       type: 'plugin',

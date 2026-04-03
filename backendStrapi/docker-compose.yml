@@ -49,6 +49,9 @@ services:
       TRANSFER_TOKEN_SALT: ${TRANSFER_TOKEN_SALT:-toBeModified}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:-toBeModified}
       ADMIN_COOKIE_SECURE: 'true'
+      # При EMAIL_AUTH_DISABLED=1 плагин email отключается в config/plugins.ts (Strapi не требует Mailgun при старте).
+      EMAIL_AUTH_DISABLED: ${EMAIL_AUTH_DISABLED:-}
+
       MAILGUN_API_KEY: ${MAILGUN_API_KEY:-}
       MAILGUN_DOMAIN: ${MAILGUN_DOMAIN:-}
       MAILGUN_URL: ${MAILGUN_URL:-https://api.mailgun.net}

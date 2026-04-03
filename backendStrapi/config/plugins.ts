@@ -1,5 +1,10 @@
+const isEmailAuthDisabled = (env: (key: string, defaultValue?: string) => string | undefined) => {
+	const raw = env('EMAIL_AUTH_DISABLED')
+	return raw === '1' || raw === 'true' || raw === 'yes'
+}
+
 export default ({ env }) => {
-	return {
+	const usersPermissions = {
 		'users-permissions': {
 			config: {
 				jwtSecret: env('JWT_SECRET'),
@@ -9,6 +14,20 @@ export default ({ env }) => {
 				},
 			},
 		},
+	}
+
+	// При EMAIL_AUTH_DISABLED плагин email не грузим — иначе Mailgun-провайдер падает без API key при старте.
+	if (isEmailAuthDisabled(env)) {
+		return {
+			...usersPermissions,
+			email: {
+				enabled: false,
+			},
+		}
+	}
+
+	return {
+		...usersPermissions,
 		email: {
 			config: {
 				provider: 'mailgun',
