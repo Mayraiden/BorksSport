@@ -446,31 +446,6 @@ export default factories.createCoreController(
 					)
 				}
 
-				// Подсчитываем общее количество товаров с примененными фильтрами
-				// Примечание: total будет подсчитан до дедупликации, но это не критично
-				// так как дедупликация происходит после получения данных
-				const total = await strapi.entityService.count('api::product.product', {
-					filters,
-				})
-				
-				// Проверяем, правильно ли работает фильтр rootCategoryName
-				if (filters.rootCategoryName) {
-					// Делаем тестовый запрос для проверки
-					const rootCategoryFilter = filters.rootCategoryName
-					const testCount = await strapi.entityService.count('api::product.product', {
-						filters: {
-							published: true,
-							rootCategoryName: rootCategoryFilter,
-						},
-					})
-					const filterValue = typeof rootCategoryFilter === 'object' && rootCategoryFilter.$eq 
-						? rootCategoryFilter.$eq 
-						: JSON.stringify(rootCategoryFilter)
-					strapi.log.info(
-						`[Product Controller] Test count with rootCategoryName="${filterValue}": ${testCount}`
-					)
-				}
-
 				// Дедупликация: группируем товары по model (CommerceML вариации).
 				// Если model отсутствует — не группируем (каждый товар = отдельная карточка).
 				// В каталоге показываем только один товар из группы (представитель)
@@ -534,9 +509,8 @@ export default factories.createCoreController(
 				// Используем количество уникальных товаров для более точной пагинации
 				const uniqueTotal = uniqueProducts.length
 
-				// Логируем финальный ответ перед отправкой
 				strapi.log.info(
-					`[Product Controller] Sending response: ${normalizedProducts.length} products (page), unique total=${uniqueTotal}, original total=${total}`
+					`[Product Controller] Sending response: ${normalizedProducts.length} products (page), unique total=${uniqueTotal}`
 				)
 
 				ctx.body = {
@@ -600,17 +574,7 @@ export default factories.createCoreController(
 				return
 			}
 
-			// Проверяем, что товар имеет stock > 0
-			if (!product.stock || product.stock <= 0) {
-				ctx.status = 404
-				ctx.body = {
-					success: false,
-					message: 'Product out of stock',
-				}
-				return
-			}
-
-			// Получаем варианты товара (товары с тем же sbisNomNumber или article)
+			// Получаем варианты товара (товары с тем же model)
 			const variants = await strapi
 				.service('api::product.product')
 				.findVariants(product)
