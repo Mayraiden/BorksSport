@@ -1,5 +1,9 @@
 import type { Core } from '@strapi/strapi'
 
+const webhookRateLimit = new Map<string, { count: number; windowStart: number }>()
+const WEBHOOK_WINDOW_MS = 60_000
+const WEBHOOK_MAX_PER_WINDOW = 120
+
 const mapCdekStatusToOrderStatus = (
 	rawStatus: unknown
 ): 'shipped' | 'delivered' | undefined => {
@@ -291,7 +295,39 @@ export default ({ strapi }: { strapi: Core.Strapi }) => ({
 	 */
 	async webhook(ctx: any) {
 		try {
+			const ip = ctx.request.ip || ctx.request.ips?.[0] || 'unknown'
+			const now = Date.now()
+			const entry = webhookRateLimit.get(ip)
+			if (!entry || now - entry.windowStart > WEBHOOK_WINDOW_MS) {
+				webhookRateLimit.set(ip, { count: 1, windowStart: now })
+			} else {
+				entry.count += 1
+				if (entry.count > WEBHOOK_MAX_PER_WINDOW) {
+					ctx.status = 429
+					ctx.body = { success: false, message: 'Too many webhook requests' }
+					return
+				}
+			}
+
+			const expectedToken = process.env.CDEK_WEBHOOK_TOKEN
+			if (expectedToken) {
+				const token = String(ctx.request.query?.token || '').trim()
+				if (!token || token !== expectedToken) {
+					ctx.status = 401
+					ctx.body = { success: false, message: 'Unauthorized webhook' }
+					return
+				}
+			}
+
 			const webhookData = ctx.request.body
+			const uuid = webhookData?.entity?.uuid
+			const status = webhookData?.entity?.status
+
+			if (!uuid || typeof uuid !== 'string') {
+				ctx.status = 400
+				ctx.body = { success: false, message: 'Invalid webhook payload: missing entity.uuid' }
+				return
+			}
 
 			strapi.log.info('CDEK Webhook received', webhookData)
 
@@ -299,13 +335,13 @@ export default ({ strapi }: { strapi: Core.Strapi }) => ({
 			// Здесь можно обновить статус заказа в базе данных
 			// Пример: обновление статуса заказа по UUID
 
-			if (webhookData.entity?.uuid) {
+			if (uuid) {
 				const order = await strapi.entityService.findMany('api::order.order', {
-					filters: { cdekOrderUuid: webhookData.entity.uuid },
+					filters: { cdekOrderUuid: uuid },
 				})
 
 				if (order.length > 0) {
-					const nextCdekStatus = webhookData.entity.status
+					const nextCdekStatus = status
 					const mappedOrderStatus = mapCdekStatusToOrderStatus(nextCdekStatus)
 
 					// Обновляем статус заказа

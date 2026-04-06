@@ -150,6 +150,24 @@ interface CDEKTokenCache {
 	expiresAt: number
 }
 
+type CDEKWebhookType =
+	| 'ORDER_STATUS'
+	| 'ORDER_MODIFIED'
+	| 'PRINT_FORM'
+	| 'RECEIPT'
+	| 'PREALERT_CLOSED'
+	| 'ACCOMPANYING_WAYBILL'
+	| 'OFFICE_AVAILABILITY'
+	| 'DELIV_PROBLEM'
+	| 'DELIV_AGREEMENT'
+	| 'COURIER_INFO'
+
+type CDEKWebhookSubscription = {
+	uuid: string
+	type: CDEKWebhookType
+	url: string
+}
+
 /**
  * Сервис для работы с API СДЭК
  */
@@ -248,6 +266,9 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 			)
 		}
 	}
+
+	const webhookStore = strapi.store({ type: 'app', name: 'cdek' })
+	const WEBHOOK_STORE_KEY = 'webhookSubscriptions'
 
 	/**
 	 * Поиск города (вспомогательная функция)
@@ -405,6 +426,52 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 					`Failed to track order: ${error.response?.data?.error_description || error.message}`
 				)
 			}
+		},
+
+		/**
+		 * Получить зарегистрированные webhook подписки (из CDEK API).
+		 */
+		async listWebhooks(): Promise<CDEKWebhookSubscription[]> {
+			const result = await apiRequest<CDEKWebhookSubscription[]>('GET', '/webhooks')
+			return Array.isArray(result) ? result : []
+		},
+
+		/**
+		 * Создать webhook подписку в CDEK API.
+		 * NOTE: CDEK допускает несколько подписок одного типа.
+		 */
+		async createWebhook(type: CDEKWebhookType, url: string): Promise<{ uuid: string } | null> {
+			if (!type || !url) return null
+			const response = await apiRequest<any>('POST', '/webhooks', { type, url })
+			const uuid = response?.entity?.uuid
+			if (typeof uuid === 'string' && uuid.length > 10) {
+				return { uuid }
+			}
+			return null
+		},
+
+		/**
+		 * Удалить webhook подписку в CDEK API.
+		 */
+		async deleteWebhook(uuid: string): Promise<boolean> {
+			if (!uuid) return false
+			await apiRequest<any>('DELETE', `/webhooks/${uuid}`)
+			return true
+		},
+
+		/**
+		 * Сохранить UUID подписок локально (в Strapi store) для удобного управления.
+		 */
+		async saveWebhookUuids(entries: Array<{ type: CDEKWebhookType; uuid: string }>): Promise<void> {
+			await webhookStore.set({ key: WEBHOOK_STORE_KEY, value: entries })
+		},
+
+		/**
+		 * Прочитать сохраненные UUID подписок (если есть).
+		 */
+		async getSavedWebhookUuids(): Promise<Array<{ type: CDEKWebhookType; uuid: string }>> {
+			const value = await webhookStore.get({ key: WEBHOOK_STORE_KEY })
+			return Array.isArray(value) ? (value as any) : []
 		},
 
 		/**
