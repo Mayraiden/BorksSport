@@ -1,0 +1,51 @@
+{
+	"kind": "singleType",
+	"collectionName": "footer_settings",
+	"info": {
+		"singularName": "footer-settings",
+		"pluralName": "footer-settings-items",
+		"displayName": "Footer Settings",
+		"description": "Юридические данные и контакты компании для футера"
+	},
+	"options": {
+		"draftAndPublish": false
+	},
+	"attributes": {
+		"companyName": {
+			"type": "string",
+			"required": false
+		},
+		"inn": {
+			"type": "string",
+			"required": false
+		},
+		"ogrn": {
+			"type": "string",
+			"required": false
+		},
+		"legalAddress": {
+			"type": "text",
+			"required": false
+		},
+		"phone": {
+			"type": "string",
+			"required": false
+		},
+		"telegramUrl": {
+			"type": "string",
+			"required": false
+		},
+		"telegramLabel": {
+			"type": "string",
+			"required": false
+		},
+		"physicalAddress": {
+			"type": "text",
+			"required": false
+		},
+		"copyrightText": {
+			"type": "string",
+			"required": false
+		}
+	}
+}
