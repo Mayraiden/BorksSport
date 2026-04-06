@@ -59,8 +59,8 @@ export default ({ strapi }: { strapi: Core.Strapi }) => ({
 					authenticated: !!token,
 					config: {
 						apiUrl: config.apiUrl,
-						testMode: config.testMode,
 						hasCredentials: config.hasCredentials,
+						warehouseConfigured: config.warehouseConfigured,
 					},
 				},
 			}

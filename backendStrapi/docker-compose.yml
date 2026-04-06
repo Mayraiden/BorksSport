@@ -78,11 +78,14 @@ services:
       COMMERCEML_BASIC_AUTH_PASSWORD: ${COMMERCEML_BASIC_AUTH_PASSWORD:-}
       COMMERCEML_LOG_REQUESTS: ${COMMERCEML_LOG_REQUESTS:-false}
 
-      # CDEK Integration
-      CDEK_API_URL: ${CDEK_API_URL:-https://api.edu.cdek.ru/v2}
+      # CDEK Integration (боевой API по умолчанию; для api.edu.cdek.ru задайте CDEK_API_URL)
+      CDEK_API_URL: ${CDEK_API_URL:-https://api.cdek.ru/v2}
       CDEK_CLIENT_ID: ${CDEK_CLIENT_ID:-}
       CDEK_CLIENT_SECRET: ${CDEK_CLIENT_SECRET:-}
-      CDEK_TEST_MODE: ${CDEK_TEST_MODE:-false}
+      CDEK_WAREHOUSE_CITY: ${CDEK_WAREHOUSE_CITY:-}
+      CDEK_WAREHOUSE_ADDRESS: ${CDEK_WAREHOUSE_ADDRESS:-}
+      CDEK_WAREHOUSE_PHONE: ${CDEK_WAREHOUSE_PHONE:-}
+      CDEK_WAREHOUSE_NAME: ${CDEK_WAREHOUSE_NAME:-}
 
       # Tochka Pay Integration (опционально)
       TOCHKA_PAY_BASE_URL: ${TOCHKA_PAY_BASE_URL:-}

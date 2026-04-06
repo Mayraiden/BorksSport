@@ -168,23 +168,30 @@ type CDEKWebhookSubscription = {
 	url: string
 }
 
+/** Боевой API v2; тестовая среда — только через `CDEK_API_URL=https://api.edu.cdek.ru/v2` в .env */
+const DEFAULT_CDEK_API_URL = 'https://api.cdek.ru/v2'
+
+function normalizeCdekApiUrl(raw: string | undefined): string {
+	const base = (raw?.trim() || DEFAULT_CDEK_API_URL).replace(/\/+$/, '')
+	return base
+}
+
 /**
  * Сервис для работы с API СДЭК
  */
 export default ({ strapi }: { strapi: Core.Strapi }) => {
 	// Конфигурация из переменных окружения
 	const config = {
-		apiUrl: process.env.CDEK_API_URL || 'https://api.edu.cdek.ru/v2',
-		clientId: process.env.CDEK_CLIENT_ID || '',
-		clientSecret: process.env.CDEK_CLIENT_SECRET || '',
-		testMode: process.env.CDEK_TEST_MODE === 'true',
+		apiUrl: normalizeCdekApiUrl(process.env.CDEK_API_URL),
+		clientId: process.env.CDEK_CLIENT_ID?.trim() || '',
+		clientSecret: process.env.CDEK_CLIENT_SECRET?.trim() || '',
 		timeout: 30000,
-		// Тестовые данные склада
+		/** Склад отправителя (обязательно задать в .env для продакшена) */
 		warehouse: {
-			address: 'г. Москва, ул. Тестовая, д. 1',
-			city: 'Москва',
-			phone: '+79999999999',
-			name: 'Тестовый склад',
+			city: process.env.CDEK_WAREHOUSE_CITY?.trim() || '',
+			address: process.env.CDEK_WAREHOUSE_ADDRESS?.trim() || '',
+			phone: process.env.CDEK_WAREHOUSE_PHONE?.trim() || '',
+			name: process.env.CDEK_WAREHOUSE_NAME?.trim() || '',
 		},
 	}
 
@@ -200,14 +207,22 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 			return tokenCache.token
 		}
 
+		if (!config.clientId || !config.clientSecret) {
+			throw new Error(
+				'CDEK: задайте CDEK_CLIENT_ID и CDEK_CLIENT_SECRET в переменных окружения'
+			)
+		}
+
 		try {
+			const body = new URLSearchParams({
+				grant_type: 'client_credentials',
+				client_id: config.clientId,
+				client_secret: config.clientSecret,
+			})
+
 			const response = await axios.post<CDEKAccessToken>(
 				`${config.apiUrl}/oauth/token`,
-				{
-					grant_type: 'client_credentials',
-					client_id: config.clientId,
-					client_secret: config.clientSecret,
-				},
+				body,
 				{
 					headers: {
 						'Content-Type': 'application/x-www-form-urlencoded',
@@ -336,6 +351,11 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 			packages: CDEKPackage[],
 			tariffCode?: number
 		): Promise<CDEKCalculationResponse> {
+			if (!config.warehouse.city || !config.warehouse.address) {
+				strapi.log.warn(
+					'CDEK: задайте CDEK_WAREHOUSE_CITY и CDEK_WAREHOUSE_ADDRESS — иначе расчёт откуда некорректен'
+				)
+			}
 			// Если передан только название города, нужно найти код города
 			let toLocationWithCode = { ...toLocation }
 			if (toLocation.city && !toLocation.code) {
@@ -480,8 +500,8 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 		getConfig() {
 			return {
 				apiUrl: config.apiUrl,
-				testMode: config.testMode,
 				hasCredentials: !!config.clientId && !!config.clientSecret,
+				warehouseConfigured: !!(config.warehouse.city && config.warehouse.address),
 			}
 		},
 	}
