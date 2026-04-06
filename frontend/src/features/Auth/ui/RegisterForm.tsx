@@ -8,7 +8,7 @@ import { PasswordInput } from '@/shared/ui/PasswordInput'
 import { Checkbox } from '@/shared/ui/Checkbox'
 
 //hooks
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useRegister } from '../lib/queries'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -18,6 +18,15 @@ import {
 } from '@/shared/lib/validations/auth'
 import { useAuthStore } from '../model/store'
 import { isEmailAuthDisabled } from '@/shared/config/emailAuth'
+
+const getSafeNextPath = (raw: string | null): string | null => {
+	if (!raw) return null
+	// Only allow same-origin relative paths to prevent open redirects.
+	if (!raw.startsWith('/')) return null
+	if (raw.startsWith('//')) return null
+	if (raw.includes('://')) return null
+	return raw
+}
 
 // Функция для форматирования телефона с маской +7
 const formatPhoneNumber = (value: string): string => {
@@ -85,6 +94,7 @@ export const RegisterForm = () => {
 	const { mutate: registerUser, isPending } = useRegister()
 	const { error } = useAuthStore()
 	const router = useRouter()
+	const searchParams = useSearchParams()
 
 	const agreement = watch('agreement')
 	const privacy = watch('privacy')
@@ -94,10 +104,15 @@ export const RegisterForm = () => {
 		registerUser(data, {
 			onSuccess: () => {
 				if (isEmailAuthDisabled()) {
-					router.push('/')
+					const next = getSafeNextPath(searchParams.get('next'))
+					router.push(next ?? '/')
 					return
 				}
-				router.push(`/auth/confirm-email?email=${encodeURIComponent(data.email)}`)
+				const next = getSafeNextPath(searchParams.get('next'))
+				const params = new URLSearchParams()
+				params.set('email', data.email)
+				if (next) params.set('next', next)
+				router.push(`/auth/confirm-email?${params.toString()}`)
 			},
 			onError: () => {
 				// Ошибка обрабатывается через useAuthStore

@@ -2,7 +2,7 @@
 
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { loginSchema, type LoginFormData } from '@/shared/lib/validations/auth'
 import { IInput } from '@/shared/ui/IInput'
 import { AuthButton } from '@/shared/ui/AuthButton'
@@ -11,8 +11,18 @@ import { PasswordInput } from '@/shared/ui/PasswordInput'
 import { useLogin } from '../lib/queries'
 import { useAuthStore } from '../model/store'
 
+const getSafeNextPath = (raw: string | null): string | null => {
+	if (!raw) return null
+	// Only allow same-origin relative paths to prevent open redirects.
+	if (!raw.startsWith('/')) return null
+	if (raw.startsWith('//')) return null
+	if (raw.includes('://')) return null
+	return raw
+}
+
 export const LoginForm = () => {
 	const router = useRouter()
+	const searchParams = useSearchParams()
 	const { mutate: loginUser, isPending } = useLogin()
 	const { error } = useAuthStore()
 
@@ -27,7 +37,8 @@ export const LoginForm = () => {
 	const handleLogin = (data: LoginFormData) => {
 		loginUser(data, {
 			onSuccess: () => {
-				router.push('/profile')
+				const next = getSafeNextPath(searchParams.get('next'))
+				router.push(next ?? '/profile')
 			},
 		})
 	}
