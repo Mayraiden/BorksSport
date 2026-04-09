@@ -455,6 +455,7 @@ export default factories.createCoreController(
 									data: {
 										cdekOrderUuid: cdekOrder.entity.uuid,
 										cdekTariffCode: tariffCode,
+										cdekStatus: 'CREATED',
 									},
 								})
 							}
