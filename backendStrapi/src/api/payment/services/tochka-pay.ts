@@ -47,6 +47,12 @@ interface TochkaPayStatusResponse {
 	raw: unknown
 }
 
+interface TochkaPayRefundResponse {
+	refundId: string
+	status: string
+	raw: unknown
+}
+
 interface TochkaWebhookEvent {
 	eventType: string
 	payload: Record<string, unknown>
@@ -60,6 +66,13 @@ interface TochkaOrderItem {
 	paymentMethod?: string
 	paymentObject?: string
 	measure?: string
+}
+
+interface CreateRefundOptions {
+	operationId: string
+	amount: number
+	reason?: string
+	paymentData?: Record<string, unknown>
 }
 
 function sortKeys(value: unknown): unknown {
@@ -577,6 +590,132 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 				},
 			})
 			throw new Error(`Tochka Pay status error: ${errorMessage}`)
+		}
+	},
+
+	async createRefund(options: CreateRefundOptions): Promise<TochkaPayRefundResponse> {
+		await ensureRetailerContext()
+
+		const operationId = String(options.operationId || '').trim()
+		const amount = Number(options.amount || 0)
+
+		if (!operationId) {
+			throw new Error('Tochka Pay refund error: operationId is required')
+		}
+		if (!Number.isFinite(amount) || amount <= 0) {
+			throw new Error('Tochka Pay refund error: amount must be > 0')
+		}
+
+		const paymentData = options.paymentData || {}
+
+		// Detect payment mode: if lastSession has paymentMode/paymentModes === ['sbp'] then prefer SBP refund endpoint.
+		const lastSession = (paymentData as any)?.lastSession as any
+		const modeFromSession =
+			(lastSession?.Data?.paymentMode as unknown) ||
+			(lastSession?.data?.paymentMode as unknown) ||
+			(lastSession?.Data?.paymentModes as unknown) ||
+			(lastSession?.data?.paymentModes as unknown)
+
+		const paymentModes = Array.isArray(modeFromSession)
+			? (modeFromSession as string[])
+			: typeof modeFromSession === 'string'
+			? parsePaymentModes(modeFromSession, [])
+			: []
+
+		const preferSbp =
+			paymentModes.length === 1 && String(paymentModes[0]).toLowerCase() === 'sbp'
+
+		const headers: Record<string, string> = {
+			'X-Request-ID': randomUUID(),
+		}
+		if (config.apiKey) {
+			headers['X-API-KEY'] = config.apiKey
+		}
+
+		const attemptAcquiringRefund = async () => {
+			const endpoint = `/acquiring/v1.0/payments/${encodeURIComponent(operationId)}/refund`
+			const payload = {
+				Data: {
+					amount: formatAmount(amount),
+					purpose: options.reason || undefined,
+				},
+			}
+			if (process.env.TOCHKA_PAY_DEBUG === 'true') {
+				strapi.log.info('Tochka Pay refund request (acquiring)', {
+					endpoint,
+					operationId,
+					payload,
+				})
+			}
+
+			const response = await http.post(endpoint, payload, { headers })
+			const rawResponse = response.data as Record<string, unknown>
+			const data = (rawResponse?.Data as Record<string, unknown>) || rawResponse
+			const refundId =
+				(data?.refundId as string) ||
+				(data?.refund_id as string) ||
+				(data?.requestId as string) ||
+				(data?.request_id as string) ||
+				operationId
+			const status = (data?.status as string) || 'pending'
+			return { refundId, status, raw: rawResponse }
+		}
+
+		const attemptSbpRefund = async () => {
+			const endpoint = `/sbp/v1.0/refund`
+			const payload = {
+				Data: {
+					transactionId: operationId,
+					amount: formatAmount(amount),
+					purpose: options.reason || undefined,
+				},
+			}
+			if (process.env.TOCHKA_PAY_DEBUG === 'true') {
+				strapi.log.info('Tochka Pay refund request (sbp)', {
+					endpoint,
+					operationId,
+					payload,
+				})
+			}
+			const response = await http.post(endpoint, payload, { headers })
+			const rawResponse = response.data as Record<string, unknown>
+			const data = (rawResponse?.Data as Record<string, unknown>) || rawResponse
+			const refundId =
+				(data?.requestId as string) ||
+				(data?.request_id as string) ||
+				(data?.refundId as string) ||
+				operationId
+			const status = (data?.status as string) || 'pending'
+			return { refundId, status, raw: rawResponse }
+		}
+
+		try {
+			// For SBP-only sessions try SBP endpoint first, then acquiring; otherwise reverse.
+			const primary = preferSbp ? attemptSbpRefund : attemptAcquiringRefund
+			const secondary = preferSbp ? attemptAcquiringRefund : attemptSbpRefund
+
+			try {
+				return await primary()
+			} catch (primaryError: any) {
+				const primaryDetails = primaryError?.response?.data || primaryError?.message
+				strapi.log.warn('Tochka Pay refund primary attempt failed, trying fallback', {
+					preferSbp,
+					operationId,
+					primaryDetails,
+				})
+				return await secondary()
+			}
+		} catch (error: any) {
+			const rawError = error.response?.data || error.message
+			strapi.log.error('Tochka Pay: failed to create refund', {
+				error: rawError,
+				operationId,
+				amount,
+				preferSbp,
+			})
+			const details =
+				typeof rawError === 'string' ? rawError : JSON.stringify(rawError)
+			throw new Error(`Tochka Pay refund error. Details: ${details}`)
 		}
 	},
 

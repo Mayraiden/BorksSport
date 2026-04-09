@@ -3,6 +3,7 @@
 import { use, useEffect, useMemo, useState, useCallback } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
+import Image from 'next/image'
 import { useAuthStore } from '@/features/Auth/model/store'
 import { ProfileLayout } from '@/app/layouts/ProfileLayout'
 import { ordersApi } from '@/features/Orders/api/ordersApi'
@@ -32,6 +33,64 @@ const formatFullDate = (iso: string) => {
 		hour: '2-digit',
 		minute: '2-digit',
 	})
+}
+
+const formatDeliveryType = (value?: OrderEntity['deliveryType'] | null) => {
+	switch (value) {
+		case 'pvz':
+			return 'ПВЗ'
+		case 'door':
+			return 'До двери'
+		case 'pickup':
+			return 'Самовывоз'
+		default:
+			return 'Уточняется'
+	}
+}
+
+const formatPaymentProvider = (value?: OrderEntity['paymentProvider'] | null) => {
+	switch (value) {
+		case 'sbp':
+			return 'СБП'
+		case 'card':
+			return 'Карта'
+		case 'tochka':
+			return 'Точка'
+		default:
+			return value || '—'
+	}
+}
+
+const formatPaymentStatus = (value: PaymentEntity['status']) => {
+	switch (value) {
+		case 'pending':
+			return 'Ожидает оплату'
+		case 'paid':
+			return 'Оплачен'
+		case 'failed':
+			return 'Ошибка оплаты'
+		case 'refunded':
+			return 'Возврат выполнен'
+		default:
+			return String(value)
+	}
+}
+
+const formatRefundStatus = (value?: PaymentEntity['refundStatus'] | null) => {
+	switch (value) {
+		case 'pending':
+			return 'Возврат в обработке'
+		case 'succeeded':
+			return 'Возврат подтверждён'
+		case 'failed':
+			return 'Возврат не выполнен'
+		case 'none':
+		case null:
+		case undefined:
+			return null
+		default:
+			return String(value)
+	}
 }
 
 export default function OrderDetailsPage({ params }: OrderDetailsPageProps) {
@@ -111,6 +170,71 @@ export default function OrderDetailsPage({ params }: OrderDetailsPageProps) {
 		[payments]
 	)
 
+	const latestPayment = useMemo(() => payments[0], [payments])
+	const latestPaidPayment = useMemo(
+		() => payments.find((payment) => payment.status === 'paid'),
+		[payments]
+	)
+
+	const refundStatusText = useMemo(() => {
+		const value = latestPaidPayment?.refundStatus
+		return formatRefundStatus(value)
+	}, [latestPaidPayment?.refundStatus])
+
+	const isRefundPending =
+		latestPaidPayment?.refundStatus === 'pending'
+
+	const canCancelUnpaid =
+		order?.status === 'awaiting_payment' && order.paymentMethod === 'online'
+
+	const canCancelPaid =
+		order?.status === 'paid' &&
+		order.paymentMethod === 'online' &&
+		(latestPaidPayment?.refundStatus === 'none' ||
+			!latestPaidPayment?.refundStatus)
+
+	const handleCancelOrder = useCallback(async () => {
+		if (!jwt || !order) return
+		try {
+			await ordersApi.cancelOrder(order.id, jwt)
+			await loadOrder()
+		} catch (err) {
+			const message = err instanceof Error ? err.message : 'Не удалось отменить заказ.'
+			setError(message)
+		}
+	}, [jwt, order, loadOrder])
+
+	const deliveryAddressText = useMemo(() => {
+		const address = order?.shippingAddress
+		if (!address) return 'Уточняется'
+
+		if (address.type === 'pickup') {
+			return address.pickupAddress?.address || 'Уточняется'
+		}
+
+		if (!('deliveryAddress' in address)) {
+			return 'Уточняется'
+		}
+
+		// PVZ delivery: show selected pickup point address instead of empty street/house.
+		if (address.deliveryOption === 'pickup_point') {
+			const name = address.selectedPvz?.name?.trim()
+			const addr = address.selectedPvz?.address?.trim() || order?.cdekPvzAddress?.trim()
+			if (name && addr) return `${name} — ${addr}`
+			if (addr) return addr
+		}
+
+		const city = (address.deliveryAddress?.city || '').trim()
+		const street = (address.deliveryAddress?.street || '').trim()
+		const house = (address.deliveryAddress?.house || '').trim()
+		const apartment = (address.deliveryAddress?.apartment || '').trim()
+
+		const parts = [city, street, house ? `д. ${house}` : '', apartment ? `кв. ${apartment}` : ''].filter(
+			(v) => v.length > 0
+		)
+		return parts.length ? parts.join(', ') : 'Адрес доставки уточняется'
+	}, [order])
+
 	return (
 		<ProfileLayout>
 			<div className="flex flex-col gap-5 max-sm:gap-3 pt-2.5 max-sm:pt-2">
@@ -173,37 +297,28 @@ export default function OrderDetailsPage({ params }: OrderDetailsPageProps) {
 									</p>
 									{order.paymentProvider && (
 										<p className="text-xs max-sm:text-[10px] text-gray-400">
-											Провайдер: {order.paymentProvider === 'tochka' ? 'Точка банк' : order.paymentProvider}
+											Способ: {formatPaymentProvider(order.paymentProvider)}
+										</p>
+									)}
+									{latestPayment && (
+										<p className="text-xs max-sm:text-[10px] text-gray-400">
+											Статус оплаты: {formatPaymentStatus(latestPayment.status)}
+											{refundStatusText ? ` • ${refundStatusText}` : ''}
 										</p>
 									)}
 								</div>
 								{order.shippingAddress && (
 									<div className="md:col-span-2">
-										<p className="font-medium text-black">Адрес доставки</p>
+										<p className="font-medium text-black">Доставка</p>
 										<p className="mt-1 max-sm:mt-0.5 text-sm max-sm:text-xs text-gray-600">
-											{order.shippingAddress.type === 'pickup'
-												? order.shippingAddress.pickupAddress.address
-												: (() => {
-													const address = order.shippingAddress
-													if ('deliveryAddress' in address) {
-														// PVZ delivery: show selected pickup point address instead of empty street/house.
-														if (
-															address.deliveryOption === 'pickup_point' &&
-															address.selectedPvz?.address
-														) {
-															return address.selectedPvz.address
-														}
-														const { street, house, apartment } = address.deliveryAddress
-														const streetValue = (street || '').trim()
-														const houseValue = (house || '').trim()
-														if (!streetValue && !houseValue) {
-															return 'Адрес доставки уточняется'
-														}
-														return `${streetValue}${streetValue && houseValue ? ', ' : ''}${houseValue}${apartment ? `, кв. ${apartment}` : ''}`
-													}
-													return 'Адрес доставки уточняется'
-												})()}
+											{formatDeliveryType(order.deliveryType)} • {deliveryAddressText}
 										</p>
+										{order.cdekStatus && (
+											<p className="text-xs max-sm:text-[10px] text-gray-400 mt-1">
+												CDEK: {order.cdekStatus}
+												{order.cdekTrackNumber ? ` • трек ${order.cdekTrackNumber}` : ''}
+											</p>
+										)}
 									</div>
 								)}
 								{order.notes && (
@@ -213,6 +328,46 @@ export default function OrderDetailsPage({ params }: OrderDetailsPageProps) {
 									</div>
 								)}
 							</div>
+
+							{canCancelUnpaid && (
+								<div className="mt-4 max-sm:mt-3">
+									<button
+										type="button"
+										onClick={handleCancelOrder}
+										className="px-4 py-2 max-sm:px-3 max-sm:py-1.5 text-xs max-sm:text-[10px] border border-red-300 text-red-700 rounded-md hover:bg-red-50"
+									>
+										Отменить заказ
+									</button>
+									<p className="text-xs max-sm:text-[10px] text-gray-500 mt-2">
+										Отмена доступна до оплаты.
+									</p>
+								</div>
+							)}
+
+							{order.status === 'paid' && order.paymentMethod === 'online' && (
+								<div className="mt-4 max-sm:mt-3">
+									<button
+										type="button"
+										onClick={handleCancelOrder}
+										disabled={!canCancelPaid || isRefundPending}
+										className="px-4 py-2 max-sm:px-3 max-sm:py-1.5 text-xs max-sm:text-[10px] border border-red-300 text-red-700 rounded-md hover:bg-red-50 disabled:opacity-60 disabled:cursor-not-allowed"
+									>
+										Отменить заказ и оформить возврат
+									</button>
+									<p className="text-xs max-sm:text-[10px] text-gray-500 mt-2">
+										{refundStatusText
+											? refundStatusText
+											: 'После отмены деньги будут возвращены тем же способом оплаты.'}
+									</p>
+								</div>
+							)}
+
+							{order.status === 'cancelled' && (order.cancelledAt || order.cancelReason) && (
+								<div className="mt-4 max-sm:mt-3 text-xs max-sm:text-[10px] text-gray-500">
+									{order.cancelReason ? <p>Причина: {order.cancelReason}</p> : null}
+									{order.cancelledAt ? <p>Дата: {formatFullDate(order.cancelledAt)}</p> : null}
+								</div>
+							)}
 						</div>
 
 						<div className="bg-white rounded-md p-5 max-sm:p-4 border border-gray-100 shadow-sm">
@@ -221,13 +376,28 @@ export default function OrderDetailsPage({ params }: OrderDetailsPageProps) {
 								{order.items.map((item) => (
 									<div
 										key={`${order.id}-${item.productId}`}
-										className="flex justify-between gap-3 max-sm:gap-2 text-sm max-sm:text-xs text-gray-700"
+										className="flex items-start justify-between gap-3 max-sm:gap-2 text-sm max-sm:text-xs text-gray-700"
 									>
-										<div className="flex-1 min-w-0">
+										<div className="flex items-start gap-3 max-sm:gap-2 flex-1 min-w-0">
+											{item.image ? (
+												<div className="relative w-14 h-14 max-sm:w-12 max-sm:h-12 rounded-md overflow-hidden border border-gray-100 bg-gray-50 flex-shrink-0">
+													<Image
+														src={item.image}
+														alt={item.name}
+														fill
+														sizes="56px"
+														className="object-cover"
+													/>
+												</div>
+											) : (
+												<div className="w-14 h-14 max-sm:w-12 max-sm:h-12 rounded-md border border-gray-100 bg-gray-50 flex-shrink-0" />
+											)}
+											<div className="min-w-0">
 											<p className="text-black font-medium">{item.name}</p>
 											<p className="text-xs max-sm:text-[10px] text-gray-400">
 												{item.quantity} × {formatCurrency(item.price)}
 											</p>
+											</div>
 										</div>
 										<p className="font-semibold text-black flex-shrink-0">
 											{formatCurrency(item.subtotal)}
@@ -257,13 +427,10 @@ export default function OrderDetailsPage({ params }: OrderDetailsPageProps) {
 													{formatCurrency(payment.amount)} ({payment.currency || 'RUB'})
 												</p>
 												<p className="text-xs max-sm:text-[10px] text-gray-400">
-													Статус: {payment.status === 'pending'
-														? 'Ожидает оплату'
-														: payment.status === 'paid'
-														? 'Оплачен'
-														: payment.status === 'failed'
-														? 'Ошибка оплаты'
-														: 'Возврат'}
+													Статус: {formatPaymentStatus(payment.status)}
+													{formatRefundStatus(payment.refundStatus)
+														? ` • ${formatRefundStatus(payment.refundStatus)}`
+														: ''}
 												</p>
 											</div>
 											{payment.paymentUrl && payment.status === 'pending' && (

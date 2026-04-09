@@ -32,5 +32,15 @@ export default {
 				middlewares: [],
 			},
 		},
+		{
+			method: 'POST',
+			path: '/orders/:id/cancel',
+			handler: 'order.cancel',
+			config: {
+				auth: false,
+				policies: [],
+				middlewares: [],
+			},
+		},
 	],
 }

@@ -60,6 +60,20 @@
 		"paymentData": {
 			"type": "json"
 		},
+		"refundId": {
+			"type": "string"
+		},
+		"refundStatus": {
+			"type": "enumeration",
+			"enum": ["none", "pending", "succeeded", "failed"],
+			"default": "none"
+		},
+		"refundedAt": {
+			"type": "datetime"
+		},
+		"refundData": {
+			"type": "json"
+		},
 		"createdAt": {
 			"type": "datetime"
 		},

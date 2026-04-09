@@ -1,4 +1,5 @@
 import { factories } from '@strapi/strapi'
+import { verifyAdminJWT } from '../../../shared/helpers/verifyAdminJWT'
 
 const isEmailAuthDisabled = () => {
 	const raw = process.env.EMAIL_AUTH_DISABLED
@@ -354,6 +355,7 @@ export default factories.createCoreController(
 								const totalWeight = productWeight * product.quantity
 
 								return {
+									number: `pkg-${orderNumber}-${product.id}`,
 									weight: totalWeight,
 									// Catalog stores dimensions in millimeters; CDEK expects centimeters.
 									length: mmToCmInt(product.length),
@@ -363,8 +365,10 @@ export default factories.createCoreController(
 										{
 											name: product.name,
 											ware_key: product.article || product.id.toString(),
+											cost: Number(product.price || 0),
 											payment: {
-												value: product.price * product.quantity,
+												// COD amount. For online payment should be 0.
+												value: 0,
 											},
 											weight: totalWeight,
 											amount: product.quantity,
@@ -396,6 +400,7 @@ export default factories.createCoreController(
 								height: combinedHeight.length ? Math.max(...combinedHeight) : undefined,
 							}
 							const combinedPackage = {
+								number: `pkg-${orderNumber}`,
 								weight: totalWeight,
 								...combinedDims,
 								items: packages.flatMap((pkg: any) => pkg.items || []),
@@ -536,6 +541,151 @@ export default factories.createCoreController(
 					data: order,
 				}
 			} catch (error) {
+				ctx.status = 500
+				ctx.body = {
+					success: false,
+					error: error.message,
+				}
+			}
+		},
+
+		/**
+		 * Cancel order before payment
+		 * POST /api/orders/:id/cancel
+		 */
+		async cancel(ctx) {
+			try {
+				const { id } = ctx.params
+				const adminUser = await verifyAdminJWT(strapi, ctx)
+				const userId = await resolveUserId(strapi, ctx)
+
+				if (!userId && !adminUser) {
+					ctx.status = 401
+					ctx.body = {
+						success: false,
+						message: 'User not authenticated',
+					}
+					return
+				}
+
+				const order = await strapi.entityService.findOne('api::order.order', id, {
+					populate: ['user'],
+				})
+
+				if (!order) {
+					ctx.status = 404
+					ctx.body = {
+						success: false,
+						message: 'Order not found',
+					}
+					return
+				}
+
+				if (!adminUser && (order as any).user?.id !== userId) {
+					ctx.status = 404
+					ctx.body = {
+						success: false,
+						message: 'Order not found',
+					}
+					return
+				}
+
+				const currentStatus = String((order as any).status || '')
+
+				if (currentStatus === 'awaiting_payment') {
+					const updated = await strapi.entityService.update('api::order.order', id, {
+						data: {
+							status: 'cancelled',
+							cancelReason: adminUser
+								? 'Отменено администратором до оплаты'
+								: 'Отменено пользователем до оплаты',
+							cancelledAt: new Date().toISOString(),
+						},
+					})
+
+					ctx.body = {
+						success: true,
+						data: updated,
+					}
+					return
+				}
+
+				if (currentStatus !== 'paid') {
+					ctx.status = 400
+					ctx.body = {
+						success: false,
+						message:
+							'Only awaiting_payment and paid orders can be cancelled',
+					}
+					return
+				}
+
+				// Paid order: initiate refund in payment provider (Tochka)
+				const payments = await strapi.entityService.findMany('api::payment.payment', {
+					filters: {
+						order: id,
+						status: 'paid',
+					} as any,
+					sort: 'createdAt:desc',
+					limit: 1,
+				})
+
+				const payment = payments?.[0] as any
+
+				if (!payment) {
+					ctx.status = 400
+					ctx.body = {
+						success: false,
+						message: 'Paid payment record not found for order',
+					}
+					return
+				}
+
+				const refundStatus = String(payment.refundStatus || 'none')
+				if (refundStatus === 'pending' || refundStatus === 'succeeded' || payment.status === 'refunded') {
+					ctx.body = {
+						success: true,
+						data: {
+							order,
+							payment,
+						},
+					}
+					return
+				}
+
+				const tochkaPayService = strapi.service('api::payment.tochka-pay')
+				const refund = await tochkaPayService.createRefund({
+					operationId: payment.sessionId || payment.paymentId || payment.externalId,
+					amount: Number(payment.amount || (order as any).totalAmount || 0),
+					reason: adminUser ? 'Отмена заказа (админ)' : 'Отмена заказа (пользователь)',
+					paymentData: payment.paymentData || {},
+				})
+
+				const updatedPayment = await strapi.entityService.update('api::payment.payment', payment.id, {
+					data: {
+						refundId: refund.refundId,
+						refundStatus: 'pending',
+						refundData: refund.raw ?? refund,
+					},
+				})
+
+				const updatedOrder = await strapi.entityService.update('api::order.order', id, {
+					data: {
+						cancelReason: adminUser
+							? 'Запрошена отмена и возврат (администратор)'
+							: 'Запрошена отмена и возврат (пользователь)',
+					},
+				})
+
+				ctx.body = {
+					success: true,
+					data: {
+						order: updatedOrder,
+						payment: updatedPayment,
+						refund,
+					},
+				}
+			} catch (error: any) {
 				ctx.status = 500
 				ctx.body = {
 					success: false,

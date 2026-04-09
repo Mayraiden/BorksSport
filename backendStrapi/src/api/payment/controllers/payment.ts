@@ -72,7 +72,7 @@ const requireConfirmedUser = async (strapi: any, ctx: any, userId: number): Prom
 
 const mapRemoteStatusToLocal = (remoteStatus: string): {
 	paymentStatus: PaymentStatus
-	orderStatus?: 'awaiting_payment' | 'paid' | 'payment_failed'
+	orderStatus?: 'awaiting_payment' | 'paid' | 'payment_failed' | 'cancelled'
 } => {
 	const normalizedStatus = remoteStatus.toLowerCase()
 	switch (normalizedStatus) {
@@ -90,6 +90,15 @@ const mapRemoteStatusToLocal = (remoteStatus: string): {
 			return {
 				paymentStatus: 'failed',
 				orderStatus: 'payment_failed',
+			}
+		case 'refunded':
+		case 'refund':
+		case 'refund_succeeded':
+		case 'refund_success':
+		case 'reversed':
+			return {
+				paymentStatus: 'refunded',
+				orderStatus: 'cancelled',
 			}
 		default:
 			return { paymentStatus: 'pending', orderStatus: 'awaiting_payment' }
@@ -707,8 +716,69 @@ export default factories.createCoreController(
 				}
 
 				const payment = payments[0]
-				const remoteStatus = String(payload.status || payload.payment_status || payload.Status || 'pending')
-				const { paymentStatus, orderStatus } = mapRemoteStatusToLocal(remoteStatus)
+				const eventType = String(event.eventType || '')
+				const remoteStatus = String(
+					payload.status || payload.payment_status || payload.Status || 'pending'
+				)
+
+				const isRefundEvent =
+					/refund/i.test(eventType) ||
+					typeof (payload as any).refund_id === 'string' ||
+					typeof (payload as any).refundId === 'string' ||
+					typeof (payload as any).request_id === 'string' ||
+					typeof (payload as any).requestId === 'string'
+
+				const baseMapping = mapRemoteStatusToLocal(remoteStatus)
+				let paymentStatus = baseMapping.paymentStatus
+				let orderStatus = baseMapping.orderStatus
+
+				let refundIdFromPayload: string | undefined
+				let refundRemoteStatus: string | undefined
+				let refundStatus: 'none' | 'pending' | 'succeeded' | 'failed' | undefined
+				let refundedAt: string | undefined
+
+				if (isRefundEvent) {
+					refundIdFromPayload = String(
+						(payload as any).refund_id ||
+							(payload as any).refundId ||
+							(payload as any).request_id ||
+							(payload as any).requestId ||
+							''
+					).trim() || undefined
+
+					refundRemoteStatus = String(
+						(payload as any).refund_status ||
+							(payload as any).refundStatus ||
+							(payload as any).status ||
+							(payload as any).payment_status ||
+							''
+					)
+
+					const n = refundRemoteStatus.toLowerCase()
+					if (
+						n.includes('refunded') ||
+						n.includes('refund') && (n.includes('success') || n.includes('succeed')) ||
+						n.includes('completed') ||
+						n.includes('approved') ||
+						n.includes('success') ||
+						n.includes('succeeded')
+					) {
+						refundStatus = 'succeeded'
+						refundedAt = new Date().toISOString()
+						paymentStatus = 'refunded'
+						orderStatus = 'cancelled'
+					} else if (
+						n.includes('failed') ||
+						n.includes('declined') ||
+						n.includes('rejected') ||
+						n.includes('error')
+					) {
+						refundStatus = 'failed'
+						// keep paymentStatus/orderStatus as-is
+					} else {
+						refundStatus = 'pending'
+					}
+				}
 
 				// Логируем обновление статуса
 				strapi.log.info('Tochka Pay webhook: updating payment status', {
@@ -716,6 +786,10 @@ export default factories.createCoreController(
 					oldStatus: payment.status,
 					newStatus: paymentStatus,
 					remoteStatus,
+					eventType,
+					isRefundEvent,
+					refundIdFromPayload,
+					refundStatus,
 					orderId: (payment as any).order?.id,
 					orderStatus,
 				})
@@ -732,6 +806,10 @@ export default factories.createCoreController(
 				await strapi.entityService.update('api::payment.payment', payment.id, {
 					data: {
 						status: paymentStatus,
+						refundId: refundIdFromPayload || (payment as any).refundId,
+						refundStatus: refundStatus || (payment as any).refundStatus,
+						refundedAt: refundedAt || (payment as any).refundedAt,
+						refundData: isRefundEvent ? (payload as JsonValue) : (payment as any).refundData,
 						paymentData: nextPaymentData,
 						paymentUrl:
 							(payload.payment_url as string) || payment.paymentUrl,
@@ -747,13 +825,40 @@ export default factories.createCoreController(
 				const paymentOrder = (payment as any)?.order
 
 				if (orderStatus && paymentOrder) {
-					await strapi.entityService.update(
-						'api::order.order',
-						paymentOrder.id,
-						{
-							data: { status: orderStatus },
+					const orderUpdate: any = { status: orderStatus }
+					if (orderStatus === 'cancelled' && isRefundEvent) {
+						orderUpdate.cancelledAt = new Date().toISOString()
+						orderUpdate.cancelReason =
+							(paymentOrder.cancelReason as string | undefined) ||
+							'Отменено: возврат средств подтверждён'
+					}
+
+					await strapi.entityService.update('api::order.order', paymentOrder.id, {
+						data: orderUpdate,
+					})
+
+					// Best-effort: try cancel CDEK order when refund succeeded
+					if (orderStatus === 'cancelled' && isRefundEvent && refundStatus === 'succeeded') {
+						const cdekUuid = String((paymentOrder as any).cdekOrderUuid || '').trim()
+						if (cdekUuid) {
+							try {
+								const cdekService = strapi.service('api::cdek-sync.cdek-sync')
+								const result = await cdekService.cancelOrder(cdekUuid)
+								await strapi.entityService.update('api::order.order', paymentOrder.id, {
+									data: {
+										cdekStatus: result.ok ? 'CANCELLED' : 'CANCEL_CANCELLED_FAILED',
+									},
+								})
+							} catch (cdekError: any) {
+								strapi.log.warn('CDEK cancel after refund failed', {
+									orderId: paymentOrder.id,
+									cdekOrderUuid: (paymentOrder as any).cdekOrderUuid,
+									error: cdekError?.message,
+								})
+							}
 						}
-					)
+					}
+
 					strapi.log.info('Tochka Pay webhook: order status updated', {
 						orderId: paymentOrder.id,
 						oldStatus: paymentOrder.status,

@@ -446,6 +446,32 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 		},
 
 		/**
+		 * Отменить (аннулировать) заказ в СДЭК по UUID.
+		 * Best-effort: если СДЭК не позволяет отмену по статусу — вернёт ошибку.
+		 */
+		async cancelOrder(uuid: string): Promise<{ ok: boolean; raw?: unknown }> {
+			if (!uuid) {
+				throw new Error('CDEK: order uuid is required')
+			}
+			try {
+				const response = await apiRequest<any>('DELETE', `/orders/${uuid}`)
+				return { ok: true, raw: response }
+			} catch (error: any) {
+				const safeStringify = (value: unknown) => {
+					try {
+						return JSON.stringify(value)
+					} catch {
+						return String(value)
+					}
+				}
+				strapi.log.warn(
+					`CDEK: Failed to cancel order uuid=${uuid} status=${error?.status ?? error?.response?.status ?? 'n/a'} details=${safeStringify(error?.details ?? error?.response?.data ?? error?.message)}`
+				)
+				return { ok: false, raw: error?.details ?? error?.response?.data ?? error?.message }
+			}
+		},
+
+		/**
 		 * Отслеживание заказа по трек-номеру
 		 */
 		async trackOrder(trackNumber: string): Promise<any> {

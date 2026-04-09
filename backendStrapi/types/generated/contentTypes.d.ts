@@ -707,6 +707,13 @@ export interface ApiPaymentPayment extends Struct.CollectionTypeSchema {
       Schema.Attribute.Unique;
     paymentMethod: Schema.Attribute.String & Schema.Attribute.Required;
     paymentUrl: Schema.Attribute.String;
+    refundData: Schema.Attribute.JSON;
+    refundId: Schema.Attribute.String;
+    refundStatus: Schema.Attribute.Enumeration<
+      ['none', 'pending', 'succeeded', 'failed']
+    > &
+      Schema.Attribute.DefaultTo<'none'>;
+    refundedAt: Schema.Attribute.DateTime;
     provider: Schema.Attribute.Enumeration<['tochka', 'sbp', 'card', 'cash']> &
       Schema.Attribute.DefaultTo<'tochka'>;
     publishedAt: Schema.Attribute.DateTime;

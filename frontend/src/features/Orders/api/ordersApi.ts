@@ -155,6 +155,18 @@ export const ordersApi = {
 
 		return data.data.map(mapPayment)
 	},
+
+	async cancelOrder(orderId: number, token: string): Promise<void> {
+		const response = await fetchWithAuth(`/api/orders/${orderId}/cancel`, {
+			method: 'POST',
+			accessToken: token,
+		})
+
+		if (!response.ok) {
+			const body = await response.json().catch(() => ({}))
+			throw new Error(body?.message || body?.error || 'Не удалось отменить заказ')
+		}
+	},
 }
 
 

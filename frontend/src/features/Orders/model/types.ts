@@ -22,6 +22,11 @@ export interface OrderEntity {
 	totalAmount: number
 	deliveryType?: 'door' | 'pvz' | 'pickup'
 	cdekDeliveryCost?: number | null
+	cdekStatus?: string | null
+	cdekTrackNumber?: string | null
+	cdekPvzAddress?: string | null
+	cancelReason?: string | null
+	cancelledAt?: string | null
 	paymentMethod?: PaymentType
 	paymentProvider?: PaymentProvider
 	notes?: string | null
@@ -39,6 +44,9 @@ export interface PaymentEntity {
 	paymentMethod?: string
 	provider?: PaymentProvider | null
 	paymentUrl?: string | null
+	refundId?: string | null
+	refundStatus?: 'none' | 'pending' | 'succeeded' | 'failed' | null
+	refundedAt?: string | null
 	createdAt: string
 	updatedAt?: string
 }
