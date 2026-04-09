@@ -17,7 +17,6 @@ import {
 	type RegisterFormData,
 } from '@/shared/lib/validations/auth'
 import { useAuthStore } from '../model/store'
-import { isEmailAuthDisabled } from '@/shared/config/emailAuth'
 
 const getSafeNextPath = (raw: string | null): string | null => {
 	if (!raw) return null
@@ -103,16 +102,11 @@ export const RegisterForm = () => {
 	const handleRegister = (data: RegisterFormData) => {
 		registerUser(data, {
 			onSuccess: () => {
-				if (isEmailAuthDisabled()) {
-					const next = getSafeNextPath(searchParams.get('next'))
-					router.push(next ?? '/')
-					return
-				}
+				// Email confirmation flow is currently disabled in product UX.
+				// After successful registration we sign in (handled in mutation onSuccess)
+				// and redirect to the home page (or safe `next`).
 				const next = getSafeNextPath(searchParams.get('next'))
-				const params = new URLSearchParams()
-				params.set('email', data.email)
-				if (next) params.set('next', next)
-				router.push(`/auth/confirm-email?${params.toString()}`)
+				router.push(next ?? '/')
 			},
 			onError: () => {
 				// Ошибка обрабатывается через useAuthStore

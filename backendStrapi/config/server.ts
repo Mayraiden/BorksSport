@@ -20,6 +20,48 @@ export default ({ env }) => {
       enabled: true,
       tasks: {
         /**
+         * Expire unpaid online orders (awaiting_payment) after reservedUntil.
+         * Variant B: does not affect product stock; only cancels stale orders.
+         */
+        expireUnpaidOrders: {
+          task: async ({ strapi }) => {
+            try {
+              const nowIso = new Date().toISOString()
+              const orders = await strapi.entityService.findMany('api::order.order', {
+                filters: {
+                  status: { $eq: 'awaiting_payment' },
+                  reservedUntil: { $notNull: true, $lte: nowIso },
+                },
+                sort: 'reservedUntil:asc',
+                limit: 200,
+              })
+
+              for (const order of orders) {
+                try {
+                  await strapi.entityService.update('api::order.order', order.id, {
+                    data: {
+                      status: 'cancelled',
+                      cancelReason: 'Не оплачен в течение 30 минут',
+                      cancelledAt: new Date().toISOString(),
+                    },
+                  })
+                } catch (e) {
+                  strapi.log.warn('expireUnpaidOrders: failed to cancel order', {
+                    orderId: order.id,
+                    error: e?.message || String(e),
+                  })
+                }
+              }
+            } catch (e) {
+              strapi.log.error('expireUnpaidOrders task failed', e)
+            }
+          },
+          options: {
+            // Every 2 minutes
+            rule: '*/2 * * * *',
+          },
+        },
+        /**
          * Periodic safety sync for CDEK delivery statuses.
          * Webhook-first, cron is a fallback when webhooks are missed.
          */

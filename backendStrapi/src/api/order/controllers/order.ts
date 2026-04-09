@@ -300,6 +300,11 @@ export default factories.createCoreController(
 					customerData,
 				}
 
+				// Online orders are time-limited: if not paid within 30 minutes, they will be cancelled by cron.
+				if (paymentMethod === 'online') {
+					orderData.reservedUntil = new Date(Date.now() + 30 * 60 * 1000).toISOString()
+				}
+
 				if (!Number.isNaN(deliveryCostValue)) {
 					orderData.cdekDeliveryCost = deliveryCostValue
 				}
@@ -327,6 +332,13 @@ export default factories.createCoreController(
 								'CDEK: Missing delivery address or customer data, skipping CDEK order creation'
 							)
 						} else {
+							const mmToCmInt = (valueMm: unknown): number | undefined => {
+								const n = Number(valueMm)
+								if (!Number.isFinite(n) || n <= 0) return undefined
+								const cm = n / 10
+								return Math.max(1, Math.ceil(cm))
+							}
+
 							// Determine tariff code based on delivery type
 							// 139 = Экспресс-лайт склад-дверь (до двери)
 							// 138 = Посылка склад-склад (до ПВЗ)
@@ -343,9 +355,10 @@ export default factories.createCoreController(
 
 								return {
 									weight: totalWeight,
-									length: product.length || undefined,
-									width: product.width || undefined,
-									height: product.height || undefined,
+									// Catalog stores dimensions in millimeters; CDEK expects centimeters.
+									length: mmToCmInt(product.length),
+									width: mmToCmInt(product.width),
+									height: mmToCmInt(product.height),
 									items: [
 										{
 											name: product.name,

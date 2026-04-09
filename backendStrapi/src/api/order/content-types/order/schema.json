@@ -99,6 +99,15 @@
 		"cdekTrackNumber": {
 			"type": "string"
 		},
+		"reservedUntil": {
+			"type": "datetime"
+		},
+		"cancelReason": {
+			"type": "text"
+		},
+		"cancelledAt": {
+			"type": "datetime"
+		},
 		"createdAt": {
 			"type": "datetime"
 		},

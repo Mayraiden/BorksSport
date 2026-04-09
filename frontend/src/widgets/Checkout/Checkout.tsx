@@ -403,6 +403,12 @@ export const Checkout = () => {
 						>
 							{isSubmitting ? 'Обработка...' : !isEmailConfirmed ? 'Подтвердите email' : 'Подтвердить заказ'}
 						</button>
+
+						{formData.payment.type === 'online' && (
+							<p className="text-xs max-sm:text-[10px] text-gray-600 mt-2">
+								Заказ будет автоматически отменён, если не оплатить в течение 30 минут.
+							</p>
+						)}
 					</div>
 				</div>
 

@@ -603,6 +603,8 @@ export interface ApiOrderOrder extends Struct.CollectionTypeSchema {
     draftAndPublish: false;
   };
   attributes: {
+    cancelReason: Schema.Attribute.Text;
+    cancelledAt: Schema.Attribute.DateTime;
     cdekDeliveryCost: Schema.Attribute.Decimal;
     cdekDeliveryDate: Schema.Attribute.Date;
     cdekDeliveryTimeMax: Schema.Attribute.String;
@@ -653,6 +655,7 @@ export interface ApiOrderOrder extends Struct.CollectionTypeSchema {
         number
       >;
     trackingNumber: Schema.Attribute.String;
+    reservedUntil: Schema.Attribute.DateTime;
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
