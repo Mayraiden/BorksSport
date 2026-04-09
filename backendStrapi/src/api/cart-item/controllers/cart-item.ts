@@ -233,7 +233,7 @@ export default factories.createCoreController(
 					'api::cart-item.cart-item',
 					id,
 					{
-						populate: ['user'],
+						populate: ['user', 'product'],
 					}
 				)
 

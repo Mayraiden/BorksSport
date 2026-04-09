@@ -68,6 +68,10 @@ export const CartItemCard = ({
 			}
 		} catch (error) {
 			console.error('Failed to update quantity:', error)
+			// Best-effort: show a simple message without adding new UI libs.
+			if (error instanceof Error) {
+				alert(error.message)
+			}
 		} finally {
 			setIsUpdating(false)
 		}

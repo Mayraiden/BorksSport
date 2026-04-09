@@ -6,6 +6,8 @@ interface CartResponse {
 	data?: CartItem[] | CartItem
 	message?: string
 	error?: string
+	code?: string
+	available?: number
 }
 
 export interface CartItem {
@@ -198,6 +200,22 @@ export const cartApi = {
 				}
 				if (response.status === 404) {
 					throw new Error('Cart item not found')
+				}
+				if (response.status === 409) {
+					// Try to read backend payload for a user-friendly message.
+					try {
+						const payload = (await response.json()) as CartResponse
+						const available = typeof payload.available === 'number' ? payload.available : undefined
+						const message =
+							payload.message ||
+							(available !== undefined ? `Доступно ${available} шт.` : 'Недостаточно товара')
+						const err = new Error(message)
+						;(err as unknown as { code?: string }).code = payload.code || 'INSUFFICIENT_STOCK'
+						;(err as unknown as { available?: number }).available = available
+						throw err
+					} catch {
+						throw new Error('Недостаточно товара')
+					}
 				}
 				throw new Error(`API error: ${response.status}`)
 			}
