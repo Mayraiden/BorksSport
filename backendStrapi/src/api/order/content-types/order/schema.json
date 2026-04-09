@@ -102,6 +102,9 @@
 		"reservedUntil": {
 			"type": "datetime"
 		},
+		"stockOps": {
+			"type": "json"
+		},
 		"cancelReason": {
 			"type": "text"
 		},

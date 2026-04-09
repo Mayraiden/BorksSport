@@ -741,7 +741,15 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 
 						// Добавляем остаток если он есть
 						if (!isNaN(stock) && stock >= 0) {
-							updateData.stock = Math.floor(stock)
+							const nextStock = Math.floor(stock)
+							const prevStock = Number((product as any).stock || 0)
+							const prevSold = Number((product as any).soldButNotSynced || 0)
+							const stockDownDelta = Math.max(0, prevStock - nextStock)
+							// Heuristic reconciliation: if SBIS stock went down, assume it may have absorbed part
+							// of our previously unsynced sales and reduce the delta counter accordingly.
+							const nextSold = Math.max(0, prevSold - stockDownDelta)
+							updateData.stock = nextStock
+							updateData.soldButNotSynced = nextSold
 						}
 
 						await strapi.entityService.update('api::product.product', product.id, {

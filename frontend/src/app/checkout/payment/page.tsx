@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useCallback, useEffect, useMemo, useState } from 'react'
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { checkoutApi } from '@/features/Checkout/api/checkoutApi'
@@ -53,6 +53,7 @@ const PaymentPageContent = () => {
 	const [hasTriedAutoOpen, setHasTriedAutoOpen] = useState(false)
 	const [order, setOrder] = useState<OrderEntity | null>(null)
 	const [isOrderLoading, setIsOrderLoading] = useState(false)
+	const lastAutoOpenUrlRef = useRef<string | null>(null)
 
 	const storageKey = useMemo(() => {
 		return paymentId ? `${PAYMENT_SESSION_PREFIX}${paymentId}` : null
@@ -107,7 +108,7 @@ const PaymentPageContent = () => {
 				const data = await ordersApi.getOrderById(orderId, jwt)
 				if (cancelled) return
 				setOrder(data)
-			} catch (e) {
+			} catch {
 				// ignore; backend will still protect status/session endpoints
 			} finally {
 				if (!cancelled) setIsOrderLoading(false)
@@ -181,7 +182,7 @@ const PaymentPageContent = () => {
 
 			return () => clearInterval(interval)
 		}
-	}, [isAuthenticated, paymentId, refreshStatus, status])
+	}, [isAuthenticated, paymentId, refreshStatus, status, order?.status])
 
 	useEffect(() => {
 		if (status === 'paid' && orderId) {
@@ -219,12 +220,16 @@ const PaymentPageContent = () => {
 
 		const timeout = setTimeout(() => {
 			if (typeof window !== 'undefined') {
-				window.location.href = session.paymentUrl as string
+				const url = String(session.paymentUrl || '')
+				if (!url) return
+				if (lastAutoOpenUrlRef.current === url) return
+				lastAutoOpenUrlRef.current = url
+				window.location.href = url
 			}
 		}, 300)
 
 		return () => clearTimeout(timeout)
-	}, [session, status, persistSession, hasTriedAutoOpen])
+	}, [session, status, persistSession, hasTriedAutoOpen, order?.status])
 
 	const handleOpenPayment = () => {
 		if (!session?.paymentUrl) {

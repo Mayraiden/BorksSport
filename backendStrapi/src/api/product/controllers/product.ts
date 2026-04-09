@@ -4,6 +4,16 @@ export default factories.createCoreController(
 	'api::product.product',
 	({ strapi }) => ({
 		/**
+		 * stock is the physical SBIS stock snapshot.
+		 * availableStock is computed as stock - reservedStock - soldButNotSynced.
+		 */
+		_computeAvailableStock(product: any): number {
+			const stock = Number(product?.stock ?? 0) || 0
+			const reserved = Number(product?.reservedStock ?? 0) || 0
+			const sold = Number(product?.soldButNotSynced ?? 0) || 0
+			return Math.max(0, Math.floor(stock) - Math.floor(reserved) - Math.floor(sold))
+		},
+		/**
 		 * Get products with filtering and pagination
 		 * GET /api/products
 		 */
@@ -502,20 +512,27 @@ export default factories.createCoreController(
 						// Если это объект или что-то другое, пытаемся преобразовать
 						product.images = []
 					}
+					// Добавляем вычисляемое доступное количество
+					;(product as any).availableStock = this._computeAvailableStock(product)
 					return product
 				})
+
+				// Финальный фильтр: убираем товары, которые физически есть, но недоступны из-за резерва/дельт
+				const availableProducts = normalizedProducts.filter(
+					(p: any) => (p.availableStock ?? 0) > 0
+				)
 
 				// Пересчитываем total после дедупликации
 				// Используем количество уникальных товаров для более точной пагинации
 				const uniqueTotal = uniqueProducts.length
 
 				strapi.log.info(
-					`[Product Controller] Sending response: ${normalizedProducts.length} products (page), unique total=${uniqueTotal}`
+					`[Product Controller] Sending response: ${availableProducts.length} products (page), unique total=${uniqueTotal}`
 				)
 
 				ctx.body = {
 					success: true,
-					data: normalizedProducts,
+					data: availableProducts,
 					meta: {
 						pagination: {
 							page: Math.floor(start / limit) + 1,
@@ -592,10 +609,11 @@ export default factories.createCoreController(
 				product.images = []
 			}
 
-			// Фильтруем варианты: убираем те, у которых stock = 0
-			const availableVariants = (variants || []).filter(
-				(variant: any) => variant.stock && variant.stock > 0
-			)
+			// Фильтруем варианты: убираем те, у которых availableStock = 0
+			const availableVariants = (variants || []).filter((variant: any) => {
+				const availableStock = this._computeAvailableStock(variant)
+				return availableStock > 0
+			})
 
 			// Нормализуем изображения для вариантов
 			const normalizedVariants = availableVariants.map((variant: any) => {
@@ -610,8 +628,11 @@ export default factories.createCoreController(
 				} else {
 					variant.images = []
 				}
+				;(variant as any).availableStock = this._computeAvailableStock(variant)
 				return variant
 			})
+
+			;(product as any).availableStock = this._computeAvailableStock(product)
 
 			ctx.body = {
 				success: true,

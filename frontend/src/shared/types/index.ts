@@ -8,6 +8,7 @@ export type IBuyButtonProps = {
 	variant?: 'card' | 'product-page'
 	productId?: string // ID товара для добавления в корзину
 	quantity?: number // Количество (по умолчанию 1)
+	maxQuantity?: number // Максимально доступное количество (для блокировки "+")
 }
 
 export type FavoriteProduct = {
@@ -77,6 +78,7 @@ export type Product = {
 	width?: number | null
 	height?: number | null
 	stock?: number | null
+	availableStock?: number | null
 }
 
 export type SearchSuggestion = {
@@ -114,6 +116,9 @@ export type ApiProduct = {
 	width: number | null
 	height: number | null
 	stock: number | null
+	reservedStock?: number | null
+	soldButNotSynced?: number | null
+	availableStock?: number | null
 	variants?: ApiProduct[] // Variants of the product (same sbisNomNumber/article)
 }
 

@@ -1,4 +1,5 @@
 import { factories } from '@strapi/strapi'
+import stockOpsFactory from '../../../shared/stock/stock-ops'
 
 type PaymentStatus = 'pending' | 'paid' | 'failed' | 'refunded'
 
@@ -843,8 +844,33 @@ export default factories.createCoreController(
 							'Отменено: возврат средств подтверждён'
 					}
 
-					await strapi.entityService.update('api::order.order', paymentOrder.id, {
-						data: orderUpdate,
+					const stockOps = stockOpsFactory({ strapi })
+					await strapi.db.transaction(async ({ trx }) => {
+						const knex = strapi.db.connection
+						if (orderStatus === 'paid') {
+							await stockOps.applyOrderStockOp({
+								trx,
+								orderId: paymentOrder.id,
+								kind: 'commit',
+							})
+						}
+						if (orderStatus === 'cancelled' && isRefundEvent && refundStatus === 'succeeded') {
+							await stockOps.applyOrderStockOp({
+								trx,
+								orderId: paymentOrder.id,
+								kind: 'return',
+							})
+						}
+
+						await knex('orders')
+							.transacting(trx)
+							.where({ id: paymentOrder.id })
+							.update({
+								status: orderUpdate.status,
+								cancelled_at: orderUpdate.cancelledAt || null,
+								cancel_reason: orderUpdate.cancelReason || null,
+								updated_at: new Date().toISOString(),
+							})
 					})
 
 					// Best-effort: try cancel CDEK order when refund succeeded
@@ -983,13 +1009,25 @@ export default factories.createCoreController(
 				if (orderStatus && paymentOrder) {
 					const currentOrderStatus = paymentOrder.status
 					if (currentOrderStatus !== orderStatus) {
-						await strapi.entityService.update(
-							'api::order.order',
-							paymentOrder.id,
-							{
-								data: { status: orderStatus },
+						const stockOps = stockOpsFactory({ strapi })
+						await strapi.db.transaction(async ({ trx }) => {
+							const knex = strapi.db.connection
+							if (orderStatus === 'paid') {
+								await stockOps.applyOrderStockOp({
+									trx,
+									orderId: paymentOrder.id,
+									kind: 'commit',
+								})
 							}
-						)
+
+							await knex('orders')
+								.transacting(trx)
+								.where({ id: paymentOrder.id })
+								.update({
+									status: orderStatus,
+									updated_at: new Date().toISOString(),
+								})
+						})
 						strapi.log.info('Tochka Pay status check: order status updated', {
 							orderId: paymentOrder.id,
 							oldStatus: currentOrderStatus,

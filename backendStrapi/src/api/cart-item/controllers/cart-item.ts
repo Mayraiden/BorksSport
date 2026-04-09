@@ -1,4 +1,5 @@
 import { factories } from '@strapi/strapi'
+import stockOpsFactory from '../../../shared/stock/stock-ops'
 
 export default factories.createCoreController(
 	'api::cart-item.cart-item',
@@ -66,6 +67,7 @@ export default factories.createCoreController(
 		async create(ctx) {
 			try {
 				const { productId, quantity = 1 } = ctx.request.body
+				const stockOps = stockOpsFactory({ strapi })
 				let userId = ctx.state.user?.id
 
 				// Если userId нет в state, попробуем извлечь из токена
@@ -111,7 +113,20 @@ export default factories.createCoreController(
 					}
 				)
 
+				const available = await stockOps.getAvailableStock(Number(productId))
+
 				if (existing.length > 0) {
+					const nextQuantity = Number(existing[0].quantity || 0) + Number(quantity || 0)
+					if (nextQuantity > available) {
+						ctx.status = 409
+						ctx.body = {
+							success: false,
+							code: 'INSUFFICIENT_STOCK',
+							message: `Доступно ${available} шт.`,
+							available,
+						}
+						return
+					}
 					// Update quantity
 					const updated = await strapi.entityService.update(
 						'api::cart-item.cart-item',
@@ -130,6 +145,16 @@ export default factories.createCoreController(
 						message: 'Cart item quantity updated',
 					}
 				} else {
+					if (Number(quantity || 0) > available) {
+						ctx.status = 409
+						ctx.body = {
+							success: false,
+							code: 'INSUFFICIENT_STOCK',
+							message: `Доступно ${available} шт.`,
+							available,
+						}
+						return
+					}
 					// Create new cart item
 					const cartItem = await strapi.entityService.create(
 						'api::cart-item.cart-item',
@@ -166,6 +191,7 @@ export default factories.createCoreController(
 			try {
 				const { id } = ctx.params
 				const { quantity } = ctx.request.body
+				const stockOps = stockOpsFactory({ strapi })
 				let userId = ctx.state.user?.id
 
 				// Если userId нет в state, попробуем извлечь из токена
@@ -216,6 +242,19 @@ export default factories.createCoreController(
 					ctx.body = {
 						success: false,
 						message: 'Cart item not found',
+					}
+					return
+				}
+
+				const productId = Number((cartItem as any)?.product?.id ?? (cartItem as any)?.product)
+				const available = productId ? await stockOps.getAvailableStock(productId) : 0
+				if (Number(quantity || 0) > available) {
+					ctx.status = 409
+					ctx.body = {
+						success: false,
+						code: 'INSUFFICIENT_STOCK',
+						message: `Доступно ${available} шт.`,
+						available,
 					}
 					return
 				}

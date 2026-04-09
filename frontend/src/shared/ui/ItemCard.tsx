@@ -113,9 +113,11 @@ export const ItemCard = memo<ItemCardProps>(
 					{/* Цена - всегда на одном месте */}
 					<p className="text-base font-normal text-black">{formattedPrice}</p>
 					{/* Остаток на складе */}
-					{displayProduct.stock !== null && displayProduct.stock !== undefined && displayProduct.stock > 0 && (
+					{displayProduct.availableStock !== null &&
+						displayProduct.availableStock !== undefined &&
+						displayProduct.availableStock > 0 && (
 						<p className="text-sm text-gray">
-							Осталось: {displayProduct.stock} шт.
+							Осталось: {displayProduct.availableStock} шт.
 						</p>
 					)}
 					<div className="w-full min-w-0 flex justify-between items-center mt-auto gap-2">
@@ -124,6 +126,7 @@ export const ItemCard = memo<ItemCardProps>(
 							type="button"
 							text="В корзину"
 							productId={displayProduct.id}
+							maxQuantity={displayProduct.availableStock ?? displayProduct.stock ?? undefined}
 						/>
 						<FavoriteButton
 							productId={displayProduct.id}

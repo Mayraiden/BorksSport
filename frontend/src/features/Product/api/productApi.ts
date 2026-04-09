@@ -84,6 +84,17 @@ const transformApiProduct = (apiProduct: ApiProduct): Product | null => {
 
 // Внутренняя функция трансформации
 const transformApiProductInternal = (apiProduct: ApiProduct): Product => {
+	const computeAvailable = (p: ApiProduct): number | null => {
+		if (p.availableStock !== null && p.availableStock !== undefined) return p.availableStock
+		const stock = Number(p.stock ?? 0)
+		const reserved = Number(p.reservedStock ?? 0)
+		const sold = Number(p.soldButNotSynced ?? 0)
+		if (!Number.isFinite(stock)) return null
+		return Math.max(0, Math.floor(stock) - Math.floor(reserved) - Math.floor(sold))
+	}
+
+	const availableStock = computeAvailable(apiProduct)
+
 	// Изображения могут быть обработаны на бэкенде, но проверяем на всякий случай
 	const images = (apiProduct.images || [])
 		.map((url) => {
@@ -123,14 +134,17 @@ const transformApiProductInternal = (apiProduct: ApiProduct): Product => {
 	// Собираем уникальные размеры и цвета только из вариантов с stock > 0
 	// Варианты с stock = 0 уже отфильтрованы на бэкенде, но на всякий случай фильтруем еще раз
 	const variants = (apiProduct.variants || []).filter(
-		(v) => v.stock !== null && v.stock !== undefined && v.stock > 0
+		(v) => {
+			const a = computeAvailable(v)
+			return a !== null && a !== undefined && a > 0
+		}
 	)
 	
 	// Формируем список товаров для извлечения цветов/размеров:
 	// - Если у основного товара stock > 0, включаем его
 	// - Всегда включаем варианты с stock > 0
 	const productsWithStock = []
-	if (apiProduct.stock && apiProduct.stock > 0) {
+	if (availableStock && availableStock > 0) {
 		productsWithStock.push(apiProduct)
 	}
 	productsWithStock.push(...variants)
@@ -200,6 +214,7 @@ const transformApiProductInternal = (apiProduct: ApiProduct): Product => {
 	// Трансформируем варианты (без рекурсии - варианты не должны содержать свои варианты)
 	// Используем уже отфильтрованные варианты с stock > 0
 	const transformedVariants = variants.map((variant) => {
+		const variantAvailable = computeAvailable(variant)
 		// Используем упрощенную трансформацию для вариантов
 		return {
 			id: variant.id.toString(),
@@ -227,6 +242,7 @@ const transformApiProductInternal = (apiProduct: ApiProduct): Product => {
 			width: variant.width || null,
 			height: variant.height || null,
 			stock: variant.stock || null,
+			availableStock: variantAvailable ?? null,
 		}
 	})
 
@@ -279,6 +295,7 @@ const transformApiProductInternal = (apiProduct: ApiProduct): Product => {
 		width: apiProduct.width || null,
 		height: apiProduct.height || null,
 		stock: apiProduct.stock || null,
+		availableStock: availableStock ?? null,
 	}
 }
 

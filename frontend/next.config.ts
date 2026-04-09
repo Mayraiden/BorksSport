@@ -1,4 +1,5 @@
 import type { NextConfig } from 'next'
+import path from 'path'
 
 const isDevelopment = process.env.NODE_ENV === 'development'
 
@@ -8,14 +9,14 @@ const nextConfig: NextConfig = {
 	...(isDevelopment ? {} : { output: 'standalone' }),
 
 	// Явная настройка webpack для правильного разрешения путей
-	webpack: (config, { isServer }) => {
+	webpack: (config) => {
 		// Убеждаемся, что пути из tsconfig.json правильно разрешаются
 		config.resolve.alias = {
 			...config.resolve.alias,
-			'@': require('path').resolve(__dirname, './src'),
-			'@features': require('path').resolve(__dirname, './src/features'),
-			'@widgets': require('path').resolve(__dirname, './src/widgets'),
-			'@shared': require('path').resolve(__dirname, './src/shared'),
+			'@': path.resolve(__dirname, './src'),
+			'@features': path.resolve(__dirname, './src/features'),
+			'@widgets': path.resolve(__dirname, './src/widgets'),
+			'@shared': path.resolve(__dirname, './src/shared'),
 		}
 		// Улучшаем разрешение модулей для SSR импортов
 		config.resolve.extensionAlias = {

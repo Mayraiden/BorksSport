@@ -1,5 +1,6 @@
 import { factories } from '@strapi/strapi'
 import { verifyAdminJWT } from '../../../shared/helpers/verifyAdminJWT'
+import stockOpsFactory from '../../../shared/stock/stock-ops'
 
 const isEmailAuthDisabled = () => {
 	const raw = process.env.EMAIL_AUTH_DISABLED
@@ -235,96 +236,151 @@ export default factories.createCoreController(
 					return
 				}
 
-				// Calculate total amount
-				let totalAmount = 0
-				const products = []
-				for (const item of items) {
-					const product = await strapi.entityService.findOne(
-						'api::product.product',
-						item.productId
-					)
-					if (product) {
-						const productPrice = Number(product.price || item.price || 0)
-						totalAmount += productPrice * item.quantity
-						products.push({
-							...product,
-							price: productPrice,
-							quantity: item.quantity,
-						})
-					}
-				}
-
-				const deliveryCostValue = Number(cdekDeliveryCost ?? 0)
-				if (!Number.isNaN(deliveryCostValue) && deliveryCostValue > 0) {
-					totalAmount += deliveryCostValue
-				}
-
-				// Generate order number in Ozon format: YYYYMMDD-XXXX
-				const orderNumber = await generateOrderNumber(strapi)
-
 				// Determine delivery type (default to 'door' if not specified)
 				const orderDeliveryType = deliveryType || 'door'
+				const deliveryCostValue = Number(cdekDeliveryCost ?? 0)
 
-				// Create local order first
-				const orderItems = products.map((product: any) => {
-					const firstImage = Array.isArray(product.images)
-						? product.images[0]
-						: product.images
-					const imageUrl =
-						typeof firstImage === 'string'
-							? firstImage
-							: firstImage?.url || firstImage?.src || null
+				const stockOps = stockOpsFactory({ strapi })
+				const knex = strapi.db.connection
 
-					return {
-						productId: product.id,
-						name: product.name,
-						article: product.article,
-						quantity: product.quantity,
-						price: Number(product.price || 0),
-						subtotal: Number(product.price || 0) * product.quantity,
-						image: imageUrl,
+				const order = await strapi.db.transaction(async ({ trx }) => {
+					// Aggregate duplicate productId in payload and validate quantities
+					const aggregated = stockOps.normalizeItems(items)
+					if (aggregated.length === 0) {
+						ctx.status = 400
+						ctx.body = { success: false, message: 'Order items are invalid' }
+						return null
 					}
+
+					// Reserve stock for online payments (soft reservation for 30 minutes)
+					const isOnline = paymentMethod === 'online'
+					if (!isOnline) {
+						for (const it of aggregated) {
+							const available = await stockOps.getAvailableStock(it.productId)
+							if (it.quantity > available) {
+								ctx.status = 409
+								ctx.body = {
+									success: false,
+									code: 'INSUFFICIENT_STOCK',
+									message: `Доступно ${available} шт.`,
+									available,
+									productId: it.productId,
+								}
+								return null
+							}
+						}
+					}
+
+					// Calculate total amount and build orderItems from current products
+					let totalAmount = 0
+					const products: any[] = []
+					for (const item of aggregated) {
+						const product = await strapi.entityService.findOne('api::product.product', item.productId)
+						if (product) {
+							const productPrice = Number((product as any).price || 0)
+							totalAmount += productPrice * item.quantity
+							products.push({
+								...product,
+								price: productPrice,
+								quantity: item.quantity,
+							})
+						}
+					}
+
+					if (!Number.isNaN(deliveryCostValue) && deliveryCostValue > 0) {
+						totalAmount += deliveryCostValue
+					}
+
+					// Generate order number in Ozon format: YYYYMMDD-XXXX
+					const orderNumber = await generateOrderNumber(strapi)
+
+					const orderItems = products.map((product: any) => {
+						const firstImage = Array.isArray(product.images) ? product.images[0] : product.images
+						const imageUrl =
+							typeof firstImage === 'string'
+								? firstImage
+								: firstImage?.url || firstImage?.src || null
+
+						return {
+							productId: product.id,
+							name: product.name,
+							article: product.article,
+							quantity: product.quantity,
+							price: Number(product.price || 0),
+							subtotal: Number(product.price || 0) * product.quantity,
+							image: imageUrl,
+						}
+					})
+
+					const createdAt = new Date().toISOString()
+					const reservedUntil = isOnline
+						? new Date(Date.now() + 30 * 60 * 1000).toISOString()
+						: null
+
+					const insertRow: any = {
+						user_id: userId,
+						order_number: orderNumber,
+						status: isOnline ? 'awaiting_payment' : 'pending',
+						total_amount: totalAmount,
+						items: orderItems,
+						shipping_address: shippingAddress,
+						payment_method: paymentMethod || null,
+						payment_provider: paymentProvider || null,
+						notes: notes || null,
+						delivery_type: orderDeliveryType,
+						customer_data: customerData || null,
+						reserved_until: reservedUntil,
+						cdek_delivery_cost: !Number.isNaN(deliveryCostValue) ? deliveryCostValue : null,
+						cdek_tariff_code: orderDeliveryType !== 'pickup' ? (cdekTariffCode || null) : null,
+						cdek_pvz_code: orderDeliveryType !== 'pickup' ? (cdekPvzCode || null) : null,
+						cdek_pvz_address: orderDeliveryType !== 'pickup' ? (cdekPvzAddress || null) : null,
+						stock_ops: {},
+						created_at: createdAt,
+						updated_at: createdAt,
+					}
+
+					const inserted = await knex('orders')
+						.transacting(trx)
+						.insert(insertRow)
+						.returning(['id', 'order_number', 'status', 'items', 'total_amount'])
+
+					const created = Array.isArray(inserted) ? inserted[0] : inserted
+
+					if (isOnline) {
+						try {
+							await stockOps.applyOrderStockOp({
+								trx,
+								orderId: (created as any).id,
+								kind: 'reserve',
+								items: orderItems,
+							})
+						} catch (e: any) {
+							const msg = String(e?.message || '')
+							if (msg.startsWith('INSUFFICIENT_STOCK:')) {
+								ctx.status = 409
+								ctx.body = {
+									success: false,
+									code: 'INSUFFICIENT_STOCK',
+									message: 'Недостаточно товара на складе',
+								}
+								throw e
+							}
+							throw e
+						}
+					}
+
+					return created as any
 				})
 
-				const orderData: any = {
-					user: userId,
-					orderNumber,
-					status:
-						paymentMethod === 'online' ? 'awaiting_payment' : 'pending',
-					totalAmount,
-					items: orderItems,
-					shippingAddress,
-					paymentMethod,
-					paymentProvider: paymentProvider || null,
-					notes,
-					deliveryType: orderDeliveryType,
-					customerData,
+				if (!order) {
+					return
 				}
-
-				// Online orders are time-limited: if not paid within 30 minutes, they will be cancelled by cron.
-				if (paymentMethod === 'online') {
-					orderData.reservedUntil = new Date(Date.now() + 30 * 60 * 1000).toISOString()
-				}
-
-				if (!Number.isNaN(deliveryCostValue)) {
-					orderData.cdekDeliveryCost = deliveryCostValue
-				}
-
-				// Add CDEK fields if delivery is not pickup
-				if (orderDeliveryType !== 'pickup') {
-					if (cdekTariffCode) orderData.cdekTariffCode = cdekTariffCode
-					if (cdekPvzCode) orderData.cdekPvzCode = cdekPvzCode
-					if (cdekPvzAddress) orderData.cdekPvzAddress = cdekPvzAddress
-				}
-
-				const order = await strapi.entityService.create('api::order.order', {
-					data: orderData,
-				})
 
 				// Create order in CDEK if delivery is not pickup
 				if (orderDeliveryType !== 'pickup' && shippingAddress.type === 'delivery') {
 					try {
 						const cdekService = strapi.service('api::cdek-sync.cdek-sync')
+						const orderNumber = String((order as any).orderNumber || (order as any).order_number || '')
 
 						// Prepare CDEK order data
 						const deliveryAddress = shippingAddress.deliveryAddress
@@ -349,6 +405,17 @@ export default factories.createCoreController(
 
 							// Prepare packages from products
 							// Weight should be in grams, if product.weight is in kg, multiply by 1000
+							const products = []
+							const orderItems = Array.isArray((order as any).items) ? (order as any).items : []
+							for (const it of orderItems) {
+								const productId = Number(it?.productId || 0)
+								const qty = Number(it?.quantity || 0)
+								if (!productId || qty <= 0) continue
+								const p = await strapi.entityService.findOne('api::product.product', productId)
+								if (!p) continue
+								products.push({ ...(p as any), quantity: qty })
+							}
+
 							const packages = products.map((product: any) => {
 								// Assume weight is in grams, if not, it should be converted
 								const productWeight = product.weight || 1000 // Default 1kg = 1000g
@@ -594,14 +661,28 @@ export default factories.createCoreController(
 				const currentStatus = String((order as any).status || '')
 
 				if (currentStatus === 'awaiting_payment') {
-					const updated = await strapi.entityService.update('api::order.order', id, {
-						data: {
-							status: 'cancelled',
-							cancelReason: adminUser
-								? 'Отменено администратором до оплаты'
-								: 'Отменено пользователем до оплаты',
-							cancelledAt: new Date().toISOString(),
-						},
+					const stockOps = stockOpsFactory({ strapi })
+					const updated = await strapi.db.transaction(async ({ trx }) => {
+						const knex = strapi.db.connection
+						await stockOps.applyOrderStockOp({
+							trx,
+							orderId: Number(id),
+							kind: 'release',
+						})
+
+						await knex('orders')
+							.transacting(trx)
+							.where({ id: Number(id) })
+							.update({
+								status: 'cancelled',
+								cancel_reason: adminUser
+									? 'Отменено администратором до оплаты'
+									: 'Отменено пользователем до оплаты',
+								cancelled_at: new Date().toISOString(),
+								updated_at: new Date().toISOString(),
+							})
+
+						return await strapi.entityService.findOne('api::order.order', id)
 					})
 
 					ctx.body = {

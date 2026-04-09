@@ -42,6 +42,16 @@ export const CartItemCard = ({
 
 	const handleQuantityChange = async (newQuantity: number) => {
 		if (!jwt) return
+		const max =
+			typeof product.availableStock === 'number'
+				? product.availableStock
+				: typeof product.stock === 'number'
+					? product.stock
+					: undefined
+
+		if (typeof max === 'number' && max > 0 && newQuantity > max) {
+			return
+		}
 
 		// Если количество становится меньше 1 — удаляем товар из корзины
 		if (newQuantity < 1) {
@@ -175,7 +185,14 @@ export const CartItemCard = ({
 						</div>
 						<button
 							onClick={() => handleQuantityChange(cartItem.quantity + 1)}
-							disabled={isUpdating}
+							disabled={
+								isUpdating ||
+								(typeof product.availableStock === 'number'
+									? cartItem.quantity >= product.availableStock
+									: typeof product.stock === 'number'
+										? cartItem.quantity >= product.stock
+										: false)
+							}
 							className="w-8 h-8 max-sm:w-7 max-sm:h-7 flex items-center justify-center bg-[#F2E8EA] rounded-[4px] rounded-l-none hover:bg-[#F2E8EA]/80 transition-colors disabled:opacity-50"
 							aria-label="Увеличить количество"
 						>

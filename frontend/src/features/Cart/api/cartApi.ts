@@ -26,6 +26,18 @@ export interface CartItemDisplay {
 // Transform API product to our Product type (same as in productApi)
 // Используем упрощенную версию для корзины, так как варианты там не нужны
 const transformApiProduct = (apiProduct: ApiProduct): Product => {
+	const availableStock =
+		apiProduct.availableStock !== null && apiProduct.availableStock !== undefined
+			? apiProduct.availableStock
+			: apiProduct.stock !== null && apiProduct.stock !== undefined
+				? Math.max(
+						0,
+						Math.floor(Number(apiProduct.stock ?? 0)) -
+							Math.floor(Number(apiProduct.reservedStock ?? 0)) -
+							Math.floor(Number(apiProduct.soldButNotSynced ?? 0))
+				  )
+				: null
+
 	// Изображения уже обработаны на бэкенде, фильтруем null значения
 	const images = (apiProduct.images || [])
 		.filter((url): url is string => url !== null && url !== undefined)
@@ -68,6 +80,7 @@ const transformApiProduct = (apiProduct: ApiProduct): Product => {
 		width: apiProduct.width ?? null,
 		height: apiProduct.height ?? null,
 		stock: apiProduct.stock ?? null,
+		availableStock,
 	}
 }
 

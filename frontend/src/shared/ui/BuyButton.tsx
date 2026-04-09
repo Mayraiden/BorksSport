@@ -33,6 +33,11 @@ export const BuyButton = ({ ...props }: IBuyButtonProps) => {
 
 		setIsLoading(true)
 		try {
+			const max = typeof props.maxQuantity === 'number' ? props.maxQuantity : undefined
+			if (typeof max === 'number' && max > 0 && quantity > max) {
+				setQuantity(max)
+				throw new Error('INSUFFICIENT_STOCK')
+			}
 			const cartItem = await cartApi.addToCart(props.productId, quantity, jwt)
 			setIsInCart(true)
 			setCartItemId(cartItem.cartItemId)
@@ -54,6 +59,10 @@ export const BuyButton = ({ ...props }: IBuyButtonProps) => {
 	}
 
 	const handleIncrease = async () => {
+		const max = typeof props.maxQuantity === 'number' ? props.maxQuantity : undefined
+		if (typeof max === 'number' && max > 0 && quantity >= max) {
+			return
+		}
 		if (!isAuthenticated || !jwt || !props.productId) {
 			setQuantity((prev) => prev + 1)
 			return
@@ -122,6 +131,8 @@ export const BuyButton = ({ ...props }: IBuyButtonProps) => {
 
 	// For product page variant
 	if (props.variant === 'product-page') {
+		const max = typeof props.maxQuantity === 'number' ? props.maxQuantity : undefined
+		const canIncrease = typeof max === 'number' && max > 0 ? quantity < max : true
 		if (isInCart) {
 			return (
 				<div className="flex items-center gap-4">
@@ -146,9 +157,10 @@ export const BuyButton = ({ ...props }: IBuyButtonProps) => {
 						</div>
 						<button
 							onClick={handleIncrease}
-							className="w-11 h-11 bg-[#F0F4F8] hover:bg-[#7B1931] text-[#121212] hover:text-[#F5F5F5] transition-colors duration-200 flex items-center justify-center"
+							className="w-11 h-11 bg-[#F0F4F8] hover:bg-[#7B1931] text-[#121212] hover:text-[#F5F5F5] transition-colors duration-200 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
 							type="button"
 							aria-label="Увеличить количество"
+							disabled={isLoading || !canIncrease}
 						>
 							+
 						</button>
@@ -171,6 +183,8 @@ export const BuyButton = ({ ...props }: IBuyButtonProps) => {
 
 	// For card variant (existing behavior)
 	if (isInCart) {
+		const max = typeof props.maxQuantity === 'number' ? props.maxQuantity : undefined
+		const canIncrease = typeof max === 'number' && max > 0 ? quantity < max : true
 		return (
 			<div className="w-30 h-8 flex items-center bg-[#f8f4f4] rounded-sm overflow-hidden">
 				<button
@@ -185,8 +199,9 @@ export const BuyButton = ({ ...props }: IBuyButtonProps) => {
 				</div>
 				<button
 					onClick={handleIncrease}
-					className="w-8 h-8 bg-gray/20 hover:bg-burgundy text-gray-700 hover:text-white transition-colors duration-200 rounded-r-sm flex items-center justify-center"
+					className="w-8 h-8 bg-gray/20 hover:bg-burgundy text-gray-700 hover:text-white transition-colors duration-200 rounded-r-sm flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
 					type="button"
+					disabled={isLoading || !canIncrease}
 				>
 					+
 				</button>

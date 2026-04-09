@@ -25,7 +25,9 @@ export default ({ env }) => {
          */
         expireUnpaidOrders: {
           task: async ({ strapi }) => {
+            const stockOps = (await import('../src/shared/stock/stock-ops')).default({ strapi })
             try {
+              const knex = strapi.db.connection
               const nowIso = new Date().toISOString()
               const orders = await strapi.entityService.findMany('api::order.order', {
                 filters: {
@@ -38,12 +40,22 @@ export default ({ env }) => {
 
               for (const order of orders) {
                 try {
-                  await strapi.entityService.update('api::order.order', order.id, {
-                    data: {
-                      status: 'cancelled',
-                      cancelReason: 'Не оплачен в течение 30 минут',
-                      cancelledAt: new Date().toISOString(),
-                    },
+                  await strapi.db.transaction(async ({ trx }) => {
+                    await stockOps.applyOrderStockOp({
+                      trx,
+                      orderId: order.id,
+                      kind: 'release',
+                    })
+
+                    await knex('orders')
+                      .transacting(trx)
+                      .where({ id: order.id })
+                      .update({
+                        status: 'cancelled',
+                        cancel_reason: 'Не оплачен в течение 30 минут',
+                        cancelled_at: new Date().toISOString(),
+                        updated_at: new Date().toISOString(),
+                      })
                   })
                 } catch (e) {
                   strapi.log.warn('expireUnpaidOrders: failed to cancel order', {

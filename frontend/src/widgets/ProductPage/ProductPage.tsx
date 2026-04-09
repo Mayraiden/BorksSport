@@ -27,7 +27,7 @@ export const ProductPage = ({ product, className = '' }: ProductPageProps) => {
 
 	const allVariants = useMemo(() => {
 		const variants = product.variants || []
-		if (product.stock && product.stock > 0) {
+		if (product.availableStock && product.availableStock > 0) {
 			return [product, ...variants]
 		}
 		return variants
@@ -38,7 +38,7 @@ export const ProductPage = ({ product, className = '' }: ProductPageProps) => {
 	const availableColors = useMemo(() => {
 		return product.colors.filter((color) =>
 			allVariants.some(
-				(v) => v.color === color.name && v.stock && v.stock > 0
+				(v) => v.color === color.name && v.availableStock && v.availableStock > 0
 			)
 		)
 	}, [product.colors, allVariants])
@@ -53,8 +53,8 @@ export const ProductPage = ({ product, className = '' }: ProductPageProps) => {
 				(v) =>
 					v.color === selectedColor.name &&
 					v.size === size.value &&
-					v.stock &&
-					v.stock > 0
+					v.availableStock &&
+					v.availableStock > 0
 			)
 		)
 	}, [product, selectedColorId, allVariants])
@@ -85,7 +85,7 @@ export const ProductPage = ({ product, className = '' }: ProductPageProps) => {
 				? variant.size === selectedSize.value
 				: !variant.size
 
-			return colorMatch && sizeMatch && variant.stock && variant.stock > 0
+			return colorMatch && sizeMatch && variant.availableStock && variant.availableStock > 0
 		})
 
 		return matchingVariant || product
@@ -180,9 +180,9 @@ export const ProductPage = ({ product, className = '' }: ProductPageProps) => {
 								{formatPrice(displayProduct.price)}
 							</p>
 							{/* Остаток на складе */}
-							{displayProduct.stock !== null && displayProduct.stock !== undefined && displayProduct.stock > 0 && (
+							{displayProduct.availableStock !== null && displayProduct.availableStock !== undefined && displayProduct.availableStock > 0 && (
 								<p className="text-base text-gray max-sm:text-sm">
-									Осталось: {displayProduct.stock} шт.
+									Осталось: {displayProduct.availableStock} шт.
 								</p>
 							)}
 						</div>
@@ -215,6 +215,7 @@ export const ProductPage = ({ product, className = '' }: ProductPageProps) => {
 							type="button"
 							text="Добавить в корзину"
 							productId={displayProduct.id}
+							maxQuantity={displayProduct.availableStock ?? displayProduct.stock ?? undefined}
 							onClick={handleAddToCart}
 							className="flex-1"
 						/>
