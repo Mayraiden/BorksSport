@@ -200,6 +200,14 @@ export const checkoutApi = {
 		}>
 	}> {
 		try {
+			const mmToCmInt = (valueMm: unknown): number | undefined => {
+				const n = Number(valueMm)
+				if (!Number.isFinite(n) || n <= 0) return undefined
+				// Stored as millimeters in our catalog; CDEK expects centimeters (int).
+				const cm = n / 10
+				return Math.max(1, Math.ceil(cm))
+			}
+
 			// Преобразуем товары в пакеты для СДЭК
 			// Uses real product dimensions when available; falls back to safe defaults.
 			const packages = cartItems.map((cartItem) => {
@@ -210,9 +218,9 @@ export const checkoutApi = {
 				const weightPerUnit = Number(product.weight || 1000) // default 1000g
 				const totalWeight = Math.max(1, Math.round(weightPerUnit * quantity))
 
-				const length = Number(product.length || 0) || undefined
-				const width = Number(product.width || 0) || undefined
-				const height = Number(product.height || 0) || undefined
+				const length = mmToCmInt(product.length)
+				const width = mmToCmInt(product.width)
+				const height = mmToCmInt(product.height)
 
 				return {
 					weight: totalWeight,
@@ -222,13 +230,20 @@ export const checkoutApi = {
 				}
 			})
 
+			const hasStreet = Boolean(address.street && address.street.trim())
+			const hasHouse = Boolean(address.house && address.house.trim())
+			const toAddress =
+				hasStreet && hasHouse
+					? `${address.street}, ${address.house}${
+							address.apartment ? `, кв. ${address.apartment}` : ''
+						}`
+					: undefined
+
 			// Подготовка данных для запроса
 			const requestData = {
 				toLocation: {
 					city: address.city,
-					address: `${address.street}, ${address.house}${
-						address.apartment ? `, кв. ${address.apartment}` : ''
-					}`,
+					...(toAddress ? { address: toAddress } : {}),
 				},
 				packages,
 				tariffCode: tariffCode || (deliveryType === 'door' ? 139 : 138),
@@ -261,6 +276,7 @@ export const checkoutApi = {
 				tariff_codes: Array<{
 					tariff_code: number
 					tariff_name: string
+					delivery_mode: number
 					delivery_sum: number
 					period_min: number
 					period_max: number
@@ -276,13 +292,25 @@ export const checkoutApi = {
 				throw new Error('Не удалось получить расчет стоимости доставки')
 			}
 
-			// Выбираем первый доступный тариф (или по tariffCode)
+			const allowedDeliveryModes =
+				deliveryType === 'door' ? new Set([1, 3]) : new Set([4])
+
+			const tariffs = (data.data.tariff_codes || []).filter((t) =>
+				allowedDeliveryModes.has(t.delivery_mode)
+			)
+
+			// Prefer exact tariffCode match when it exists, otherwise choose minimal price.
 			const selectedTariff =
-				data.data.tariff_codes.find((t) => t.tariff_code === tariffCode) ||
-				data.data.tariff_codes[0]
+				(tariffCode
+					? tariffs.find((t) => t.tariff_code === tariffCode)
+					: undefined) ||
+				tariffs.reduce<(typeof tariffs)[number] | null>((min, t) => {
+					if (!min) return t
+					return t.delivery_sum < min.delivery_sum ? t : min
+				}, null)
 
 			if (!selectedTariff) {
-				throw new Error('Нет доступных тарифов для доставки')
+				throw new Error('Нет доступных тарифов для выбранного типа доставки')
 			}
 
 			// Вычисляем дату доставки (сегодня + период доставки)
@@ -303,12 +331,7 @@ export const checkoutApi = {
 			}
 		} catch (error) {
 			checkoutLogger.error('calculateDeliveryCost failed', error)
-			// В случае ошибки возвращаем базовую стоимость
-			return {
-				cost: 990,
-				deliveryDate: undefined,
-				deliveryTime: undefined,
-			}
+			throw error
 		}
 	},
 

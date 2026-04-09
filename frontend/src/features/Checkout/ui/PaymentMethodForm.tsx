@@ -2,11 +2,12 @@
 
 import { useEffect } from 'react'
 import { SectionHeader } from '@/shared/ui/SectionHeader'
-import type { PaymentData, PaymentProvider } from '../model/types'
+import type { DeliveryType, PaymentData, PaymentProvider } from '../model/types'
 
 type PaymentMethodFormProps = {
 	data: PaymentData
 	onChange: (data: Partial<PaymentData>) => void
+	deliveryType: DeliveryType
 }
 
 type OnlinePaymentProvider = 'sbp' | 'card'
@@ -103,8 +104,14 @@ const CashOnDeliveryCard = ({
 export const PaymentMethodForm = ({
 	data,
 	onChange,
+	deliveryType,
 }: PaymentMethodFormProps) => {
+	const isCashOnDeliveryAllowed = deliveryType === 'pickup'
+
 	const handlePaymentTypeChange = (type: 'online' | 'cash_on_delivery') => {
+		if (type === 'cash_on_delivery' && !isCashOnDeliveryAllowed) {
+			return
+		}
 		if (type === 'online') {
 			onChange({
 				type: 'online',
@@ -141,6 +148,18 @@ export const PaymentMethodForm = ({
 		}
 	}, [data.type, data.provider, onChange])
 
+	// Cash on delivery is not allowed for delivery (door/pvz).
+	// If user switches from pickup → delivery, force online payment.
+	useEffect(() => {
+		if (!isCashOnDeliveryAllowed && data.type === 'cash_on_delivery') {
+			onChange({
+				type: 'online',
+				provider: 'sbp',
+				cashOnDeliveryMethod: undefined,
+			})
+		}
+	}, [data.type, isCashOnDeliveryAllowed, onChange])
+
 	return (
 		<div className="bg-white rounded-md p-5 max-sm:p-4 flex flex-col gap-10 max-sm:gap-5">
 			{/* Заголовок секции */}
@@ -162,11 +181,12 @@ export const PaymentMethodForm = ({
 				<button
 					type="button"
 					onClick={() => handlePaymentTypeChange('cash_on_delivery')}
+					disabled={!isCashOnDeliveryAllowed}
 					className={`px-[18px] max-sm:px-4 py-3 max-sm:py-2.5 rounded-md text-xs max-sm:text-[10px] font-normal leading-[1.75] transition-colors ${
 						data.type === 'cash_on_delivery'
 							? 'bg-[#7B1931] text-[#F5F5F5]'
 							: 'bg-[#F2E8EA] text-black'
-					}`}
+					} ${!isCashOnDeliveryAllowed ? 'opacity-50 cursor-not-allowed' : ''}`}
 				>
 					При получении
 				</button>

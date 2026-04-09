@@ -56,6 +56,9 @@ export const validateCheckoutForm = (
 	if (formData.delivery.type === 'delivery') {
 		const deliveryAddress = formData.delivery.address
 		if (deliveryAddress.type === 'delivery') {
+			const isDoor = deliveryAddress.deliveryOption === 'door'
+			const isPvz = deliveryAddress.deliveryOption === 'pickup_point'
+
 			if (!deliveryAddress.deliveryAddress.city?.trim()) {
 				errors.delivery = {
 					...errors.delivery,
@@ -63,17 +66,28 @@ export const validateCheckoutForm = (
 				}
 			}
 
-			if (!deliveryAddress.deliveryAddress.street?.trim()) {
-				errors.delivery = {
-					...errors.delivery,
-					street: 'Укажите улицу',
+			if (isDoor) {
+				if (!deliveryAddress.deliveryAddress.street?.trim()) {
+					errors.delivery = {
+						...errors.delivery,
+						street: 'Укажите улицу',
+					}
+				}
+
+				if (!deliveryAddress.deliveryAddress.house?.trim()) {
+					errors.delivery = {
+						...errors.delivery,
+						house: 'Укажите дом',
+					}
 				}
 			}
 
-			if (!deliveryAddress.deliveryAddress.house?.trim()) {
-				errors.delivery = {
-					...errors.delivery,
-					house: 'Укажите дом',
+			if (isPvz) {
+				if (!deliveryAddress.selectedPvz?.code) {
+					errors.delivery = {
+						...errors.delivery,
+						city: errors.delivery?.city || 'Выберите город',
+					}
 				}
 			}
 		}

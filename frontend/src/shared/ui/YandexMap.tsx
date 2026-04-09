@@ -44,13 +44,21 @@ interface YandexGeoJsonFeature {
 	}
 }
 
+interface YandexOptionsManager {
+	set: (key: string, value: unknown) => void
+}
+
 interface YandexMapObjectManager {
 	add: (features: YandexGeoJsonFeature[]) => void
 	getBounds: () => number[][] | null
 	objects: {
+		options?: YandexOptionsManager
 		events: {
 			add: (type: string, handler: (event: YandexMapEvent) => void) => void
 		}
+	}
+	clusters?: {
+		options?: YandexOptionsManager
 	}
 }
 
@@ -208,6 +216,16 @@ export const YandexMap = ({
 				clusterize: markers.length > 10,
 				gridSize: 64,
 			})
+
+			// We handle marker clicks ourselves; disable default balloon behavior
+			// to avoid JSAPI attempting to open balloons for objects that may be
+			// re-rendered/removed during React updates.
+			try {
+				objectManager.objects.options?.set('openBalloonOnClick', false)
+				objectManager.clusters?.options?.set('openBalloonOnClick', false)
+			} catch {
+				// ignore option set errors
+			}
 
 			const features: YandexGeoJsonFeature[] = markers.map((marker) => ({
 				type: 'Feature' as const,

@@ -183,6 +183,14 @@ export const Checkout = () => {
 			// Создаем заказ
 			const order = await checkoutApi.createOrder(formData, cartItems, jwt)
 
+			// Очищаем корзину после успешного создания заказа
+			try {
+				await cartApi.clearCart(jwt)
+				setCartItems([])
+			} catch (clearError) {
+				console.warn('Unable to clear cart after order creation', clearError)
+			}
+
 			if (formData.payment.type === 'online' && formData.payment.provider) {
 				let paymentSession: PaymentSessionResponse | null = null
 				try {
@@ -336,6 +344,7 @@ export const Checkout = () => {
 					{/* Способ оплаты */}
 					<PaymentMethodForm
 						data={formData.payment}
+						deliveryType={formData.delivery.type}
 						onChange={handlePaymentChange}
 					/>
 
@@ -404,7 +413,7 @@ export const Checkout = () => {
 						onCheckout={() => {}} // Не нужна кнопка в корзине на странице checkout
 						deliveryCost={
 							formData.delivery.type === 'delivery'
-								? formData.delivery.deliveryCost || 990
+								? formData.delivery.deliveryCost ?? 0
 								: 0
 						}
 						hideCheckoutButton={true}

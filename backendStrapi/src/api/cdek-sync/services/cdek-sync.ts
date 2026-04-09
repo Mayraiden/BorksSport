@@ -383,7 +383,6 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 				from_location: fromLocation,
 				to_location: toLocationWithCode,
 				packages,
-				tariff_code: tariffCode,
 			}
 
 			try {

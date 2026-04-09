@@ -29,6 +29,8 @@ const PICKUP_ADDRESS = {
 	workingHours: 'Ежедневно с 9:00 до 21:00',
 }
 
+const DEFAULT_PVZ_MAP_CENTER = { lat: 55.7558, lon: 37.6173 }
+
 // Типы для виджета СДЭК
 interface ISDEKWidjet {
 	open: (options: unknown) => void
@@ -128,6 +130,13 @@ export const DeliveryMethodForm = ({
 				},
 			})
 		}
+		if (
+			data.type === 'delivery' &&
+			data.address.type === 'delivery' &&
+			data.address.deliveryOption === 'pickup_point'
+		) {
+			loadPvzList(detectedCity.code)
+		}
 	}
 
 	const handleDeclineCity = () => {
@@ -162,10 +171,18 @@ export const DeliveryMethodForm = ({
 	const deliveryOption = data.address.type === 'delivery' ? data.address.deliveryOption : null
 
 	useEffect(() => {
-		if (selectedCityCode && isDeliveryPvz) {
+		if (selectedCityCode && isDeliveryPvz && !isLoadingPvz && pvzList.length === 0) {
 			loadPvzList(selectedCityCode)
 		}
-	}, [selectedCityCode, isDeliveryPvz, loadPvzList, deliveryOption, data.address.type])
+	}, [
+		selectedCityCode,
+		isDeliveryPvz,
+		isLoadingPvz,
+		pvzList.length,
+		loadPvzList,
+		deliveryOption,
+		data.address.type,
+	])
 
 	// Поиск городов
 	const handleCitySearch = async (query: string) => {
@@ -206,6 +223,13 @@ export const DeliveryMethodForm = ({
 					},
 				},
 			})
+		}
+		if (
+			data.type === 'delivery' &&
+			data.address.type === 'delivery' &&
+			data.address.deliveryOption === 'pickup_point'
+		) {
+			loadPvzList(city.code)
 		}
 	}
 
@@ -298,54 +322,21 @@ export const DeliveryMethodForm = ({
 		]
 	)
 
-	// Debounce для расчета стоимости при изменении адреса (до двери)
-	const isDeliveryDoor =
-		data.type === 'delivery' &&
-		data.address.type === 'delivery' &&
-		data.address.deliveryOption === 'door'
-	
-	// Используем уже извлеченный currentDeliveryAddress
-	const deliveryAddress = currentDeliveryAddress
-	
-	const deliveryCity = isDeliveryDoor && deliveryAddress ? deliveryAddress.city : null
-	const deliveryStreet = isDeliveryDoor && deliveryAddress ? deliveryAddress.street : null
-	const deliveryHouse = isDeliveryDoor && deliveryAddress ? deliveryAddress.house : null
-
-	useEffect(() => {
-		if (isDeliveryDoor && deliveryAddress) {
-			const { city, street, house } = deliveryAddress
-
-			// Рассчитываем только если есть город, улица и дом
-			if (city && street && house && items.length > 0) {
-				// Сбрасываем предыдущую стоимость доставки
-				setCalculationError(null)
-
-				const timer = setTimeout(() => {
-					calculateDeliveryCost('door')
-				}, 1000) // Задержка 1 секунда после ввода
-
-				return () => clearTimeout(timer)
-			} else {
-				// Если не все поля заполнены, сбрасываем стоимость
-				if (city || street || house) {
-					onChange({
-						deliveryCost: undefined,
-						deliveryDate: undefined,
-						deliveryTime: undefined,
-					})
-				}
-			}
+	const tryCalculateDoorCostOnBlur = useCallback(() => {
+		if (
+			data.type !== 'delivery' ||
+			data.address.type !== 'delivery' ||
+			data.address.deliveryOption !== 'door'
+		) {
+			return
 		}
-	}, [
-		deliveryCity,
-		deliveryStreet,
-		deliveryHouse,
-		items.length,
-		isDeliveryDoor,
-		deliveryAddress,
-		calculateDeliveryCost,
-		onChange,
-	])
+		const a = data.address.deliveryAddress
+		if (!a.city || !a.street || !a.house) {
+			return
+		}
+		if (items.length === 0) return
+		calculateDeliveryCost('door')
+	}, [calculateDeliveryCost, data.address, data.type, items.length])
 
 	const handleDeliveryTypeChange = (type: 'pickup' | 'delivery') => {
 		if (type === 'pickup') {
@@ -355,7 +346,18 @@ export const DeliveryMethodForm = ({
 					type: 'pickup',
 					pickupAddress: PICKUP_ADDRESS,
 				},
+				deliveryCost: undefined,
+				deliveryDate: undefined,
+				deliveryTime: undefined,
 			})
+			setSelectedCityCode(null)
+			setPvzList([])
+			setIsLoadingPvz(false)
+			setCitySearchQuery('')
+			setCitySearchResults([])
+			setShowCitySearch(false)
+			setCityConfirmed(false)
+			setCalculationError(null)
 		} else {
 			onChange({
 				type: 'delivery',
@@ -369,7 +371,18 @@ export const DeliveryMethodForm = ({
 					},
 					deliveryOption: 'door',
 				},
+				deliveryCost: undefined,
+				deliveryDate: undefined,
+				deliveryTime: undefined,
 			})
+			setSelectedCityCode(null)
+			setPvzList([])
+			setIsLoadingPvz(false)
+			setCitySearchQuery('')
+			setCitySearchResults([])
+			setShowCitySearch(false)
+			setCityConfirmed(false)
+			setCalculationError(null)
 		}
 	}
 
@@ -379,12 +392,30 @@ export const DeliveryMethodForm = ({
 				address: {
 					...data.address,
 					deliveryOption: option,
+					deliveryAddress: {
+						city: '',
+						street: '',
+						house: '',
+						apartment: '',
+					},
+					selectedPvz: undefined,
 				},
 				// Сбрасываем стоимость доставки при смене опции
 				deliveryCost: undefined,
 				deliveryDate: undefined,
 				deliveryTime: undefined,
 			})
+
+			// Clear PVZ-related UI state on any switch between door ↔ pvz
+			setSelectedCityCode(null)
+			setPvzList([])
+			setIsLoadingPvz(false)
+			setCitySearchQuery('')
+			setCitySearchResults([])
+			setShowCitySearch(false)
+			setCityConfirmed(false)
+			// Keep detectedCity (auto-detect result) so the banner can still help the user.
+			setCalculationError(null)
 		}
 	}
 
@@ -398,6 +429,10 @@ export const DeliveryMethodForm = ({
 						[field]: value,
 					},
 				},
+				// Clear stale calculation while user edits address.
+				deliveryCost: undefined,
+				deliveryDate: undefined,
+				deliveryTime: undefined,
 			})
 		}
 	}
@@ -429,8 +464,7 @@ export const DeliveryMethodForm = ({
 							: 'bg-[#F2E8EA] text-black'
 					}`}
 				>
-					Доставка{' '}
-					{data.deliveryCost ? `от ${data.deliveryCost} руб.` : 'от 990 руб.'}
+					Доставка
 				</button>
 			</div>
 
@@ -518,7 +552,7 @@ export const DeliveryMethodForm = ({
 							)}
 
 							{/* Поиск города */}
-							<FormField label="Город">
+							<FormField label="Город" error={errors?.city}>
 								<div className="relative city-search-container">
 									<IInput
 										type="text"
@@ -537,6 +571,9 @@ export const DeliveryMethodForm = ({
 															city: value,
 														},
 													},
+													deliveryCost: undefined,
+													deliveryDate: undefined,
+													deliveryTime: undefined,
 												})
 											}
 											handleCitySearch(value)
@@ -566,123 +603,135 @@ export const DeliveryMethodForm = ({
 							</FormField>
 
 							{/* Карта и список ПВЗ */}
-							{selectedCityCode && (
-								<>
-									{isLoadingPvz ? (
-										<div className="flex items-center justify-center h-[200px] max-sm:h-[120px] border border-gray-200 rounded-lg bg-gray-50">
-											<div className="flex flex-col items-center gap-2">
-												<div className="w-6 h-6 border-2 border-[#7B1931] border-t-transparent rounded-full animate-spin" />
-												<p className="text-sm max-sm:text-xs text-gray-500">
-													Загрузка пунктов выдачи...
-												</p>
-											</div>
-										</div>
-									) : pvzList.length > 0 ? (
-										<>
-											{/* Split-panel: карта + список */}
-											<div className="flex gap-3 max-sm:flex-col border border-gray-200 rounded-lg overflow-hidden h-[420px] max-sm:h-auto">
-												{/* Карта */}
-												<div className="w-[60%] max-sm:w-full max-sm:h-[250px] min-h-0">
-													<YandexMap
-														center={{
-															lat: pvzList[0]?.latitude || 55.7558,
-															lon: pvzList[0]?.longitude || 37.6173,
-														}}
-														zoom={12}
-														height="100%"
-														markers={pvzList.map((pvz) => ({
-															id: pvz.code,
-															latitude: pvz.latitude,
-															longitude: pvz.longitude,
-															title: pvz.name,
-															address: pvz.addressFull || pvz.address,
-															isSelected:
-																data.address.type === 'delivery' &&
-																data.address.selectedPvz?.code === pvz.code,
-															onClick: () => handlePvzSelect(pvz),
-														}))}
-													/>
-												</div>
+							<>
+								{/* Split-panel: карта + список */}
+								<div className="flex gap-3 max-sm:flex-col border border-gray-200 rounded-lg overflow-hidden h-[420px] max-sm:h-auto">
+									{/* Карта */}
+									<div className="w-[60%] max-sm:w-full max-sm:h-[250px] min-h-0">
+										<YandexMap
+											center={{
+												lat: pvzList[0]?.latitude || DEFAULT_PVZ_MAP_CENTER.lat,
+												lon: pvzList[0]?.longitude || DEFAULT_PVZ_MAP_CENTER.lon,
+											}}
+											zoom={12}
+											height="100%"
+											markers={pvzList.map((pvz) => ({
+												id: pvz.code,
+												latitude: pvz.latitude,
+												longitude: pvz.longitude,
+												title: pvz.name,
+												address: pvz.addressFull || pvz.address,
+												isSelected:
+													data.address.type === 'delivery' &&
+													data.address.selectedPvz?.code === pvz.code,
+												onClick: () => handlePvzSelect(pvz),
+											}))}
+										/>
+									</div>
 
-												{/* Список ПВЗ */}
-												<div className="w-[40%] max-sm:w-full max-sm:max-h-[250px] overflow-y-auto">
-													{pvzList.map((pvz) => {
-														const isSelected =
-															data.address.type === 'delivery' &&
-															data.address.selectedPvz?.code === pvz.code
-														return (
-															<button
-																key={pvz.code}
-																type="button"
-																onClick={() => handlePvzSelect(pvz)}
-																className={`w-full px-3 py-2.5 max-sm:px-2 max-sm:py-2 text-left border-b border-gray-100 last:border-b-0 transition-colors ${
-																	isSelected
-																		? 'bg-[#F2E8EA] border-l-[3px] border-l-[#7B1931]'
-																		: 'hover:bg-gray-50'
-																}`}
-															>
-																<p className={`text-sm max-sm:text-xs leading-tight ${isSelected ? 'font-bold text-[#7B1931]' : 'font-medium text-gray-900'}`}>
-																	{pvz.name}
-																</p>
-																<p className="text-xs max-sm:text-[10px] text-gray-500 mt-0.5 leading-tight">
-																	{pvz.addressFull || pvz.address}
-																</p>
-																{isSelected && (
-																	<div className="mt-1.5 pt-1.5 border-t border-[#7B1931]/20">
-																		{pvz.workTime && (
-																			<p className="text-xs max-sm:text-[10px] text-gray-600">
-																				{pvz.workTime}
-																			</p>
-																		)}
-																		{pvz.phones && pvz.phones.length > 0 && (
-																			<p className="text-xs max-sm:text-[10px] text-gray-600 mt-0.5">
-																				{pvz.phones.map((p) => p.number).join(', ')}
-																			</p>
-																		)}
-																	</div>
+									{/* Список ПВЗ / пустое состояние */}
+									<div className="w-[40%] max-sm:w-full max-sm:max-h-[250px] overflow-y-auto">
+										{!selectedCityCode ? (
+											<div className="p-3 max-sm:p-2 text-sm max-sm:text-xs text-gray-500">
+												Выберите город, чтобы увидеть пункты выдачи.
+											</div>
+										) : isLoadingPvz ? (
+											<div className="flex items-center justify-center h-[200px] max-sm:h-[120px]">
+												<div className="flex flex-col items-center gap-2">
+													<div className="w-6 h-6 border-2 border-[#7B1931] border-t-transparent rounded-full animate-spin" />
+													<p className="text-sm max-sm:text-xs text-gray-500">
+														Загрузка пунктов выдачи...
+													</p>
+												</div>
+											</div>
+										) : pvzList.length > 0 ? (
+											pvzList.map((pvz) => {
+												const isSelected =
+													data.address.type === 'delivery' &&
+													data.address.selectedPvz?.code === pvz.code
+												return (
+													<button
+														key={pvz.code}
+														type="button"
+														onClick={() => handlePvzSelect(pvz)}
+														className={`w-full px-3 py-2.5 max-sm:px-2 max-sm:py-2 text-left border-b border-gray-100 last:border-b-0 transition-colors ${
+															isSelected
+																? 'bg-[#F2E8EA] border-l-[3px] border-l-[#7B1931]'
+																: 'hover:bg-gray-50'
+														}`}
+													>
+														<p
+															className={`text-sm max-sm:text-xs leading-tight ${
+																isSelected
+																	? 'font-bold text-[#7B1931]'
+																	: 'font-medium text-gray-900'
+															}`}
+														>
+															{pvz.name}
+														</p>
+														<p className="text-xs max-sm:text-[10px] text-gray-500 mt-0.5 leading-tight">
+															{pvz.addressFull || pvz.address}
+														</p>
+														{isSelected && (
+															<div className="mt-1.5 pt-1.5 border-t border-[#7B1931]/20">
+																{pvz.workTime && (
+																	<p className="text-xs max-sm:text-[10px] text-gray-600">
+																		{pvz.workTime}
+																	</p>
 																)}
-															</button>
-														)
-													})}
-												</div>
+																{pvz.phones && pvz.phones.length > 0 && (
+																	<p className="text-xs max-sm:text-[10px] text-gray-600 mt-0.5">
+																		{pvz.phones.map((p) => p.number).join(', ')}
+																	</p>
+																)}
+															</div>
+														)}
+													</button>
+												)
+											})
+										) : calculationError ? (
+											<p className="p-3 max-sm:p-2 text-sm max-sm:text-xs text-red-500">
+												{calculationError}
+											</p>
+										) : (
+											<div className="p-3 max-sm:p-2 text-sm max-sm:text-xs text-gray-500">
+												Пункты выдачи не найдены.
 											</div>
+										)}
+									</div>
+								</div>
 
-											{/* Бейдж с итогом доставки */}
-											{data.address.selectedPvz && (
-												<div className="flex items-center gap-3 max-sm:gap-2 p-3 max-sm:p-2 bg-[#F2E8EA] rounded-lg">
-													<div className="w-8 h-8 max-sm:w-6 max-sm:h-6 rounded-full bg-[#7B1931] flex items-center justify-center shrink-0">
-														<svg className="w-4 h-4 max-sm:w-3 max-sm:h-3 text-white" viewBox="0 0 16 16" fill="none">
-															<path d="M3 8l4 4 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-														</svg>
-													</div>
-													<div className="flex-1 min-w-0">
-														<p className="text-sm max-sm:text-xs font-bold text-[#7B1931] truncate">
-															{data.address.selectedPvz.name}
-														</p>
-														<p className="text-xs max-sm:text-[10px] text-gray-600 truncate">
-															{data.address.selectedPvz.address}
-														</p>
-													</div>
-													<div className="text-right shrink-0">
-														{data.deliveryCost && (
-															<p className="text-sm max-sm:text-xs font-bold text-[#7B1931]">
-																{data.deliveryCost} руб.
-															</p>
-														)}
-														{data.deliveryDate && (
-															<p className="text-xs max-sm:text-[10px] text-gray-500">
-																к {data.deliveryDate}
-															</p>
-														)}
-													</div>
-												</div>
+								{/* Бейдж с итогом доставки */}
+								{data.address.type === 'delivery' && data.address.selectedPvz && (
+									<div className="flex items-center gap-3 max-sm:gap-2 p-3 max-sm:p-2 bg-[#F2E8EA] rounded-lg">
+										<div className="w-8 h-8 max-sm:w-6 max-sm:h-6 rounded-full bg-[#7B1931] flex items-center justify-center shrink-0">
+											<svg className="w-4 h-4 max-sm:w-3 max-sm:h-3 text-white" viewBox="0 0 16 16" fill="none">
+												<path d="M3 8l4 4 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+											</svg>
+										</div>
+										<div className="flex-1 min-w-0">
+											<p className="text-sm max-sm:text-xs font-bold text-[#7B1931] truncate">
+												{data.address.selectedPvz.name}
+											</p>
+											<p className="text-xs max-sm:text-[10px] text-gray-600 truncate">
+												{data.address.selectedPvz.address}
+											</p>
+										</div>
+										<div className="text-right shrink-0">
+											{data.deliveryCost != null && (
+												<p className="text-sm max-sm:text-xs font-bold text-[#7B1931]">
+													{data.deliveryCost} руб.
+												</p>
 											)}
-										</>
-									) : calculationError ? (
-										<p className="text-sm text-red-500">{calculationError}</p>
-									) : null}
-								</>
-							)}
+											{data.deliveryDate && (
+												<p className="text-xs max-sm:text-[10px] text-gray-500">
+													к {data.deliveryDate}
+												</p>
+											)}
+										</div>
+									</div>
+								)}
+							</>
 							{isCalculating && (
 								<div className="flex items-center gap-2 p-3 max-sm:p-2 bg-gray-50 rounded-lg">
 									<div className="w-4 h-4 border-2 border-[#7B1931] border-t-transparent rounded-full animate-spin" />
@@ -737,6 +786,7 @@ export const DeliveryMethodForm = ({
 									}
 									placeholder="Москва"
 									onChange={(e) => handleAddressChange('city', e.target.value)}
+									onBlur={tryCalculateDoorCostOnBlur}
 								/>
 							</FormField>
 
@@ -752,6 +802,7 @@ export const DeliveryMethodForm = ({
 									onChange={(e) =>
 										handleAddressChange('street', e.target.value)
 									}
+									onBlur={tryCalculateDoorCostOnBlur}
 								/>
 							</FormField>
 
@@ -768,6 +819,7 @@ export const DeliveryMethodForm = ({
 										onChange={(e) =>
 											handleAddressChange('house', e.target.value)
 										}
+										onBlur={tryCalculateDoorCostOnBlur}
 									/>
 								</FormField>
 
@@ -787,6 +839,7 @@ export const DeliveryMethodForm = ({
 										onChange={(e) =>
 											handleAddressChange('apartment', e.target.value)
 										}
+										onBlur={tryCalculateDoorCostOnBlur}
 									/>
 								</FormField>
 							</div>
