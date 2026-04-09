@@ -846,7 +846,6 @@ export default factories.createCoreController(
 
 					const stockOps = stockOpsFactory({ strapi })
 					await strapi.db.transaction(async ({ trx }) => {
-						const knex = strapi.db.connection
 						if (orderStatus === 'paid') {
 							await stockOps.applyOrderStockOp({
 								trx,
@@ -862,15 +861,9 @@ export default factories.createCoreController(
 							})
 						}
 
-						await knex('orders')
-							.transacting(trx)
-							.where({ id: paymentOrder.id })
-							.update({
-								status: orderUpdate.status,
-								cancelled_at: orderUpdate.cancelledAt || null,
-								cancel_reason: orderUpdate.cancelReason || null,
-								updated_at: new Date().toISOString(),
-							})
+						await strapi.entityService.update('api::order.order', paymentOrder.id, {
+							data: orderUpdate,
+						})
 					})
 
 					// Best-effort: try cancel CDEK order when refund succeeded
@@ -1011,7 +1004,6 @@ export default factories.createCoreController(
 					if (currentOrderStatus !== orderStatus) {
 						const stockOps = stockOpsFactory({ strapi })
 						await strapi.db.transaction(async ({ trx }) => {
-							const knex = strapi.db.connection
 							if (orderStatus === 'paid') {
 								await stockOps.applyOrderStockOp({
 									trx,
@@ -1020,13 +1012,9 @@ export default factories.createCoreController(
 								})
 							}
 
-							await knex('orders')
-								.transacting(trx)
-								.where({ id: paymentOrder.id })
-								.update({
-									status: orderStatus,
-									updated_at: new Date().toISOString(),
-								})
+							await strapi.entityService.update('api::order.order', paymentOrder.id, {
+								data: { status: orderStatus },
+							})
 						})
 						strapi.log.info('Tochka Pay status check: order status updated', {
 							orderId: paymentOrder.id,

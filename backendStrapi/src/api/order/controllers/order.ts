@@ -241,7 +241,6 @@ export default factories.createCoreController(
 				const deliveryCostValue = Number(cdekDeliveryCost ?? 0)
 
 				const stockOps = stockOpsFactory({ strapi })
-				const knex = strapi.db.connection
 
 				const order = await strapi.db.transaction(async ({ trx }) => {
 					// Aggregate duplicate productId in payload and validate quantities
@@ -312,39 +311,38 @@ export default factories.createCoreController(
 						}
 					})
 
-					const createdAt = new Date().toISOString()
-					const reservedUntil = isOnline
-						? new Date(Date.now() + 30 * 60 * 1000).toISOString()
-						: null
-
-					const insertRow: any = {
-						user_id: userId,
-						order_number: orderNumber,
+					const orderData: any = {
+						user: userId,
+						orderNumber,
 						status: isOnline ? 'awaiting_payment' : 'pending',
-						total_amount: totalAmount,
+						totalAmount,
 						items: orderItems,
-						shipping_address: shippingAddress,
-						payment_method: paymentMethod || null,
-						payment_provider: paymentProvider || null,
-						notes: notes || null,
-						delivery_type: orderDeliveryType,
-						customer_data: customerData || null,
-						reserved_until: reservedUntil,
-						cdek_delivery_cost: !Number.isNaN(deliveryCostValue) ? deliveryCostValue : null,
-						cdek_tariff_code: orderDeliveryType !== 'pickup' ? (cdekTariffCode || null) : null,
-						cdek_pvz_code: orderDeliveryType !== 'pickup' ? (cdekPvzCode || null) : null,
-						cdek_pvz_address: orderDeliveryType !== 'pickup' ? (cdekPvzAddress || null) : null,
-						stock_ops: {},
-						created_at: createdAt,
-						updated_at: createdAt,
+						shippingAddress,
+						paymentMethod,
+						paymentProvider: paymentProvider || null,
+						notes,
+						deliveryType: orderDeliveryType,
+						customerData,
+						stockOps: {},
 					}
 
-					const inserted = await knex('orders')
-						.transacting(trx)
-						.insert(insertRow)
-						.returning(['id', 'order_number', 'status', 'items', 'total_amount'])
+					if (isOnline) {
+						orderData.reservedUntil = new Date(Date.now() + 30 * 60 * 1000).toISOString()
+					}
 
-					const created = Array.isArray(inserted) ? inserted[0] : inserted
+					if (!Number.isNaN(deliveryCostValue)) {
+						orderData.cdekDeliveryCost = deliveryCostValue
+					}
+
+					if (orderDeliveryType !== 'pickup') {
+						if (cdekTariffCode) orderData.cdekTariffCode = cdekTariffCode
+						if (cdekPvzCode) orderData.cdekPvzCode = cdekPvzCode
+						if (cdekPvzAddress) orderData.cdekPvzAddress = cdekPvzAddress
+					}
+
+					const created = await strapi.entityService.create('api::order.order', {
+						data: orderData,
+					})
 
 					if (isOnline) {
 						try {
@@ -663,26 +661,21 @@ export default factories.createCoreController(
 				if (currentStatus === 'awaiting_payment') {
 					const stockOps = stockOpsFactory({ strapi })
 					const updated = await strapi.db.transaction(async ({ trx }) => {
-						const knex = strapi.db.connection
 						await stockOps.applyOrderStockOp({
 							trx,
 							orderId: Number(id),
 							kind: 'release',
 						})
 
-						await knex('orders')
-							.transacting(trx)
-							.where({ id: Number(id) })
-							.update({
+						return await strapi.entityService.update('api::order.order', id, {
+							data: {
 								status: 'cancelled',
-								cancel_reason: adminUser
+								cancelReason: adminUser
 									? 'Отменено администратором до оплаты'
 									: 'Отменено пользователем до оплаты',
-								cancelled_at: new Date().toISOString(),
-								updated_at: new Date().toISOString(),
-							})
-
-						return await strapi.entityService.findOne('api::order.order', id)
+								cancelledAt: new Date().toISOString(),
+							},
+						})
 					})
 
 					ctx.body = {
