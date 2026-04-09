@@ -145,6 +145,75 @@ export default ({ env }) => {
             rule: '*/30 * * * *',
           },
         },
+        /**
+         * Periodic sync for CDEK track numbers by cdekOrderUuid.
+         * This is needed because cdek_number may appear later than initial CREATE.
+         */
+        cdekTrackSync: {
+          task: async ({ strapi }) => {
+            const extractTrackNumber = (payload: any): string | null => {
+              const entity = payload?.entity || payload
+              const candidate =
+                entity?.cdek_number ||
+                entity?.cdekNumber ||
+                entity?.track_number ||
+                entity?.trackNumber ||
+                entity?.number ||
+                entity?.cdekNumber?.value
+              if (!candidate) return null
+              const value = String(candidate).trim()
+              return value ? value : null
+            }
+
+            try {
+              const cdekService = strapi.service('api::cdek-sync.cdek-sync')
+              const orders = await strapi.entityService.findMany('api::order.order', {
+                filters: {
+                  deliveryType: { $ne: 'pickup' },
+                  cdekOrderUuid: { $notNull: true },
+                  cdekTrackNumber: { $null: true },
+                  status: { $in: ['awaiting_payment', 'paid', 'shipped'] },
+                },
+                sort: 'updatedAt:asc',
+                limit: 50,
+              })
+
+              for (const order of orders) {
+                const uuid = order.cdekOrderUuid
+                if (!uuid) continue
+                try {
+                  const info = await cdekService.getOrderByUuid(uuid)
+                  const track = extractTrackNumber(info)
+                  const nextStatus =
+                    (info as any)?.entity?.status ||
+                    (info as any)?.entity?.state ||
+                    null
+
+                  if (track || nextStatus) {
+                    await strapi.entityService.update('api::order.order', order.id, {
+                      data: {
+                        ...(track ? { cdekTrackNumber: track } : {}),
+                        ...(nextStatus ? { cdekStatus: String(nextStatus) } : {}),
+                      },
+                    })
+                  }
+                } catch (e) {
+                  strapi.log.warn('cdekTrackSync: failed to sync order', {
+                    orderId: order.id,
+                    cdekOrderUuid: uuid,
+                    error: e?.message || String(e),
+                  })
+                }
+              }
+            } catch (e) {
+              strapi.log.error('cdekTrackSync task failed', e)
+            }
+          },
+          options: {
+            // Every 10 minutes
+            rule: '*/10 * * * *',
+          },
+        },
       },
     },
   };

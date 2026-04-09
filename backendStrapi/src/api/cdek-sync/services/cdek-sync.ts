@@ -145,6 +145,11 @@ interface CDEKOrderResponse {
 	}
 }
 
+interface CDEKOrderGetResponse {
+	entity?: Record<string, unknown>
+	orders?: unknown
+}
+
 interface CDEKTokenCache {
 	token: string
 	expiresAt: number
@@ -469,6 +474,16 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 				)
 				return { ok: false, raw: error?.details ?? error?.response?.data ?? error?.message }
 			}
+		},
+
+		/**
+		 * Получить заказ в CDEK по uuid.
+		 * Используется как fallback для подтягивания трек-номера и статусов.
+		 */
+		async getOrderByUuid(uuid: string): Promise<CDEKOrderGetResponse> {
+			if (!uuid) throw new Error('CDEK: order uuid is required')
+			const response = await apiRequest<any>('GET', `/orders/${uuid}`)
+			return response as CDEKOrderGetResponse
 		},
 
 		/**

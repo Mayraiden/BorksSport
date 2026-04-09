@@ -322,6 +322,12 @@ export default ({ strapi }: { strapi: Core.Strapi }) => ({
 			const webhookData = ctx.request.body
 			const uuid = webhookData?.entity?.uuid
 			const status = webhookData?.entity?.status
+			const trackNumber =
+				webhookData?.entity?.cdek_number ||
+				webhookData?.entity?.cdekNumber ||
+				webhookData?.entity?.track_number ||
+				webhookData?.entity?.trackNumber ||
+				webhookData?.entity?.number
 
 			if (!uuid || typeof uuid !== 'string') {
 				ctx.status = 400
@@ -348,6 +354,9 @@ export default ({ strapi }: { strapi: Core.Strapi }) => ({
 					await strapi.entityService.update('api::order.order', order[0].id, {
 						data: {
 							cdekStatus: nextCdekStatus,
+							...(trackNumber
+								? { cdekTrackNumber: String(trackNumber).trim() }
+								: {}),
 							...(mappedOrderStatus ? { status: mappedOrderStatus } : {}),
 							// Дополнительные поля по необходимости
 						},
