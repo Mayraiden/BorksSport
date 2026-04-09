@@ -135,6 +135,14 @@ export const checkoutApi = {
 					}
 					throw new Error(errorData.message || 'Действие недоступно')
 				}
+				if (response.status === 409) {
+					const errorData = await response.json().catch(() => ({}))
+					checkoutLogger.group('POST /api/orders ← insufficient stock', {
+						status: response.status,
+						error: errorData,
+					})
+					throw new Error(errorData.message || 'Недостаточно товара')
+				}
 				if (response.status === 400) {
 					const errorData = await response.json().catch(() => ({}))
 					checkoutLogger.group('POST /api/orders ← error', {

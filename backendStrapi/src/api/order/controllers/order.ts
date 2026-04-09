@@ -355,13 +355,17 @@ export default factories.createCoreController(
 						} catch (e: any) {
 							const msg = String(e?.message || '')
 							if (msg.startsWith('INSUFFICIENT_STOCK:')) {
+								const productId = Number(msg.split(':')[1] || 0) || undefined
+								const available = productId ? await stockOps.getAvailableStock(productId) : 0
 								ctx.status = 409
 								ctx.body = {
 									success: false,
 									code: 'INSUFFICIENT_STOCK',
-									message: 'Недостаточно товара на складе',
+									message: `Доступно ${available} шт.`,
+									available,
+									productId,
 								}
-								throw e
+								return null
 							}
 							throw e
 						}
@@ -559,6 +563,10 @@ export default factories.createCoreController(
 					message: 'Order created successfully',
 				}
 			} catch (error: any) {
+				// If we already prepared a proper response (e.g. 409 insufficient stock), do not override with 500.
+				if (ctx.status === 409 && ctx.body) {
+					return
+				}
 				ctx.status = 500
 				ctx.body = {
 					success: false,

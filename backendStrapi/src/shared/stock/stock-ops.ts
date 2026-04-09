@@ -70,10 +70,10 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 
 		const update: Record<string, any> = {}
 		if (reservedDelta !== 0) {
-			update.reserved_stock = knex.raw('reserved_stock + ?', [reservedDelta])
+			update.reserved_stock = knex.raw('COALESCE(reserved_stock, 0) + ?', [reservedDelta])
 		}
 		if (soldDelta !== 0) {
-			update.sold_but_not_synced = knex.raw('sold_but_not_synced + ?', [soldDelta])
+			update.sold_but_not_synced = knex.raw('COALESCE(sold_but_not_synced, 0) + ?', [soldDelta])
 		}
 
 		if (Object.keys(update).length === 0) {
@@ -85,17 +85,17 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 		// Guard: require stock - reserved_stock - sold_but_not_synced >= N
 		if (guard?.requireAvailableGte && guard.requireAvailableGte > 0) {
 			q = q.andWhereRaw(
-				'stock - reserved_stock - sold_but_not_synced >= ?',
+				'COALESCE(stock, 0) - COALESCE(reserved_stock, 0) - COALESCE(sold_but_not_synced, 0) >= ?',
 				[guard.requireAvailableGte]
 			)
 		}
 
 		// Guard against going below zero for counters.
 		if (reservedDelta < 0) {
-			q = q.andWhereRaw('reserved_stock >= ?', [-reservedDelta])
+			q = q.andWhereRaw('COALESCE(reserved_stock, 0) >= ?', [-reservedDelta])
 		}
 		if (soldDelta < 0) {
-			q = q.andWhereRaw('sold_but_not_synced >= ?', [-soldDelta])
+			q = q.andWhereRaw('COALESCE(sold_but_not_synced, 0) >= ?', [-soldDelta])
 		}
 
 		const updated = await q.update(update)
