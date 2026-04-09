@@ -200,6 +200,32 @@ export const checkoutApi = {
 		}>
 	}> {
 		try {
+			const formatEuDate = (iso: string | undefined): string | undefined => {
+				if (!iso) return undefined
+				const [y, m, d] = iso.split('-')
+				if (!y || !m || !d) return iso
+				return `${d}.${m}.${y}`
+			}
+
+			const pluralizeDays = (n: number): string => {
+				const abs = Math.abs(n)
+				const mod10 = abs % 10
+				const mod100 = abs % 100
+				if (mod100 >= 11 && mod100 <= 14) return 'дней'
+				if (mod10 === 1) return 'день'
+				if (mod10 >= 2 && mod10 <= 4) return 'дня'
+				return 'дней'
+			}
+
+			const formatDeliveryDays = (minDays: number, maxDays: number): string => {
+				if (!Number.isFinite(minDays) || !Number.isFinite(maxDays)) return ''
+				if (minDays <= 0 || maxDays <= 0) return ''
+				if (minDays === maxDays) {
+					return `${minDays} ${pluralizeDays(minDays)}`
+				}
+				return `${minDays}-${maxDays} ${pluralizeDays(maxDays)}`
+			}
+
 			const mmToCmInt = (valueMm: unknown): number | undefined => {
 				const n = Number(valueMm)
 				if (!Number.isFinite(n) || n <= 0) return undefined
@@ -316,11 +342,15 @@ export const checkoutApi = {
 			// Вычисляем дату доставки (сегодня + период доставки)
 			const deliveryDate = new Date()
 			deliveryDate.setDate(deliveryDate.getDate() + selectedTariff.period_max)
+			const deliveryDateIso = deliveryDate.toISOString().split('T')[0]
 
 			return {
 				cost: selectedTariff.delivery_sum,
-				deliveryDate: deliveryDate.toISOString().split('T')[0],
-				deliveryTime: `${selectedTariff.period_min}-${selectedTariff.period_max} дней`,
+				deliveryDate: formatEuDate(deliveryDateIso),
+				deliveryTime: formatDeliveryDays(
+					selectedTariff.period_min,
+					selectedTariff.period_max
+				),
 				availableTariffs: data.data.tariff_codes.map((t) => ({
 					tariffCode: t.tariff_code,
 					tariffName: t.tariff_name,

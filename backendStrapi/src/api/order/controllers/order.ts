@@ -401,19 +401,13 @@ export default factories.createCoreController(
 								items: packages.flatMap((pkg: any) => pkg.items || []),
 							}
 
-							// Prepare location
-							const toLocation: any = {
-								city: deliveryAddress.city,
-							}
-
-							// Если ПВЗ доставка, передаем код ПВЗ отдельным полем delivery_point
-							if (orderDeliveryType === 'pvz' && cdekPvzCode) {
-								// cdekPvzCode is a PVZ (delivery point) code (string), not a city numeric code
-							} else {
-								// Для доставки до двери нужен адрес
-								toLocation.address = `${deliveryAddress.street}, ${deliveryAddress.house}${
-									deliveryAddress.apartment ? `, кв. ${deliveryAddress.apartment}` : ''
-								}`
+							const normalizePhoneE164 = (raw: unknown): string => {
+								const digits = String(raw ?? '').replace(/\D+/g, '')
+								if (!digits) return '+70000000000'
+								if (digits.startsWith('8')) return `+7${digits.slice(1)}`
+								if (digits.startsWith('7')) return `+${digits}`
+								if (digits.startsWith('00')) return `+${digits.slice(2)}`
+								return `+${digits}`
 							}
 
 							const cdekOrderData = {
@@ -425,15 +419,22 @@ export default factories.createCoreController(
 									city: cdekService.config.warehouse.city,
 									address: cdekService.config.warehouse.address,
 								},
-								to_location: toLocation,
-								...(orderDeliveryType === 'pvz' && cdekPvzCode
+								// For PVZ orders CDEK requires `delivery_point` instead of `to_location`.
+								...(orderDeliveryType === 'pvz'
 									? { delivery_point: cdekPvzCode }
-									: {}),
+									: {
+											to_location: {
+												city: deliveryAddress.city,
+												address: `${deliveryAddress.street}, ${deliveryAddress.house}${
+													deliveryAddress.apartment ? `, кв. ${deliveryAddress.apartment}` : ''
+												}`,
+											},
+									  }),
 								recipient: {
 									name: customerData.name || 'Получатель',
 									phones: [
 										{
-											number: customerData.phone || '',
+											number: normalizePhoneE164(customerData.phone),
 										},
 									],
 									email: customerData.email || undefined,
@@ -457,7 +458,7 @@ export default factories.createCoreController(
 						// Log error but don't fail the order creation
 						strapi.log.error('CDEK: Failed to create order in CDEK', {
 							orderId: order.id,
-							error: cdekError.message,
+							error: cdekError.response?.data || cdekError.message,
 						})
 						try {
 							await strapi.entityService.update('api::order.order', order.id, {

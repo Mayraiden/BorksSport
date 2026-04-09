@@ -11,7 +11,6 @@ import { checkoutApi } from '@/features/Checkout/api/checkoutApi'
 import { validateCheckoutForm, hasErrors } from '@/features/Checkout/lib/validation'
 import { useAuthStore } from '@/features/Auth/model/store'
 import { cartApi, type CartItemDisplay } from '@/features/Cart/api/cartApi'
-import { isEmailAuthDisabled } from '@/shared/config/emailAuth'
 import type {
 	CheckoutFormData,
 	CheckoutFormErrors,
@@ -24,7 +23,9 @@ import type {
 export const Checkout = () => {
 	const router = useRouter()
 	const { isAuthenticated, jwt, user } = useAuthStore()
-	const isEmailConfirmed = isEmailAuthDisabled() ? true : !!user?.confirmed
+	// Email confirmation is currently disabled in product UX.
+	// Keep the flag for future, but never block checkout.
+	const isEmailConfirmed = true
 	const [cartItems, setCartItems] = useState<CartItemDisplay[]>([])
 	const [isLoading, setIsLoading] = useState(true)
 	const [isSubmitting, setIsSubmitting] = useState(false)
@@ -151,14 +152,6 @@ export const Checkout = () => {
 
 		if (!isAuthenticated || !jwt) {
 			router.push('/auth')
-			return
-		}
-
-		if (!isEmailConfirmed) {
-			setErrors({
-				general: 'Подтвердите email, чтобы оформить заказ и перейти к оплате.',
-			})
-			router.push(`/auth/confirm-email?email=${encodeURIComponent(user?.email || '')}`)
 			return
 		}
 
@@ -394,14 +387,14 @@ export const Checkout = () => {
 						{/* Кнопка подтверждения */}
 						<button
 							type="submit"
-							disabled={isSubmitting || !isEmailConfirmed}
+							disabled={isSubmitting}
 							className={`w-full py-4 max-sm:py-3 px-6 max-sm:px-4 rounded-md text-base max-sm:text-sm font-normal leading-[1.3125] transition-colors ${
-								isSubmitting || !isEmailConfirmed
+								isSubmitting
 									? 'bg-gray-300 text-gray-500 cursor-not-allowed'
 									: 'bg-[#7B1931] text-[#F5F5F5] hover:bg-[#6a1529]'
 							}`}
 						>
-							{isSubmitting ? 'Обработка...' : !isEmailConfirmed ? 'Подтвердите email' : 'Подтвердить заказ'}
+							{isSubmitting ? 'Обработка...' : 'Подтвердить заказ'}
 						</button>
 
 						{formData.payment.type === 'online' && (

@@ -5,7 +5,6 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { checkoutApi } from '@/features/Checkout/api/checkoutApi'
 import { useAuthStore } from '@/features/Auth/model/store'
-import { isEmailAuthDisabled } from '@/shared/config/emailAuth'
 import type {
 	PaymentSessionResponse,
 	PaymentStatus,
@@ -36,9 +35,8 @@ const PaymentPageContent = () => {
 	const searchParams = useSearchParams()
 	const router = useRouter()
 	const { jwt, isAuthenticated } = useAuthStore()
-	const isEmailConfirmed = useAuthStore((state) =>
-		isEmailAuthDisabled() ? true : !!state.user?.confirmed
-	)
+	// Email confirmation is currently disabled in product UX.
+	const isEmailConfirmed = true
 
 	const orderIdParam = searchParams.get('orderId')
 	const paymentIdParam = searchParams.get('paymentId')
