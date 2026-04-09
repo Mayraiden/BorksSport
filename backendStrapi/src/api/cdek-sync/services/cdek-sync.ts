@@ -272,10 +272,18 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 
 			return response.data
 		} catch (error: any) {
-			strapi.log.error(`CDEK: API request failed ${method} ${endpoint}`, {
-				error: error.response?.data || error.message,
-				data,
-			})
+			const safeStringify = (value: unknown) => {
+				try {
+					return JSON.stringify(value)
+				} catch {
+					return String(value)
+				}
+			}
+			const details = error.response?.data
+			const status = error.response?.status
+			strapi.log.error(
+				`CDEK: API request failed ${method} ${endpoint} status=${status ?? 'n/a'} details=${safeStringify(details)} request=${safeStringify(data)}`
+			)
 			const err = new Error(
 				`CDEK API error: ${error.response?.data?.error_description || error.message}`
 			)
@@ -418,10 +426,16 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 				)
 				return response
 			} catch (error: any) {
-				strapi.log.error('CDEK: Error creating order', {
-					error: error.response?.data || error.message,
-					orderData,
-				})
+				const safeStringify = (value: unknown) => {
+					try {
+						return JSON.stringify(value)
+					} catch {
+						return String(value)
+					}
+				}
+				strapi.log.error(
+					`CDEK: Error creating order status=${error?.status ?? error?.response?.status ?? 'n/a'} details=${safeStringify(error?.details ?? error?.response?.data ?? error?.message)} orderData=${safeStringify(orderData)}`
+				)
 				const err = new Error(
 					`Failed to create CDEK order: ${error.response?.data?.error_description || error.message}`
 				)
