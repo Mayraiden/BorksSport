@@ -11,6 +11,7 @@ import { checkoutApi } from '@/features/Checkout/api/checkoutApi'
 import { validateCheckoutForm, hasErrors } from '@/features/Checkout/lib/validation'
 import { useAuthStore } from '@/features/Auth/model/store'
 import { cartApi, type CartItemDisplay } from '@/features/Cart/api/cartApi'
+import { refreshCartCount } from '@/features/Cart/lib/useCartCount'
 import type {
 	CheckoutFormData,
 	CheckoutFormErrors,
@@ -180,6 +181,7 @@ export const Checkout = () => {
 			try {
 				await cartApi.clearCart(jwt)
 				setCartItems([])
+				await refreshCartCount(jwt)
 			} catch (clearError) {
 				console.warn('Unable to clear cart after order creation', clearError)
 			}

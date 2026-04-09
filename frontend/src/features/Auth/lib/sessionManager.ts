@@ -129,18 +129,6 @@ class SessionManager {
 
 		const store = useAuthStore.getState()
 
-		// Проверяем наличие user - если есть user, значит пользователь был авторизован
-		// refreshToken может быть в HTTP-only cookie, даже если его нет в store
-		if (!store.user) {
-			if (process.env.NODE_ENV === 'development') {
-				console.log('[SessionManager] No user found, cannot restore session')
-			}
-			return null
-		}
-
-		// refreshToken хранится в HTTP-only cookie, поэтому не проверяем его в store
-		// просто пытаемся восстановить сессию через API
-
 		// Устанавливаем флаг восстановления
 		this.isRestoringFlag = true
 		store.setRestoring(true)
