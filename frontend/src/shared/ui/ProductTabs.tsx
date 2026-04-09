@@ -13,6 +13,66 @@ type TabType = 'characteristics' | 'description'
 export const ProductTabs = ({ product, className = '' }: ProductTabsProps) => {
 	const [activeTab, setActiveTab] = useState<TabType>('characteristics')
 
+	const renderCharacteristicValue = (key: string, value: unknown) => {
+		if (key === 'Габариты' && typeof value === 'string') {
+			const normalized = value.replace(/\s+/g, ' ').trim()
+
+			const matchLength = normalized.match(/длина:\s*([\d.,]+)/i)
+			const matchWidth = normalized.match(/ширина:\s*([\d.,]+)/i)
+			const matchHeight = normalized.match(/высота:\s*([\d.,]+)/i)
+			const matchUnit = normalized.match(/\b(мм|cm|см)\b/i)
+
+			const toNumber = (raw: string | undefined) => {
+				if (!raw) return null
+				const n = Number(raw.replace(',', '.'))
+				return Number.isFinite(n) ? n : null
+			}
+
+			const length = toNumber(matchLength?.[1])
+			const width = toNumber(matchWidth?.[1])
+			const height = toNumber(matchHeight?.[1])
+			const unit = (matchUnit?.[1] || 'мм').toLowerCase().replace('cm', 'см')
+
+			if (length || width || height) {
+				const short =
+					length && width && height ? `${length}×${width}×${height} ${unit}` : null
+
+				return (
+					<div className="flex flex-col items-end gap-2 max-sm:items-start">
+						{short && (
+							<span className="text-base font-semibold leading-[1.3125] text-[#121212] max-sm:text-sm">
+								{short}
+							</span>
+						)}
+						<div className="flex flex-wrap justify-end gap-2 max-sm:justify-start">
+							{length ? (
+								<span className="px-2.5 py-1 rounded-full bg-[#F2E8EA] text-[#121212] text-xs">
+									Д {length} {unit}
+								</span>
+							) : null}
+							{width ? (
+								<span className="px-2.5 py-1 rounded-full bg-[#F2E8EA] text-[#121212] text-xs">
+									Ш {width} {unit}
+								</span>
+							) : null}
+							{height ? (
+								<span className="px-2.5 py-1 rounded-full bg-[#F2E8EA] text-[#121212] text-xs">
+									В {height} {unit}
+								</span>
+							) : null}
+						</div>
+					</div>
+				)
+			}
+		}
+
+		return (
+			<span className="text-base font-normal leading-[1.3125] text-[#121212] max-sm:text-sm">
+				{typeof value === 'string' || typeof value === 'number' ? value : String(value ?? '—')}
+			</span>
+		)
+	}
+
 	const tabs = [
 		{ id: 'characteristics' as TabType, label: 'Характеристики' },
 		{ id: 'description' as TabType, label: 'Описание' },
@@ -43,9 +103,7 @@ export const ProductTabs = ({ product, className = '' }: ProductTabsProps) => {
 									<span className="text-base font-bold leading-[1.3125] text-[#121212] max-sm:text-sm">
 										{key}
 									</span>
-									<span className="text-base font-normal leading-[1.3125] text-[#121212] max-sm:text-sm">
-										{value}
-									</span>
+									{renderCharacteristicValue(key, value)}
 								</div>
 							))}
 						</div>
@@ -61,9 +119,7 @@ export const ProductTabs = ({ product, className = '' }: ProductTabsProps) => {
 										<span className="text-base font-bold leading-[1.3125] text-[#121212] max-sm:text-sm">
 											{key}
 										</span>
-										<span className="text-base font-normal leading-[1.3125] text-[#121212] max-sm:text-sm">
-											{value}
-										</span>
+										{renderCharacteristicValue(key, value)}
 									</div>
 								))}
 							</div>
