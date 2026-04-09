@@ -34,16 +34,8 @@ export const ProductTabs = ({ product, className = '' }: ProductTabsProps) => {
 			const unit = (matchUnit?.[1] || 'мм').toLowerCase().replace('cm', 'см')
 
 			if (length || width || height) {
-				const short =
-					length && width && height ? `${length}×${width}×${height} ${unit}` : null
-
 				return (
 					<div className="flex flex-col items-end gap-2 max-sm:items-start">
-						{short && (
-							<span className="text-base font-semibold leading-[1.3125] text-[#121212] max-sm:text-sm">
-								{short}
-							</span>
-						)}
 						<div className="flex flex-wrap justify-end gap-2 max-sm:justify-start">
 							{length ? (
 								<span className="px-2.5 py-1 rounded-full bg-[#F2E8EA] text-[#121212] text-xs">
