@@ -458,7 +458,8 @@ export default factories.createCoreController(
 						// Log error but don't fail the order creation
 						strapi.log.error('CDEK: Failed to create order in CDEK', {
 							orderId: order.id,
-							error: cdekError.response?.data || cdekError.message,
+							error: cdekError.details || cdekError.response?.data || cdekError.message,
+							status: cdekError.status || cdekError.response?.status,
 						})
 						try {
 							await strapi.entityService.update('api::order.order', order.id, {

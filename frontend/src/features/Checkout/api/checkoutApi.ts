@@ -92,9 +92,9 @@ export const checkoutApi = {
 			// Добавляем данные СДЭК, если доставка не самовывоз
 			if (deliveryType !== 'pickup' && formData.delivery.deliveryCost) {
 				orderData.cdekDeliveryCost = formData.delivery.deliveryCost
-				// Определяем тариф (139 для до двери, 138 для ПВЗ)
-				orderData.cdekTariffCode =
-					deliveryType === 'door' ? 139 : 138
+				if (formData.delivery.deliveryTariffCode) {
+					orderData.cdekTariffCode = formData.delivery.deliveryTariffCode
+				}
 
 				// Если ПВЗ, добавляем код и адрес ПВЗ
 				if (
@@ -189,6 +189,7 @@ export const checkoutApi = {
 		tariffCode?: number
 	): Promise<{
 		cost: number
+		tariffCode?: number
 		deliveryDate?: string
 		deliveryTime?: string
 		availableTariffs?: Array<{
@@ -346,6 +347,7 @@ export const checkoutApi = {
 
 			return {
 				cost: selectedTariff.delivery_sum,
+				tariffCode: selectedTariff.tariff_code,
 				deliveryDate: formatEuDate(deliveryDateIso),
 				deliveryTime: formatDeliveryDays(
 					selectedTariff.period_min,

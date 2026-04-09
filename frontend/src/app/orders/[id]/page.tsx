@@ -186,8 +186,20 @@ export default function OrderDetailsPage({ params }: OrderDetailsPageProps) {
 												: (() => {
 													const address = order.shippingAddress
 													if ('deliveryAddress' in address) {
+														// PVZ delivery: show selected pickup point address instead of empty street/house.
+														if (
+															address.deliveryOption === 'pickup_point' &&
+															address.selectedPvz?.address
+														) {
+															return address.selectedPvz.address
+														}
 														const { street, house, apartment } = address.deliveryAddress
-														return `${street}, ${house}${apartment ? `, кв. ${apartment}` : ''}`
+														const streetValue = (street || '').trim()
+														const houseValue = (house || '').trim()
+														if (!streetValue && !houseValue) {
+															return 'Адрес доставки уточняется'
+														}
+														return `${streetValue}${streetValue && houseValue ? ', ' : ''}${houseValue}${apartment ? `, кв. ${apartment}` : ''}`
 													}
 													return 'Адрес доставки уточняется'
 												})()}

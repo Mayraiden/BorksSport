@@ -304,6 +304,7 @@ export const DeliveryMethodForm = ({
 
 				onChange({
 					deliveryCost: result.cost,
+					deliveryTariffCode: result.tariffCode,
 					deliveryDate: result.deliveryDate,
 					deliveryTime: result.deliveryTime,
 				})
@@ -347,6 +348,7 @@ export const DeliveryMethodForm = ({
 					pickupAddress: PICKUP_ADDRESS,
 				},
 				deliveryCost: undefined,
+				deliveryTariffCode: undefined,
 				deliveryDate: undefined,
 				deliveryTime: undefined,
 			})
@@ -372,6 +374,7 @@ export const DeliveryMethodForm = ({
 					deliveryOption: 'door',
 				},
 				deliveryCost: undefined,
+				deliveryTariffCode: undefined,
 				deliveryDate: undefined,
 				deliveryTime: undefined,
 			})
@@ -402,6 +405,7 @@ export const DeliveryMethodForm = ({
 				},
 				// Сбрасываем стоимость доставки при смене опции
 				deliveryCost: undefined,
+				deliveryTariffCode: undefined,
 				deliveryDate: undefined,
 				deliveryTime: undefined,
 			})
@@ -431,6 +435,7 @@ export const DeliveryMethodForm = ({
 				},
 				// Clear stale calculation while user edits address.
 				deliveryCost: undefined,
+				deliveryTariffCode: undefined,
 				deliveryDate: undefined,
 				deliveryTime: undefined,
 			})
@@ -572,6 +577,7 @@ export const DeliveryMethodForm = ({
 														},
 													},
 													deliveryCost: undefined,
+													deliveryTariffCode: undefined,
 													deliveryDate: undefined,
 													deliveryTime: undefined,
 												})

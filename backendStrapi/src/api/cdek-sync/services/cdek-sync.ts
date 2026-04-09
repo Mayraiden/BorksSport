@@ -276,9 +276,12 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 				error: error.response?.data || error.message,
 				data,
 			})
-			throw new Error(
+			const err = new Error(
 				`CDEK API error: ${error.response?.data?.error_description || error.message}`
 			)
+			;(err as any).details = error.response?.data
+			;(err as any).status = error.response?.status
+			throw err
 		}
 	}
 
@@ -419,9 +422,12 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 					error: error.response?.data || error.message,
 					orderData,
 				})
-				throw new Error(
+				const err = new Error(
 					`Failed to create CDEK order: ${error.response?.data?.error_description || error.message}`
 				)
+				;(err as any).details = error.response?.data || (error as any).details
+				;(err as any).status = error.response?.status || (error as any).status
+				throw err
 			}
 		},
 

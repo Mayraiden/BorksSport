@@ -83,6 +83,7 @@ export interface DeliveryData {
 	address: ShippingAddress
 	// Задел для СДЭК: стоимость доставки будет рассчитываться через API
 	deliveryCost?: number
+	deliveryTariffCode?: number // Выбранный тариф СДЭК для заказа
 	deliveryDate?: string // Дата доставки от СДЭК
 	deliveryTime?: string // Время доставки от СДЭК
 }
