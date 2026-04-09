@@ -383,6 +383,16 @@ export default factories.createCoreController(
 					return
 				}
 
+				if ((order as any).status === 'cancelled') {
+					ctx.status = 400
+					ctx.body = {
+						success: false,
+						code: 'ORDER_CANCELLED',
+						message: 'Order is cancelled. Payment is not available.',
+					}
+					return
+				}
+
 				if (order.paymentMethod !== 'online') {
 					ctx.status = 400
 					ctx.body = {
@@ -904,6 +914,16 @@ export default factories.createCoreController(
 					ctx.body = {
 						success: false,
 						message: 'Payment not found',
+					}
+					return
+				}
+
+				if ((payment as any).order?.status === 'cancelled') {
+					ctx.status = 400
+					ctx.body = {
+						success: false,
+						code: 'ORDER_CANCELLED',
+						message: 'Order is cancelled. Payment status is not available.',
 					}
 					return
 				}

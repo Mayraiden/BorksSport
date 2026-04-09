@@ -433,7 +433,9 @@ export default function OrderDetailsPage({ params }: OrderDetailsPageProps) {
 														: ''}
 												</p>
 											</div>
-											{payment.paymentUrl && payment.status === 'pending' && (
+											{order.status !== 'cancelled' &&
+												payment.paymentUrl &&
+												payment.status === 'pending' && (
 												<Link
 													href={`/checkout/payment?orderId=${order.id}&paymentId=${payment.id}`}
 													className="inline-flex items-center justify-center px-3 max-sm:px-2 py-2 max-sm:py-1.5 text-xs max-sm:text-[10px] border border-[#7B1931] text-[#7B1931] rounded-md hover:bg-[#f8f0f2] max-sm:w-full max-sm:justify-center"
@@ -447,7 +449,7 @@ export default function OrderDetailsPage({ params }: OrderDetailsPageProps) {
 							)}
 						</div>
 
-						{pendingPayment && (
+						{order.status !== 'cancelled' && pendingPayment && (
 							<div className="bg-yellow-50 border border-yellow-200 rounded-md p-4 max-sm:p-3 text-sm max-sm:text-xs text-yellow-800">
 								<p className="font-semibold mb-2 max-sm:mb-1.5">
 									Оплата ожидает подтверждения

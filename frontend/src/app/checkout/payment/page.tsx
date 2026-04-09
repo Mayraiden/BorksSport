@@ -9,6 +9,8 @@ import type {
 	PaymentSessionResponse,
 	PaymentStatus,
 } from '@/features/Checkout/model/types'
+import { ordersApi } from '@/features/Orders/api/ordersApi'
+import type { OrderEntity } from '@/features/Orders/model/types'
 
 interface StoredPaymentSession extends PaymentSessionResponse {
 	orderNumber?: string
@@ -49,6 +51,8 @@ const PaymentPageContent = () => {
 	const [isRefreshing, setIsRefreshing] = useState(false)
 	const [error, setError] = useState<string | null>(null)
 	const [hasTriedAutoOpen, setHasTriedAutoOpen] = useState(false)
+	const [order, setOrder] = useState<OrderEntity | null>(null)
+	const [isOrderLoading, setIsOrderLoading] = useState(false)
 
 	const storageKey = useMemo(() => {
 		return paymentId ? `${PAYMENT_SESSION_PREFIX}${paymentId}` : null
@@ -93,6 +97,27 @@ const PaymentPageContent = () => {
 		},
 		[storageKey]
 	)
+
+	useEffect(() => {
+		if (!orderId || !jwt || !isAuthenticated) return
+		let cancelled = false
+		const load = async () => {
+			try {
+				setIsOrderLoading(true)
+				const data = await ordersApi.getOrderById(orderId, jwt)
+				if (cancelled) return
+				setOrder(data)
+			} catch (e) {
+				// ignore; backend will still protect status/session endpoints
+			} finally {
+				if (!cancelled) setIsOrderLoading(false)
+			}
+		}
+		load()
+		return () => {
+			cancelled = true
+		}
+	}, [orderId, jwt, isAuthenticated])
 
 	const refreshStatus = useCallback(async () => {
 		if (!paymentId || !jwt) {
@@ -141,6 +166,9 @@ const PaymentPageContent = () => {
 	}, [isEmailConfirmed, jwt, paymentId, persistSession])
 
 	useEffect(() => {
+		if (order?.status === 'cancelled') {
+			return
+		}
 		if (!isAuthenticated || !paymentId) {
 			return
 		}
@@ -176,6 +204,10 @@ const PaymentPageContent = () => {
 			return
 		}
 
+		if (order?.status === 'cancelled') {
+			return
+		}
+
 		setHasTriedAutoOpen(true)
 
 		const nextSession: StoredPaymentSession = {
@@ -196,6 +228,11 @@ const PaymentPageContent = () => {
 
 	const handleOpenPayment = () => {
 		if (!session?.paymentUrl) {
+			return
+		}
+
+		if (order?.status === 'cancelled') {
+			setError('Заказ отменён. Оплата недоступна.')
 			return
 		}
 
@@ -262,15 +299,20 @@ const PaymentPageContent = () => {
 									: 'Ожидает оплаты'}
 						</span>
 					</div>
+					{order?.status === 'cancelled' && (
+						<p className="text-sm max-sm:text-xs text-red-700">
+							Заказ отменён. Оплата недоступна.
+						</p>
+					)}
 					{error && <p className="text-sm max-sm:text-xs text-red-600">{error}</p>}
 				</div>
 
-				{status === 'pending' && (
+				{status === 'pending' && order?.status !== 'cancelled' && (
 					<div className="flex flex-col md:flex-row gap-3 max-sm:gap-2 mt-4 max-sm:mt-3">
 						<button
 							type="button"
 							onClick={handleOpenPayment}
-							disabled={!session?.paymentUrl || !isEmailConfirmed}
+							disabled={!session?.paymentUrl || !isEmailConfirmed || isOrderLoading}
 							className={`flex-1 py-3 max-sm:py-2.5 px-4 max-sm:px-3 rounded-md text-white text-sm max-sm:text-xs transition-colors ${
 								session?.paymentUrl && isEmailConfirmed
 									? 'bg-[#7B1931] hover:bg-[#6a1529]'
@@ -282,7 +324,7 @@ const PaymentPageContent = () => {
 						<button
 							type="button"
 							onClick={refreshStatus}
-							disabled={isRefreshing || !isAuthenticated || !isEmailConfirmed}
+							disabled={isRefreshing || !isAuthenticated || !isEmailConfirmed || isOrderLoading}
 							className={`flex-1 py-3 max-sm:py-2.5 px-4 max-sm:px-3 rounded-md text-sm max-sm:text-xs transition-colors border ${
 								isRefreshing
 									? 'border-gray-200 text-gray-400 bg-gray-100 cursor-wait'
