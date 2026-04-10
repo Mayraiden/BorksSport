@@ -85,6 +85,9 @@ interface RawPayment {
 	paymentMethod: string
 	provider?: string | null
 	paymentUrl?: string | null
+	refundId?: string | null
+	refundStatus?: string | null
+	refundedAt?: string | null
 	createdAt: string
 	updatedAt: string
 }
@@ -97,6 +100,9 @@ const mapPayment = (raw: RawPayment): PaymentEntity => ({
 	paymentMethod: raw.paymentMethod,
 	provider: (raw.provider || null) as PaymentProvider | null,
 	paymentUrl: raw.paymentUrl || null,
+	refundId: raw.refundId || null,
+	refundStatus: (raw.refundStatus as PaymentEntity['refundStatus']) || null,
+	refundedAt: raw.refundedAt || null,
 	createdAt: raw.createdAt,
 	updatedAt: raw.updatedAt,
 })

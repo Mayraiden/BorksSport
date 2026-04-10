@@ -76,6 +76,19 @@ const formatPaymentStatus = (value: PaymentEntity['status']) => {
 	}
 }
 
+const formatPaymentStatusForOrder = (
+	payment: PaymentEntity,
+	orderStatus?: OrderEntity['status']
+) => {
+	if (orderStatus === 'cancelled') {
+		// Don't confuse user with "pending payment" when order is already cancelled.
+		if (payment.status === 'pending') return 'Отменён'
+		if (payment.status === 'paid') return 'Оплачен'
+		if (payment.status === 'refunded') return 'Возврат выполнен'
+	}
+	return formatPaymentStatus(payment.status)
+}
+
 const formatRefundStatus = (value?: PaymentEntity['refundStatus'] | null) => {
 	switch (value) {
 		case 'pending':
@@ -101,6 +114,10 @@ export default function OrderDetailsPage({ params }: OrderDetailsPageProps) {
 	const [payments, setPayments] = useState<PaymentEntity[]>([])
 	const [isLoading, setIsLoading] = useState(true)
 	const [error, setError] = useState<string | null>(null)
+	const [refundModal, setRefundModal] = useState<null | {
+		title: string
+		description?: string
+	}>(null)
 
 	const orderId = Number(resolvedParams.id)
 	const paymentSuccess = searchParams?.get('payment') === 'success'
@@ -197,12 +214,34 @@ export default function OrderDetailsPage({ params }: OrderDetailsPageProps) {
 		if (!jwt || !order) return
 		try {
 			await ordersApi.cancelOrder(order.id, jwt)
+			// Immediate UX feedback; refund may take a bit to confirm.
+			if (order.status === 'paid') {
+				setRefundModal({
+					title: 'Возврат оформляется',
+					description: 'Мы отправили запрос на возврат. Обычно это занимает несколько минут.',
+				})
+			}
 			await loadOrder()
 		} catch (err) {
 			const message = err instanceof Error ? err.message : 'Не удалось отменить заказ.'
 			setError(message)
 		}
 	}, [jwt, order, loadOrder])
+
+	// When refund is confirmed later (cron/webhook), show a one-time confirmation modal.
+	useEffect(() => {
+		if (!order) return
+		const p = payments.find((x) => x.refundStatus === 'succeeded' || x.status === 'refunded')
+		if (!p) return
+		// Avoid overriding user-dismissed state too aggressively
+		setRefundModal((prev) => {
+			if (prev?.title === 'Возврат оформлен') return prev
+			return {
+				title: 'Возврат оформлен',
+				description: 'Заказ отменён, деньги возвращены тем же способом оплаты.',
+			}
+		})
+	}, [order, payments])
 
 	const deliveryAddressText = useMemo(() => {
 		const address = order?.shippingAddress
@@ -238,6 +277,31 @@ export default function OrderDetailsPage({ params }: OrderDetailsPageProps) {
 	return (
 		<ProfileLayout>
 			<div className="flex flex-col gap-5 max-sm:gap-3 pt-2.5 max-sm:pt-2">
+				{refundModal && (
+					<div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+						<div
+							className="absolute inset-0 bg-black/30"
+							onClick={() => setRefundModal(null)}
+						/>
+						<div className="relative w-full max-w-md bg-white rounded-md shadow-lg border border-gray-100 p-5">
+							<div className="flex items-start justify-between gap-3">
+								<div>
+									<h3 className="text-lg font-semibold text-black">{refundModal.title}</h3>
+									{refundModal.description ? (
+										<p className="text-sm text-gray-600 mt-1">{refundModal.description}</p>
+									) : null}
+								</div>
+								<button
+									type="button"
+									onClick={() => setRefundModal(null)}
+									className="text-gray-400 hover:text-gray-600 text-sm"
+								>
+									Закрыть
+								</button>
+							</div>
+						</div>
+					</div>
+				)}
 				<div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 max-sm:gap-2 flex-wrap">
 					<div>
 						<h1 className="text-2xl font-bold text-black leading-[0.875] max-sm:text-xl">
@@ -302,7 +366,7 @@ export default function OrderDetailsPage({ params }: OrderDetailsPageProps) {
 									)}
 									{latestPayment && (
 										<p className="text-xs max-sm:text-[10px] text-gray-400">
-											Статус оплаты: {formatPaymentStatus(latestPayment.status)}
+											Статус оплаты: {formatPaymentStatusForOrder(latestPayment, order.status)}
 											{refundStatusText ? ` • ${refundStatusText}` : ''}
 										</p>
 									)}
@@ -352,7 +416,11 @@ export default function OrderDetailsPage({ params }: OrderDetailsPageProps) {
 										disabled={!canCancelPaid || isRefundPending}
 										className="px-4 py-2 max-sm:px-3 max-sm:py-1.5 text-xs max-sm:text-[10px] border border-red-300 text-red-700 rounded-md hover:bg-red-50 disabled:opacity-60 disabled:cursor-not-allowed"
 									>
-										Отменить заказ и оформить возврат
+										{latestPaidPayment?.refundStatus === 'succeeded' || latestPaidPayment?.status === 'refunded'
+											? 'Возврат оформлен'
+											: isRefundPending
+											? 'Возврат оформляется'
+											: 'Отменить заказ и оформить возврат'}
 									</button>
 									<p className="text-xs max-sm:text-[10px] text-gray-500 mt-2">
 										{refundStatusText
@@ -427,7 +495,7 @@ export default function OrderDetailsPage({ params }: OrderDetailsPageProps) {
 													{formatCurrency(payment.amount)} ({payment.currency || 'RUB'})
 												</p>
 												<p className="text-xs max-sm:text-[10px] text-gray-400">
-													Статус: {formatPaymentStatus(payment.status)}
+													Статус: {formatPaymentStatusForOrder(payment, order.status)}
 													{formatRefundStatus(payment.refundStatus)
 														? ` • ${formatRefundStatus(payment.refundStatus)}`
 														: ''}

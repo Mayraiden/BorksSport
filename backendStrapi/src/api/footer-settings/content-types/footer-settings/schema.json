@@ -31,6 +31,10 @@
 			"type": "string",
 			"required": false
 		},
+		"email": {
+			"type": "string",
+			"required": false
+		},
 		"telegramUrl": {
 			"type": "string",
 			"required": false
@@ -41,6 +45,14 @@
 		},
 		"physicalAddress": {
 			"type": "text",
+			"required": false
+		},
+		"physicalAddressMapUrl": {
+			"type": "string",
+			"required": false
+		},
+		"workModeText": {
+			"type": "string",
 			"required": false
 		},
 		"copyrightText": {
