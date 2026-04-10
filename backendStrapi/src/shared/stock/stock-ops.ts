@@ -55,7 +55,16 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 	}
 
 	function ensureOpsShape(value: unknown): StockOpsState {
-		if (!value || typeof value !== 'object') return {}
+		if (!value) return {}
+		if (typeof value === 'string') {
+			try {
+				const parsed = JSON.parse(value) as unknown
+				if (parsed && typeof parsed === 'object') return parsed as StockOpsState
+			} catch {
+				return {}
+			}
+		}
+		if (typeof value !== 'object') return {}
 		return value as StockOpsState
 	}
 
@@ -170,7 +179,15 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 			}
 
 			if (kind === 'release') {
-				if (!ops.reservedAt || ops.releasedAt) return
+				if (ops.releasedAt) return
+				/**
+				 * We normally require `reservedAt` (set by `reserve`) to release.
+				 * But in practice, stock may be reserved while `stock_ops` wasn't persisted
+				 * (migration edge-cases, manual DB edits, older rows, etc).
+				 *
+				 * For unpaid order cancellations we prefer to be self-healing:
+				 * attempt to release based on order items, and only fail if counters are inconsistent.
+				 */
 				await releaseItems(trx, items)
 				ops.releasedAt = ts
 			}

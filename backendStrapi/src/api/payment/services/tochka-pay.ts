@@ -53,6 +53,11 @@ interface TochkaPayRefundResponse {
 	raw: unknown
 }
 
+interface TochkaRefundStatusResult {
+	status: string
+	raw: unknown
+}
+
 interface TochkaWebhookEvent {
 	eventType: string
 	payload: Record<string, unknown>
@@ -717,6 +722,15 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 				typeof rawError === 'string' ? rawError : JSON.stringify(rawError)
 			throw new Error(`Tochka Pay refund error. Details: ${details}`)
 		}
+	},
+
+	/**
+	 * Получить актуальный статус возврата.
+	 * В API Точки явный GET /refund может отсутствовать, поэтому используем общий статус операции.
+	 */
+	async getRefundStatus(operationId: string): Promise<TochkaRefundStatusResult> {
+		const result = await this.getPaymentStatus(operationId)
+		return { status: result.status, raw: result.raw }
 	},
 
 	mapWebhookEvent(body: Record<string, unknown>): TochkaWebhookEvent {

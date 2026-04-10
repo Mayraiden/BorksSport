@@ -71,6 +71,50 @@ export default ({ env }) => {
           },
         },
         /**
+         * Safety net: release stuck reserves for cancelled unpaid orders.
+         * This protects against edge-cases when order got cancelled but reserve wasn't released.
+         */
+        releaseStuckCancelledReserves: {
+          task: async ({ strapi }) => {
+            const stockOps = (await import('../src/shared/stock/stock-ops')).default({ strapi })
+            const knex = strapi.db.connection
+            try {
+              const ids: Array<{ id: number }> = await knex('orders')
+                .select('id')
+                .where({ status: 'cancelled' })
+                .whereNotNull('reserved_until')
+                // best-effort JSON checks (Postgres jsonb)
+                .whereRaw("COALESCE(stock_ops->>'committedAt','') = ''")
+                .whereRaw("COALESCE(stock_ops->>'releasedAt','') = ''")
+                .orderBy('updated_at', 'asc')
+                .limit(200)
+
+              for (const row of ids) {
+                try {
+                  await strapi.db.transaction(async ({ trx }) => {
+                    await stockOps.applyOrderStockOp({
+                      trx,
+                      orderId: row.id,
+                      kind: 'release',
+                    })
+                  })
+                } catch (e) {
+                  strapi.log.warn('releaseStuckCancelledReserves: failed to release', {
+                    orderId: row.id,
+                    error: e?.message || String(e),
+                  })
+                }
+              }
+            } catch (e) {
+              strapi.log.error('releaseStuckCancelledReserves task failed', e)
+            }
+          },
+          options: {
+            // Every 5 minutes
+            rule: '*/5 * * * *',
+          },
+        },
+        /**
          * Periodic safety sync for CDEK delivery statuses.
          * Webhook-first, cron is a fallback when webhooks are missed.
          */
@@ -221,6 +265,200 @@ export default ({ env }) => {
           options: {
             // Every 10 minutes
             rule: '*/10 * * * *',
+          },
+        },
+        /**
+         * Fallback: reconcile pending refunds when webhooks are missed.
+         * If a refund was requested for a paid order, stock is returned only after the refund is confirmed.
+         * This task periodically checks payment status and finalizes refund side-effects (order cancelled + stock return).
+         */
+        reconcilePendingRefunds: {
+          task: async ({ strapi }) => {
+            const stockOps = (await import('../src/shared/stock/stock-ops')).default({ strapi })
+            const tochkaPayService = strapi.service('api::payment.tochka-pay')
+
+            const mapRefunded = (raw: unknown): boolean => {
+              const s = String(raw ?? '').toLowerCase()
+              return (
+                s === 'refunded' ||
+                s.includes('refund') && (s.includes('success') || s.includes('succeed') || s.includes('approved') || s.includes('completed')) ||
+                s.includes('reversed')
+              )
+            }
+
+            try {
+              const candidates = await strapi.entityService.findMany('api::payment.payment', {
+                filters: {
+                  refundStatus: { $eq: 'pending' },
+                },
+                populate: ['order'],
+                sort: 'updatedAt:asc',
+                limit: 100,
+              })
+
+              for (const payment of candidates) {
+                const order = (payment as any)?.order
+                if (!order) continue
+                const orderId = Number(order.id || 0)
+                if (!orderId) continue
+
+                // Only for orders that were paid and are not yet cancelled.
+                const orderStatus = String(order.status || '')
+                if (orderStatus === 'cancelled') {
+                  continue
+                }
+                if (orderStatus !== 'paid') {
+                  continue
+                }
+
+                const statusIdentifier = (payment as any).sessionId || (payment as any).paymentId
+                if (!statusIdentifier) continue
+
+                try {
+                  const statusResponse = await tochkaPayService.getPaymentStatus(statusIdentifier)
+                  const isRefunded = mapRefunded(statusResponse?.status)
+                  if (!isRefunded) continue
+
+                  await strapi.db.transaction(async ({ trx }) => {
+                    await stockOps.applyOrderStockOp({
+                      trx,
+                      orderId,
+                      kind: 'return',
+                    })
+
+                    await strapi.entityService.update('api::order.order', orderId, {
+                      data: {
+                        status: 'cancelled',
+                        cancelledAt: new Date().toISOString(),
+                        cancelReason:
+                          (order as any).cancelReason || 'Отменено: возврат средств подтверждён (poll)',
+                      },
+                    })
+
+                    await strapi.entityService.update('api::payment.payment', (payment as any).id, {
+                      data: {
+                        status: 'refunded',
+                        refundStatus: 'succeeded',
+                        refundedAt: new Date().toISOString(),
+                      },
+                    })
+                  })
+                } catch (e) {
+                  strapi.log.warn('reconcilePendingRefunds: failed to reconcile payment', {
+                    paymentId: (payment as any).id,
+                    orderId,
+                    error: e?.message || String(e),
+                  })
+                }
+              }
+            } catch (e) {
+              strapi.log.error('reconcilePendingRefunds task failed', e)
+            }
+          },
+          options: {
+            // Every 5 minutes
+            rule: '*/5 * * * *',
+          },
+        },
+        /**
+         * Fallback sync for Tochka refunds (when webhooks are missing).
+         * Looks for payments with refundStatus=pending and updates Payment/Order when refund is completed.
+         */
+        tochkaRefundSync: {
+          task: async ({ strapi }) => {
+            const normalize = (raw) => String(raw ?? '').trim().toLowerCase()
+            const isRefundSucceeded = (rawStatus) => {
+              const s = normalize(rawStatus)
+              return (
+                s === 'refunded' ||
+                s === 'refund' ||
+                s.includes('refunded') ||
+                s.includes('refund') && (s.includes('success') || s.includes('succeed')) ||
+                s.includes('completed') ||
+                s.includes('approved')
+              )
+            }
+            const isRefundFailed = (rawStatus) => {
+              const s = normalize(rawStatus)
+              return (
+                s.includes('failed') ||
+                s.includes('declined') ||
+                s.includes('rejected') ||
+                s.includes('error')
+              )
+            }
+
+            try {
+              const tochkaPayService = strapi.service('api::payment.tochka-pay')
+
+              const payments = await strapi.entityService.findMany('api::payment.payment', {
+                filters: {
+                  provider: { $eq: 'tochka' },
+                  refundStatus: { $eq: 'pending' },
+                },
+                populate: ['order'],
+                sort: 'updatedAt:asc',
+                limit: 100,
+              })
+
+              for (const payment of payments) {
+                const order = payment.order
+                const operationId = payment.sessionId || payment.refundId || payment.paymentId
+                if (!operationId) continue
+
+                try {
+                  const refundStatus = await tochkaPayService.getRefundStatus(operationId)
+                  const rawStatus = refundStatus?.status
+
+                  if (isRefundSucceeded(rawStatus)) {
+                    await strapi.entityService.update('api::payment.payment', payment.id, {
+                      data: {
+                        status: 'refunded',
+                        refundStatus: 'succeeded',
+                        refundedAt: new Date().toISOString(),
+                        refundData: refundStatus.raw,
+                      },
+                    })
+
+                    if (order && order.status !== 'cancelled') {
+                      await strapi.entityService.update('api::order.order', order.id, {
+                        data: {
+                          status: 'cancelled',
+                          cancelledAt: new Date().toISOString(),
+                          cancelReason: order.cancelReason || 'Отменено: возврат средств подтверждён',
+                        },
+                      })
+                    }
+                  } else if (isRefundFailed(rawStatus)) {
+                    await strapi.entityService.update('api::payment.payment', payment.id, {
+                      data: {
+                        refundStatus: 'failed',
+                        refundData: refundStatus.raw,
+                      },
+                    })
+                  } else {
+                    // keep pending, but store latest raw to help diagnostics
+                    await strapi.entityService.update('api::payment.payment', payment.id, {
+                      data: {
+                        refundData: refundStatus.raw,
+                      },
+                    })
+                  }
+                } catch (e) {
+                  strapi.log.warn('tochkaRefundSync: failed to sync refund', {
+                    paymentId: payment.id,
+                    operationId,
+                    error: e?.message || String(e),
+                  })
+                }
+              }
+            } catch (e) {
+              strapi.log.error('tochkaRefundSync task failed', e)
+            }
+          },
+          options: {
+            // Every 2 minutes
+            rule: '*/2 * * * *',
           },
         },
       },
