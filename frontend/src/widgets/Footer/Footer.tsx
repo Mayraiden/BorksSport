@@ -39,10 +39,13 @@ export const Footer = () => {
 						О компании
 					</h3>
 					<div className="flex flex-col gap-2 text-white/60 max-sm:gap-1.5 max-sm:text-sm">
-						<p>{settings.companyName}</p>
+						<p className="text-white">{settings.companyName}</p>
 						<p>ИНН: {settings.inn}</p>
 						<p>ОГРН: {settings.ogrn}</p>
-						<p>Адрес: {settings.legalAddress}</p>
+						<div className="pt-1">
+							<p className="text-xs uppercase tracking-wide text-white/50">Юр. адрес</p>
+							<p className="break-words leading-relaxed">{settings.legalAddress}</p>
+						</div>
 					</div>
 				</div>
 				<div className="flex-1 flex flex-col gap-2 max-sm:w-full max-sm:gap-1.5">
@@ -59,7 +62,7 @@ export const Footer = () => {
 						{settings.email}
 					</a>
 					<Link
-						className="flex gap-1 items-center text-white/60 max-sm:text-sm"
+						className="flex gap-1 items-center text-white/60 max-sm:text-sm hover:text-white transition-colors"
 						href={settings.telegramUrl}
 						target="_blank"
 						rel="noopener noreferrer"
@@ -67,20 +70,21 @@ export const Footer = () => {
 						<PaperPlaneTiltIcon size={20} className="max-sm:w-4 max-sm:h-4" />
 						<span>{settings.telegramLabel}</span>
 					</Link>
-					<a
-						className="text-white/60 max-sm:text-sm hover:text-white transition-colors"
-						href={settings.physicalAddressMapUrl}
-						target="_blank"
-						rel="noopener noreferrer"
-					>
-						{settings.physicalAddress}
-					</a>
-					<a
-						className="text-white/60 max-sm:text-sm hover:text-white transition-colors"
-						href={telHref}
-					>
-						{settings.workModeText}
-					</a>
+					<div className="pt-1">
+						<p className="text-xs uppercase tracking-wide text-white/50">Факт. адрес</p>
+						<a
+							className="text-white/60 max-sm:text-sm hover:text-white transition-colors break-words leading-relaxed"
+							href={settings.physicalAddressMapUrl}
+							target="_blank"
+							rel="noopener noreferrer"
+						>
+							{settings.physicalAddress}
+						</a>
+					</div>
+					<div className="pt-1">
+						<p className="text-xs uppercase tracking-wide text-white/50">Режим работы</p>
+						<p className="text-white/60 max-sm:text-sm">{settings.workModeText}</p>
+					</div>
 				</div>
 			</div>
 			<div className="py-10 flex justify-between items-center text-white/60 max-sm:flex-col max-sm:gap-4 max-sm:py-4 max-sm:items-start max-sm:text-sm">
