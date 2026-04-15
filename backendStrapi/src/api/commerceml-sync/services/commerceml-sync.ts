@@ -259,7 +259,9 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 			}
 
 			// Маппим продукты с propertiesMap для характеристик и imageMap для картинок
-			const mappedProducts = mapperService.mapProducts(products, propertiesMap, imageMap)
+			const mappedProducts = mapperService.mapProducts(products, propertiesMap, imageMap, {
+				allowPartial: syncMode === 'delta',
+			})
 
 			if (mappedProducts.length === 0) {
 				strapi.log.warn('[CommerceML Sync] No products mapped successfully')
@@ -303,7 +305,10 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 			const stats = await productSyncService.syncProducts(
 				mappedProducts,
 				categoryMap,
-				allCategoriesFromClassifier
+				allCategoriesFromClassifier,
+				{
+					mode: syncMode,
+				}
 			)
 
 			strapi.log.info(

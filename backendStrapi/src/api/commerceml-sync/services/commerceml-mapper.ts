@@ -47,7 +47,7 @@ export interface CommerceMLProduct {
 }
 
 export interface MappedProduct {
-	name: string
+	name?: string
 	description?: string
 	article?: string
 	price?: number
@@ -74,6 +74,7 @@ export interface MappedProduct {
 	unit?: string
 	stock?: number
 	lastSyncAt: Date
+	isPartial?: boolean
 }
 
 export default ({ strapi }: { strapi: Core.Strapi }) => {
@@ -139,7 +140,8 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 	function mapProduct(
 		commerceMLProduct: CommerceMLProduct,
 		propertiesMap?: Map<string, string>,
-		imageMap?: Map<string, string>
+		imageMap?: Map<string, string>,
+		options?: { allowPartial?: boolean }
 	): MappedProduct | null {
 		try {
 			// Внешний ID обязателен для upsert
@@ -155,11 +157,17 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 				commerceMLProduct.Name ||
 				commerceMLProduct.name ||
 				''
-			if (!name) {
+			if (!name && !options?.allowPartial) {
 				strapi.log.warn(
 					`[CommerceML Mapper] Product ${externalId} missing Наименование, skipping`
 				)
 				return null
+			}
+			const isPartial = !name
+			if (isPartial) {
+				strapi.log.info(
+					`[CommerceML Mapper] Product ${externalId} missing Наименование, mapping as partial delta`
+				)
 			}
 
 			// Описание - в CommerceML это plain text с переносами строк
@@ -405,7 +413,7 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 			const sbisId: number | undefined = undefined
 
 			return {
-				name,
+				name: name || undefined,
 				description: description || undefined,
 				article: article || undefined,
 				price: price || undefined,
@@ -430,6 +438,7 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 				unit: unit || undefined,
 				stock: undefined, // Будет установлено из offers.xml
 				lastSyncAt: new Date(),
+				isPartial,
 			}
 		} catch (error: any) {
 			strapi.log.error('[CommerceML Mapper] Failed to map product:', error.message)
@@ -447,12 +456,13 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 	function mapProducts(
 		commerceMLProducts: CommerceMLProduct[],
 		propertiesMap?: Map<string, string>,
-		imageMap?: Map<string, string>
+		imageMap?: Map<string, string>,
+		options?: { allowPartial?: boolean }
 	): MappedProduct[] {
 		const mapped: MappedProduct[] = []
 
 		for (const product of commerceMLProducts) {
-			const mappedProduct = mapProduct(product, propertiesMap, imageMap)
+			const mappedProduct = mapProduct(product, propertiesMap, imageMap, options)
 			if (mappedProduct) {
 				mapped.push(mappedProduct)
 			}

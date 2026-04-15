@@ -320,19 +320,35 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 			subcategory?: number
 			brand?: number
 			brandRef?: number
-		}
+		},
+		options?: { mode?: SyncMode }
 	): Promise<{ success: boolean; created: boolean; productId?: number; error?: string }> {
 		try {
 			const normalize = (v?: string | null): string =>
 				String(v || '')
 					.trim()
 					.toLowerCase()
+			const isDeltaMode = options?.mode === 'delta'
 			const normalizedExternalId = normalize(mappedProduct.sbisExternalId)
+			const normalizedName = normalize(mappedProduct.name)
 
 			// Ищем существующий продукт по sbisExternalId
 			let existingProduct = await strapi.db.query('api::product.product').findOne({
 				where: { sbisExternalId: mappedProduct.sbisExternalId },
+				select: [
+					'id',
+					'sbisExternalId',
+					'name',
+					'article',
+					'model',
+					'size',
+					'color',
+					'description',
+				],
 			})
+			let matchedBy: 'exact' | 'normalized' | 'baseIdSingle' | 'baseIdScored' | 'articleModel' =
+				'exact'
+			let fallbackScore = 0
 
 			// Fallback 1: case-insensitive/trim exact match
 			if (!existingProduct && normalizedExternalId) {
@@ -345,6 +361,9 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 				existingProduct = (candidates as any[]).find(
 					(p) => normalize(p.sbisExternalId) === normalizedExternalId
 				)
+				if (existingProduct) {
+					matchedBy = 'normalized'
+				}
 			}
 
 			// Fallback 2: CommerceML externalId can be unstable after '#'
@@ -366,57 +385,210 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 						size: normalize(mappedProduct.size),
 						color: normalize(mappedProduct.color),
 					}
+					const hasStrongVariantSignals = Boolean(
+						target.article || target.model || target.size || target.color
+					)
+
+					if ((candidates as any[]).length === 1) {
+						existingProduct = (candidates as any[])[0]
+						matchedBy = 'baseIdSingle'
+						fallbackScore = 100
+					} else {
+						let best: any = null
+						let bestScore = -1
+						for (const c of candidates as any[]) {
+							let score = 0
+							if (normalize(c.article) && normalize(c.article) === target.article) score += 3
+							if (normalize(c.model) && normalize(c.model) === target.model) score += 3
+							if (normalize(c.size) && normalize(c.size) === target.size) score += 2
+							if (normalize(c.color) && normalize(c.color) === target.color) score += 2
+							if (normalize(c.name) && normalize(c.name) === target.name) score += 1
+
+							if (score > bestScore) {
+								bestScore = score
+								best = c
+							}
+						}
+
+						// В обычном режиме держим строгий порог.
+						// В delta делаем мягче, но только если есть минимальный признак совпадения.
+						const minScore = hasStrongVariantSignals ? 5 : isDeltaMode ? 1 : 5
+						if (best && bestScore >= minScore) {
+							existingProduct = best
+							matchedBy = 'baseIdScored'
+							fallbackScore = bestScore
+						}
+					}
+				}
+			}
+
+			// Fallback 3: матч по стабильным бизнес-атрибутам (article/model + name)
+			// Используем только в delta, когда ID не смогли стабильно сматчить.
+			if (!existingProduct && isDeltaMode) {
+				const articleNormalized = normalize(mappedProduct.article)
+				const modelNormalized = normalize(mappedProduct.model)
+				if (articleNormalized || modelNormalized) {
+					const candidates = await strapi.db.query('api::product.product').findMany({
+						where: {
+							$or: [
+								articleNormalized
+									? { article: { $eqi: String(mappedProduct.article || '').trim() } }
+									: undefined,
+								modelNormalized
+									? { model: { $eqi: String(mappedProduct.model || '').trim() } }
+									: undefined,
+							].filter(Boolean),
+						},
+						select: ['id', 'sbisExternalId', 'name', 'article', 'model', 'size', 'color'],
+					})
 
 					let best: any = null
 					let bestScore = -1
 					for (const c of candidates as any[]) {
 						let score = 0
-						if (normalize(c.article) && normalize(c.article) === target.article) score += 3
-						if (normalize(c.model) && normalize(c.model) === target.model) score += 3
-						if (normalize(c.size) && normalize(c.size) === target.size) score += 2
-						if (normalize(c.color) && normalize(c.color) === target.color) score += 2
-						if (normalize(c.name) && normalize(c.name) === target.name) score += 1
-
+						if (articleNormalized && normalize(c.article) === articleNormalized) score += 3
+						if (modelNormalized && normalize(c.model) === modelNormalized) score += 3
+						if (normalizedName && normalize(c.name) === normalizedName) score += 1
+						if (normalize(c.size) && normalize(c.size) === normalize(mappedProduct.size)) score += 1
+						if (normalize(c.color) && normalize(c.color) === normalize(mappedProduct.color)) score += 1
 						if (score > bestScore) {
 							bestScore = score
 							best = c
 						}
 					}
 
-					// Требуем минимально уверенный матч, чтобы не склеивать разные товары
-					if (best && bestScore >= 5) {
+					if (best && bestScore >= 4) {
 						existingProduct = best
+						matchedBy = 'articleModel'
+						fallbackScore = bestScore
 					}
 				}
 			}
 
+			// Для partial delta не создаём новые карточки без имени.
+			if (!existingProduct && (!mappedProduct.name || !mappedProduct.name.trim())) {
+				return {
+					success: false,
+					created: false,
+					error: 'Cannot create product without name in delta mode',
+				}
+			}
+
 			const productData: any = {
-				name: mappedProduct.name,
-				description: mappedProduct.description,
-				article: mappedProduct.article,
-					model: mappedProduct.model || null,
-				price: mappedProduct.price,
-				sbisExternalId: mappedProduct.sbisExternalId,
-				sbisId: mappedProduct.sbisId,
-				categoryName: mappedProduct.categoryName,
-				rootCategoryName: mappedProduct.rootCategoryName,
-				size: mappedProduct.size,
-				color: mappedProduct.color,
-				length: mappedProduct.length,
-				width: mappedProduct.width,
-				height: mappedProduct.height,
-				weight: mappedProduct.weight,
-				images: mappedProduct.images,
-				unit: mappedProduct.unit,
-				stock: mappedProduct.stock,
 				lastSyncAt: mappedProduct.lastSyncAt,
-				published: true, // По умолчанию публикуем
-				category: categoryIds?.category ?? null,
-				sportCategory: categoryIds?.sportCategory ?? null,
-				productCategory: categoryIds?.productCategory ?? null,
-				subcategory: categoryIds?.subcategory ?? null,
-				brand: categoryIds?.brand ?? null,
-				brandRef: categoryIds?.brandRef ?? null,
+				published: true,
+			}
+
+			if (!isDeltaMode || !existingProduct) {
+				// Full sync / create: стандартное полное заполнение.
+				productData.name = mappedProduct.name
+				productData.description = mappedProduct.description
+				productData.article = mappedProduct.article
+				productData.model = mappedProduct.model || null
+				productData.price = mappedProduct.price
+				productData.sbisExternalId = mappedProduct.sbisExternalId
+				productData.sbisId = mappedProduct.sbisId
+				productData.categoryName = mappedProduct.categoryName
+				productData.rootCategoryName = mappedProduct.rootCategoryName
+				productData.size = mappedProduct.size
+				productData.color = mappedProduct.color
+				productData.length = mappedProduct.length
+				productData.width = mappedProduct.width
+				productData.height = mappedProduct.height
+				productData.weight = mappedProduct.weight
+				productData.images = mappedProduct.images
+				productData.unit = mappedProduct.unit
+				productData.stock = mappedProduct.stock
+				productData.category = categoryIds?.category ?? null
+				productData.sportCategory = categoryIds?.sportCategory ?? null
+				productData.productCategory = categoryIds?.productCategory ?? null
+				productData.subcategory = categoryIds?.subcategory ?? null
+				productData.brand = categoryIds?.brand ?? null
+				productData.brandRef = categoryIds?.brandRef ?? null
+			} else {
+				// Delta update: мягкий режим — обновляем только реально переданные поля,
+				// чтобы не затирать существующие данные пустыми значениями.
+				if (mappedProduct.name !== undefined && String(mappedProduct.name).trim()) {
+					productData.name = mappedProduct.name
+				}
+				if (mappedProduct.description !== undefined) {
+					productData.description = mappedProduct.description
+				}
+				if (mappedProduct.article !== undefined && String(mappedProduct.article).trim()) {
+					productData.article = mappedProduct.article
+				}
+				if (mappedProduct.model !== undefined && String(mappedProduct.model).trim()) {
+					productData.model = mappedProduct.model
+				}
+				if (mappedProduct.price !== undefined) {
+					productData.price = mappedProduct.price
+				}
+				if (mappedProduct.sbisId !== undefined) {
+					productData.sbisId = mappedProduct.sbisId
+				}
+				if (mappedProduct.categoryName !== undefined) {
+					productData.categoryName = mappedProduct.categoryName
+				}
+				if (mappedProduct.rootCategoryName !== undefined) {
+					productData.rootCategoryName = mappedProduct.rootCategoryName
+				}
+				if (mappedProduct.size !== undefined && String(mappedProduct.size).trim()) {
+					productData.size = mappedProduct.size
+				}
+				if (mappedProduct.color !== undefined && String(mappedProduct.color).trim()) {
+					productData.color = mappedProduct.color
+				}
+				if (mappedProduct.length !== undefined) {
+					productData.length = mappedProduct.length
+				}
+				if (mappedProduct.width !== undefined) {
+					productData.width = mappedProduct.width
+				}
+				if (mappedProduct.height !== undefined) {
+					productData.height = mappedProduct.height
+				}
+				if (mappedProduct.weight !== undefined) {
+					productData.weight = mappedProduct.weight
+				}
+				if (mappedProduct.images && mappedProduct.images.length > 0) {
+					productData.images = mappedProduct.images
+				}
+				if (mappedProduct.unit !== undefined && String(mappedProduct.unit).trim()) {
+					productData.unit = mappedProduct.unit
+				}
+				if (mappedProduct.stock !== undefined) {
+					productData.stock = mappedProduct.stock
+				}
+				if (categoryIds && categoryIds.category !== undefined) {
+					productData.category = categoryIds.category
+				}
+				if (categoryIds && categoryIds.sportCategory !== undefined) {
+					productData.sportCategory = categoryIds.sportCategory
+				}
+				if (categoryIds && categoryIds.productCategory !== undefined) {
+					productData.productCategory = categoryIds.productCategory
+				}
+				if (categoryIds && categoryIds.subcategory !== undefined) {
+					productData.subcategory = categoryIds.subcategory
+				}
+				if (categoryIds && categoryIds.brand !== undefined) {
+					productData.brand = categoryIds.brand
+				}
+				if (categoryIds && categoryIds.brandRef !== undefined) {
+					productData.brandRef = categoryIds.brandRef
+				}
+
+				// Если нашли существующий товар по fallback-логике и внешний ИД изменился,
+				// закрепляем новый sbisExternalId на карточке для последующих точных апдейтов.
+				if (
+					matchedBy !== 'exact' &&
+					normalize((existingProduct as any)?.sbisExternalId) !== normalizedExternalId
+				) {
+					productData.sbisExternalId = mappedProduct.sbisExternalId
+					strapi.log.info(
+						`[CommerceML Product Sync] Rebound sbisExternalId via ${matchedBy} (score=${fallbackScore}) for product ${existingProduct.id}: "${(existingProduct as any)?.sbisExternalId}" -> "${mappedProduct.sbisExternalId}"`
+					)
+				}
 			}
 
 			let result
@@ -466,7 +638,8 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 	async function syncProducts(
 		mappedProducts: MappedProduct[],
 		_categoryMap?: Map<string, number>,
-		_categories?: any[]
+		_categories?: any[],
+		options?: { mode?: SyncMode }
 	): Promise<SyncStats> {
 		const stats: SyncStats = {
 			saved: 0,
@@ -621,7 +794,7 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 			product.categoryName =
 				bestMatch?.brandName || bestMatch?.productTypeName || bestMatch?.sportName || null
 
-			const result = await syncProduct(product, categoryIds)
+			const result = await syncProduct(product, categoryIds, options)
 
 			if (result.success) {
 				if (result.created) {
