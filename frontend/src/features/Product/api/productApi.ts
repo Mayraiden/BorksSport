@@ -92,6 +92,54 @@ const transformApiProductInternal = (apiProduct: ApiProduct): Product => {
 		if (!Number.isFinite(stock)) return null
 		return Math.max(0, Math.floor(stock) - Math.floor(reserved) - Math.floor(sold))
 	}
+	const buildCharacteristics = (
+		p: ApiProduct,
+		fallback?: {
+			size?: string | null
+			color?: string | null
+			weight?: number | null
+			length?: number | null
+			width?: number | null
+			height?: number | null
+		}
+	): Record<string, string> => {
+		const characteristics: Record<string, string> = {
+			Категория: p.categoryName || 'Не указано',
+			Артикул: p.article || p.sbisNomNumber || 'Не указано',
+			Единица: p.unit || 'шт',
+		}
+
+		const sizeValue = p.size ?? fallback?.size
+		const colorValue = p.color ?? fallback?.color
+		const weightValue = p.weight ?? fallback?.weight
+		const lengthValue = p.length ?? fallback?.length
+		const widthValue = p.width ?? fallback?.width
+		const heightValue = p.height ?? fallback?.height
+
+		if (sizeValue) {
+			characteristics['Размер'] = sizeValue
+		}
+		if (colorValue) {
+			characteristics['Цвет'] = colorValue
+		}
+		if (weightValue !== null && weightValue !== undefined) {
+			characteristics['Вес'] = `${weightValue} г`
+		}
+		if (lengthValue || widthValue || heightValue) {
+			const dimensions = [
+				lengthValue && `Длина: ${lengthValue} мм`,
+				widthValue && `Ширина: ${widthValue} мм`,
+				heightValue && `Высота: ${heightValue} мм`,
+			]
+				.filter(Boolean)
+				.join(', ')
+			if (dimensions) {
+				characteristics['Габариты'] = dimensions
+			}
+		}
+
+		return characteristics
+	}
 
 	const availableStock = computeAvailable(apiProduct)
 
@@ -230,11 +278,14 @@ const transformApiProductInternal = (apiProduct: ApiProduct): Product => {
 			colors: [], // Варианты не содержат свои варианты
 			sizes: [],
 			description: variant.description,
-			characteristics: {
-				Категория: variant.categoryName || 'Не указано',
-				Артикул: variant.article || variant.sbisNomNumber || 'Не указано',
-				Единица: variant.unit || 'шт',
-			},
+			characteristics: buildCharacteristics(variant, {
+				size: apiProduct.size,
+				color: apiProduct.color,
+				weight: apiProduct.weight,
+				length: apiProduct.length,
+				width: apiProduct.width,
+				height: apiProduct.height,
+			}),
 			size: variant.size || null,
 			color: variant.color || null,
 			weight: variant.weight || null,
@@ -246,35 +297,8 @@ const transformApiProductInternal = (apiProduct: ApiProduct): Product => {
 		}
 	})
 
-	// Формируем характеристики
-	const characteristics: Record<string, string> = {
-		Категория: apiProduct.categoryName || 'Не указано',
-		Артикул: apiProduct.article || apiProduct.sbisNomNumber || 'Не указано',
-		Единица: apiProduct.unit || 'шт',
-	}
-
-	// Добавляем размер, цвет, вес, габариты в характеристики, если они есть
-	if (apiProduct.size) {
-		characteristics['Размер'] = apiProduct.size
-	}
-	if (apiProduct.color) {
-		characteristics['Цвет'] = apiProduct.color
-	}
-	if (apiProduct.weight) {
-		characteristics['Вес'] = `${apiProduct.weight} г`
-	}
-	if (apiProduct.length || apiProduct.width || apiProduct.height) {
-		const dimensions = [
-			apiProduct.length && `Длина: ${apiProduct.length} мм`,
-			apiProduct.width && `Ширина: ${apiProduct.width} мм`,
-			apiProduct.height && `Высота: ${apiProduct.height} мм`,
-		]
-			.filter(Boolean)
-			.join(', ')
-		if (dimensions) {
-			characteristics['Габариты'] = dimensions
-		}
-	}
+	// Формируем характеристики базового товара
+	const characteristics = buildCharacteristics(apiProduct)
 
 	return {
 		id: apiProduct.id.toString(),
