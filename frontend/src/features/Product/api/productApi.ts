@@ -11,58 +11,89 @@ import type {
 } from '@/shared/types'
 import { safeArrayFrom, safeSetFrom } from '@/shared/lib/safeUtils'
 
-const API_URL = process.env.NEXT_PUBLIC_STRAPI_URL || process.env.NEXT_STRAPI_URL || 'http://localhost:1337'
+function getApiUrl(): string {
+	if (typeof window === 'undefined') {
+		return (
+			process.env.NEXT_STRAPI_URL ||
+			process.env.NEXT_PUBLIC_STRAPI_URL ||
+			'http://localhost:1337'
+		)
+	}
+	return process.env.NEXT_PUBLIC_STRAPI_URL || 'http://localhost:1337'
+}
 
 /**
  * Извлекает PhotoURL из строки /img?params=... (на случай, если на бэкенде не была обработана)
  * Работает только в браузере (использует atob)
  */
-function extractPhotoURLFromParams(url: string): string | null {
+function decodeBase64Json(value: string): unknown {
+	const normalized = value.replace(/-/g, '+').replace(/_/g, '/')
+	const padded = normalized.padEnd(normalized.length + ((4 - (normalized.length % 4)) % 4), '=')
+	try {
+		const decoded =
+			typeof window === 'undefined'
+				? Buffer.from(padded, 'base64').toString('utf8')
+				: atob(padded)
+		return JSON.parse(decoded)
+	} catch {
+		return null
+	}
+}
+
+function getPhotoUrl(value: unknown): string | null {
+	if (
+		value &&
+		typeof value === 'object' &&
+		'PhotoURL' in value &&
+		typeof value.PhotoURL === 'string'
+	) {
+		return value.PhotoURL
+	}
+	return null
+}
+
+function normalizeProductImageUrl(url: string): string | null {
 	if (!url || typeof url !== 'string') {
 		return null
 	}
 
-	// Если это уже полный URL, возвращаем его
-	if (url.startsWith('http://') || url.startsWith('https://')) {
-		return url
-	}
-
-	// Если это относительный путь /img?params=..., пытаемся извлечь PhotoURL
-	if (url.startsWith('/img?params=')) {
-		// Проверяем, что мы в браузере (atob доступен только в браузере)
-		if (typeof window === 'undefined' || typeof atob === 'undefined') {
-			return null
-		}
-
+	const trimmed = url.trim()
+	const parseParams = (rawParams: string): string | null => {
 		try {
-			const paramsMatch = url.match(/params=(.+)/)
-			if (paramsMatch) {
-				const rawParams = paramsMatch[1]
-				
-				// Пробуем base64 декодирование
-				try {
-					const decodedParams = atob(rawParams)
-					const params = JSON.parse(decodedParams)
-					if (params.PhotoURL) {
-						return params.PhotoURL
-					}
-				} catch {
-					// Пробуем URL декодирование
-					try {
-						const decodedParams = decodeURIComponent(rawParams)
-						const params = JSON.parse(decodedParams)
-						if (params.PhotoURL) {
-							return params.PhotoURL
-						}
-					} catch {
-						// Не удалось декодировать
-						return null
-					}
-				}
-			}
+			const decodedParam = decodeURIComponent(rawParams)
+			const fromBase64 = decodeBase64Json(decodedParam)
+			const base64PhotoUrl = getPhotoUrl(fromBase64)
+			if (base64PhotoUrl) return base64PhotoUrl
+
+			const fromJson = JSON.parse(decodedParam)
+			const jsonPhotoUrl = getPhotoUrl(fromJson)
+			if (jsonPhotoUrl) return jsonPhotoUrl
 		} catch {
 			return null
 		}
+		return null
+	}
+
+	try {
+		const parsed = trimmed.startsWith('http://') || trimmed.startsWith('https://')
+			? new URL(trimmed)
+			: new URL(trimmed, 'http://localhost')
+		const params = parsed.searchParams.get('params')
+		if (parsed.pathname.endsWith('/img') && params) {
+			return parseParams(params)
+		}
+	} catch {
+		// fallback ниже обработает plain string
+	}
+
+	const directParamsMatch = trimmed.match(/[?&]params=([^&]+)/)
+	if (directParamsMatch?.[1]) {
+		const photoUrl = parseParams(directParamsMatch[1])
+		if (photoUrl) return photoUrl
+	}
+
+	if (trimmed.startsWith('http://') || trimmed.startsWith('https://') || trimmed.startsWith('/')) {
+		return trimmed
 	}
 
 	return null
@@ -145,22 +176,8 @@ const transformApiProductInternal = (apiProduct: ApiProduct): Product => {
 
 	// Изображения могут быть обработаны на бэкенде, но проверяем на всякий случай
 	const images = (apiProduct.images || [])
-		.map((url) => {
-			// Если URL не полный (начинается с /img?params=), пытаемся извлечь PhotoURL
-			const processedUrl = extractPhotoURLFromParams(url) || url
-			return processedUrl
-		})
-		.filter((url): url is string => {
-			// Фильтруем невалидные URL (null, пустые строки, относительные пути без params)
-			if (!url || typeof url !== 'string') {
-				return false
-			}
-			// Если это относительный путь /img?params= и не удалось извлечь PhotoURL, пропускаем
-			if (url.startsWith('/img?params=')) {
-				return false
-			}
-			return true
-		})
+		.map((url) => normalizeProductImageUrl(url))
+		.filter((url): url is string => Boolean(url))
 		.map((url, index) => ({
 			id: index.toString(),
 			url: url,
@@ -270,11 +287,14 @@ const transformApiProductInternal = (apiProduct: ApiProduct): Product => {
 			name: variant.name || 'Без названия',
 			brand: variant.categoryName || 'Не указано',
 			price: variant.price || 0,
-			images: (variant.images || []).map((url, index) => ({
-				id: index.toString(),
-				url: url,
-				alt: variant.name || 'Изображение товара',
-			})),
+			images: (variant.images || [])
+				.map((url) => normalizeProductImageUrl(url))
+				.filter((url): url is string => Boolean(url))
+				.map((url, index) => ({
+					id: index.toString(),
+					url,
+					alt: variant.name || 'Изображение товара',
+				})),
 			colors: [], // Варианты не содержат свои варианты
 			sizes: [],
 			description: variant.description,
@@ -456,7 +476,7 @@ export const productApi = {
 		}
 
 		try {
-			const url = `${API_URL}/api/products?${searchParams}`
+			const url = `${getApiUrl()}/api/products?${searchParams}`
 
 			// Log URL for debugging
 			if (params.search || params.category || params.brand || params.sport) {
@@ -559,7 +579,7 @@ export const productApi = {
 	async getProduct(id: string): Promise<Product> {
 		try {
 			const response = await fetch(
-				`${API_URL}/api/products/${encodeURIComponent(id)}`
+				`${getApiUrl()}/api/products/${encodeURIComponent(id)}`
 			)
 
 			if (!response.ok) {
@@ -635,7 +655,7 @@ export const productApi = {
 		)
 
 		try {
-			const url = `${API_URL}/api/products?${searchParams.toString()}`
+			const url = `${getApiUrl()}/api/products?${searchParams.toString()}`
 			const response = await fetch(url)
 
 			if (!response.ok) {
@@ -665,7 +685,7 @@ export const productApi = {
 	async getPopularProducts(limit = 15): Promise<Product[]> {
 		try {
 			const response = await fetch(
-				`${API_URL}/api/products/popular?limit=${limit}`
+				`${getApiUrl()}/api/products/popular?limit=${limit}`
 			)
 
 			if (!response.ok) {
@@ -699,7 +719,7 @@ export const productApi = {
 	async getNewProducts(limit = 15): Promise<Product[]> {
 		try {
 			const response = await fetch(
-				`${API_URL}/api/products/new?limit=${limit}`
+				`${getApiUrl()}/api/products/new?limit=${limit}`
 			)
 
 			if (!response.ok) {

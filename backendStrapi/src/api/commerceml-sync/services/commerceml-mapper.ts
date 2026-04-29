@@ -78,6 +78,87 @@ export interface MappedProduct {
 }
 
 export default ({ strapi }: { strapi: Core.Strapi }) => {
+	function normalizeImageKey(value: string): string {
+		return String(value || '')
+			.trim()
+			.replace(/\\/g, '/')
+			.replace(/^\.?\//, '')
+			.toLowerCase()
+	}
+
+	function extractImageValue(pic: any): string | null {
+		if (typeof pic === 'string') {
+			const value = pic.trim()
+			return value || null
+		}
+		if (!pic || typeof pic !== 'object') return null
+
+		const candidates = [
+			pic['#text'],
+			pic._text,
+			pic.value,
+			pic.Value,
+			pic.path,
+			pic.Path,
+			pic.file,
+			pic.File,
+			pic.url,
+			pic.Url,
+			pic.URL,
+			pic.href,
+			pic.Href,
+		]
+		for (const candidate of candidates) {
+			if (typeof candidate === 'string' && candidate.trim()) {
+				return candidate.trim()
+			}
+		}
+		return null
+	}
+
+	function extractPictureReferences(commerceMLProduct: CommerceMLProduct): string[] {
+		const collectFromNode = (node: any): any[] => {
+			if (!node) return []
+			if (Array.isArray(node)) return node
+			return [node]
+		}
+
+		const pictureNodes: any[] = []
+		if (commerceMLProduct.Картинка) pictureNodes.push(...collectFromNode(commerceMLProduct.Картинка))
+		if (commerceMLProduct.Картинки) {
+			const wrapped = commerceMLProduct.Картинки as any
+			for (const key of ['Картинка', 'Picture', 'picture', 'Изображение', 'Image', 'image']) {
+				if (wrapped?.[key]) {
+					pictureNodes.push(...collectFromNode(wrapped[key]))
+				}
+			}
+		}
+		for (const key of ['Picture', 'picture', 'Image', 'image']) {
+			if ((commerceMLProduct as any)[key]) {
+				pictureNodes.push(...collectFromNode((commerceMLProduct as any)[key]))
+			}
+		}
+
+		const unique = new Set<string>()
+		for (const node of pictureNodes) {
+			const value = extractImageValue(node)
+			if (value) unique.add(value)
+		}
+		return [...unique]
+	}
+
+	function resolveImageFromMap(filename: string, imageMap?: Map<string, string>): string | null {
+		if (!imageMap || imageMap.size === 0) return null
+		const normalized = normalizeImageKey(filename)
+		const base = normalizeImageKey(path.basename(filename))
+		const keyCandidates = [filename, normalized, base]
+		for (const key of keyCandidates) {
+			const direct = imageMap.get(key)
+			if (direct) return direct
+		}
+		return null
+	}
+
 	function normalizeText(value?: string | null): string {
 		return (value || '').trim().toLowerCase().replace(/\s+/g, ' ')
 	}
@@ -342,58 +423,37 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 			let images: string[] = []
 			const imageBaseUrl = 'https://disk.sbis.ru/disk/api/v1/'
 
-			// Проверяем разные варианты структуры
-			let pictureTags: any = null
-
-			// Вариант 1: Прямой тег <Картинка> (может быть массив или один элемент)
-			if (commerceMLProduct.Картинка) {
-				pictureTags = commerceMLProduct.Картинка
-			}
-			// Вариант 2: В обертке <Картинки>
-			else if (commerceMLProduct.Картинки) {
-				pictureTags =
-					(commerceMLProduct.Картинки as any).Картинка ||
-					(commerceMLProduct.Картинки as any).Picture ||
-					(commerceMLProduct.Картинки as any).picture
-			}
-			// Вариант 3: Английские варианты
-			else if (commerceMLProduct.Picture) {
-				pictureTags = commerceMLProduct.Picture
-			} else if (commerceMLProduct.picture) {
-				pictureTags = commerceMLProduct.picture
-			}
-
-			if (pictureTags) {
-				const pictureArray = Array.isArray(pictureTags) ? pictureTags : [pictureTags]
-				const imageFilenames = pictureArray.filter(
-					(pic: any) => pic && typeof pic === 'string' && pic.trim().length > 0
-				)
-
-				// Формируем URL для каждого изображения
-				for (const filename of imageFilenames) {
+			const pictureRefs = extractPictureReferences(commerceMLProduct)
+			let imagesMatchedFromArchive = 0
+			let imagesFallbackToCloud = 0
+			if (pictureRefs.length > 0) {
+				for (const filename of pictureRefs) {
 					let imageUrl: string
 
 					// Если это уже полный URL, используем его
 					if (filename.startsWith('http://') || filename.startsWith('https://')) {
 						imageUrl = filename
 					} else {
-						// Проверяем, есть ли файл в imageMap (сохранен из архива)
-						const imageName = path.basename(filename)
-						const imageUrlFromMap = imageMap?.get(imageName)
+						const imageUrlFromMap = resolveImageFromMap(filename, imageMap)
 
 						if (imageUrlFromMap) {
 							// Используем локальный URL из файловой системы
 							imageUrl = imageUrlFromMap
+							imagesMatchedFromArchive += 1
 						} else {
 							// Fallback: используем URL от disk.sbis.ru
-							// Убираем расширение файла, если оно есть (SBIS API не требует расширения)
-							const cleanFilename = filename.split('.')[0].trim()
+							// Убираем только конечное расширение файла, не трогая остальную часть ID.
+							const cleanFilename = filename.replace(/\.[^/.]+$/, '').trim()
 							imageUrl = imageBaseUrl + cleanFilename
+							imagesFallbackToCloud += 1
 						}
 					}
 
 					images.push(imageUrl)
 				}
+				strapi.log.debug(
+					`[CommerceML Mapper] Product ${externalId}: pictureRefs=${pictureRefs.length}, mappedFromArchive=${imagesMatchedFromArchive}, cloudFallback=${imagesFallbackToCloud}`
+				)
 			}
 
 			// Фильтруем пустые значения

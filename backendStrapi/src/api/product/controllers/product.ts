@@ -461,10 +461,50 @@ export default factories.createCoreController(
 				// В каталоге показываем только один товар из группы (представитель)
 				// Варианты будут подтягиваться при открытии страницы товара через findOne
 				
-				// Нормализуем модель для сравнения (trim, но сохраняем регистр)
+				// Нормализуем модель для сравнения: SBIS иногда отдает отличия только
+				// регистром или кириллическими символами, похожими на латиницу.
 				const normalizeModel = (model: string | null | undefined): string | null => {
 					if (!model || typeof model !== 'string') return null
-					return model.trim() || null
+					const normalized = model
+						.normalize('NFKC')
+						.replace(/[АВЕКМНОРСТХУ]/g, (char) => {
+							const map: Record<string, string> = {
+								А: 'A',
+								В: 'B',
+								Е: 'E',
+								К: 'K',
+								М: 'M',
+								Н: 'H',
+								О: 'O',
+								Р: 'P',
+								С: 'C',
+								Т: 'T',
+								Х: 'X',
+								У: 'Y',
+							}
+							return map[char] || char
+						})
+						.replace(/[авекмнорстху]/g, (char) => {
+							const map: Record<string, string> = {
+								а: 'a',
+								в: 'b',
+								е: 'e',
+								к: 'k',
+								м: 'm',
+								н: 'h',
+								о: 'o',
+								р: 'p',
+								с: 'c',
+								т: 't',
+								х: 'x',
+								у: 'y',
+							}
+							return map[char] || char
+						})
+						.replace(/\s+/g, ' ')
+						.trim()
+						.toLowerCase()
+					return normalized || null
 				}
 
 				const productGroups = new Map<string, any>()

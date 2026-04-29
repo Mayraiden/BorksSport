@@ -9,11 +9,18 @@ import { verifyBasicAuth } from '../utils/auth-middleware'
 import AdmZip from 'adm-zip'
 import * as fs from 'fs'
 import * as path from 'path'
+import { acquireSyncLock, releaseSyncLock } from '../../../utils/sync-lock'
 
 export default ({ strapi }: { strapi: Core.Strapi }) => {
 	// Защита от повторной полной обработки одного и того же ZIP-содержимого
 	// (например, при ретраях на этапе mode=import со стороны клиента).
 	const processedImports = new Set<string>() // key: `${type}:${sha256}`
+
+	function refuseDueToActiveSync(ctx: any, activeSource: string) {
+		ctx.status = 200
+		ctx.body = `failure\nSync is already running (${activeSource})`
+		ctx.type = 'text/plain'
+	}
 	/**
 	 * Определяет MIME тип по расширению файла
 	 */
@@ -818,9 +825,22 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 						try {
 							const imageBuffer = imageEntry.getData()
 							const imageName = path.basename(imageEntry.entryName)
+							const normalizedEntryName = String(imageEntry.entryName || '')
+								.trim()
+								.replace(/\\/g, '/')
+								.replace(/^\.?\//, '')
+								.toLowerCase()
+							const normalizedImageName = imageName
+								.trim()
+								.replace(/\\/g, '/')
+								.replace(/^\.?\//, '')
+								.toLowerCase()
 							
-							// Сохраняем buffer в мапу для последующего использования
+							// Сохраняем buffer в мапу по нескольким ключам для устойчивого matching.
+							tempImageMap.set(imageEntry.entryName, imageBuffer)
+							tempImageMap.set(normalizedEntryName, imageBuffer)
 							tempImageMap.set(imageName, imageBuffer)
+							tempImageMap.set(normalizedImageName, imageBuffer)
 							
 							// Сохраняем файл во временную папку
 							const tempPath = path.join(tempImageDir, imageName)
@@ -846,29 +866,39 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 				)
 			}
 
+			const lock = acquireSyncLock('commerceml')
+			if (lock.ok === false) {
+				refuseDueToActiveSync(ctx, lock.active.source)
+				return
+			}
+
 			// Обрабатываем XML в зависимости от типа
 			let result
-			if (actualType === 'catalog') {
-				const requestedSyncMode =
-					ctx.query.syncMode || ctx.query.sync_mode || ctx.request.body?.syncMode || ctx.request.body?.sync_mode
-				result = await strapi
-					.service('api::commerceml-sync.commerceml-sync')
-					.processCatalog(xmlString, tempImageMap, {
-						requestedMode: String(requestedSyncMode || ''),
-					})
-			} else if (actualType === 'offers') {
-				result = await strapi
-					.service('api::commerceml-sync.commerceml-sync')
-					.processOffers(xmlString)
-			} else if (actualType === 'rests') {
-				result = await strapi
-					.service('api::commerceml-sync.commerceml-sync')
-					.processRests(xmlString)
-			} else {
-				ctx.status = 200
-				ctx.body = 'failure\nНеизвестный тип'
-				ctx.type = 'text/plain'
-				return
+			try {
+				if (actualType === 'catalog') {
+					const requestedSyncMode =
+						ctx.query.syncMode || ctx.query.sync_mode || ctx.request.body?.syncMode || ctx.request.body?.sync_mode
+					result = await strapi
+						.service('api::commerceml-sync.commerceml-sync')
+						.processCatalog(xmlString, tempImageMap, {
+							requestedMode: String(requestedSyncMode || ''),
+						})
+				} else if (actualType === 'offers') {
+					result = await strapi
+						.service('api::commerceml-sync.commerceml-sync')
+						.processOffers(xmlString)
+				} else if (actualType === 'rests') {
+					result = await strapi
+						.service('api::commerceml-sync.commerceml-sync')
+						.processRests(xmlString)
+				} else {
+					ctx.status = 200
+					ctx.body = 'failure\nНеизвестный тип'
+					ctx.type = 'text/plain'
+					return
+				}
+			} finally {
+				releaseSyncLock(lock.run.token)
 			}
 
 			// Удаляем временный файл после успешной обработки
@@ -944,14 +974,25 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 				return
 			}
 
+			const lock = acquireSyncLock('commerceml')
+			if (lock.ok === false) {
+				refuseDueToActiveSync(ctx, lock.active.source)
+				return
+			}
+
 			// Обрабатываем catalog
 			const requestedSyncMode =
 				ctx.query.syncMode || ctx.query.sync_mode || ctx.request.body?.syncMode || ctx.request.body?.sync_mode
-			const result = await strapi
-				.service('api::commerceml-sync.commerceml-sync')
-				.processCatalog(xmlString, undefined, {
-					requestedMode: String(requestedSyncMode || ''),
-				})
+			let result
+			try {
+				result = await strapi
+					.service('api::commerceml-sync.commerceml-sync')
+					.processCatalog(xmlString, undefined, {
+						requestedMode: String(requestedSyncMode || ''),
+					})
+			} finally {
+				releaseSyncLock(lock.run.token)
+			}
 
 			// CommerceML протокол требует plain text ответ "success" после получения файла
 			// Не JSON!
@@ -1014,10 +1055,21 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 				return
 			}
 
+			const lock = acquireSyncLock('commerceml')
+			if (lock.ok === false) {
+				refuseDueToActiveSync(ctx, lock.active.source)
+				return
+			}
+
 			// Обрабатываем offers
-			const result = await strapi
-				.service('api::commerceml-sync.commerceml-sync')
-				.processOffers(xmlString)
+			let result
+			try {
+				result = await strapi
+					.service('api::commerceml-sync.commerceml-sync')
+					.processOffers(xmlString)
+			} finally {
+				releaseSyncLock(lock.run.token)
+			}
 
 			// CommerceML протокол требует plain text ответ "success" после получения файла
 			ctx.status = 200
@@ -1080,10 +1132,21 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 
 			strapi.log.info(`[CommerceML Controller] Rests XML received, length: ${xmlString.length} bytes`)
 
+			const lock = acquireSyncLock('commerceml')
+			if (lock.ok === false) {
+				refuseDueToActiveSync(ctx, lock.active.source)
+				return
+			}
+
 			// Обрабатываем rests
-			const result = await strapi
-				.service('api::commerceml-sync.commerceml-sync')
-				.processRests(xmlString)
+			let result
+			try {
+				result = await strapi
+					.service('api::commerceml-sync.commerceml-sync')
+					.processRests(xmlString)
+			} finally {
+				releaseSyncLock(lock.run.token)
+			}
 
 			// CommerceML протокол требует plain text ответ "success" после получения файла
 			ctx.status = 200

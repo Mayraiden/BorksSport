@@ -10,6 +10,70 @@ import * as path from 'path'
 export default ({ strapi }: { strapi: Core.Strapi }) => {
 	type SyncMode = 'full' | 'delta'
 
+	function normalizeImageKey(value: string): string {
+		return String(value || '')
+			.trim()
+			.replace(/\\/g, '/')
+			.replace(/^\.?\//, '')
+			.toLowerCase()
+	}
+
+	function extractImageValue(pic: any): string | null {
+		if (typeof pic === 'string') {
+			const value = pic.trim()
+			return value || null
+		}
+		if (!pic || typeof pic !== 'object') return null
+		const candidates = [
+			pic['#text'],
+			pic._text,
+			pic.value,
+			pic.Value,
+			pic.path,
+			pic.Path,
+			pic.file,
+			pic.File,
+			pic.url,
+			pic.Url,
+			pic.URL,
+			pic.href,
+			pic.Href,
+		]
+		for (const candidate of candidates) {
+			if (typeof candidate === 'string' && candidate.trim()) {
+				return candidate.trim()
+			}
+		}
+		return null
+	}
+
+	function extractPictureReferences(product: any): string[] {
+		const collect = (node: any): any[] => {
+			if (!node) return []
+			return Array.isArray(node) ? node : [node]
+		}
+
+		const nodes: any[] = []
+		if (product?.Картинка) nodes.push(...collect(product.Картинка))
+		if (product?.Картинки) {
+			for (const key of ['Картинка', 'Picture', 'picture', 'Изображение', 'Image', 'image']) {
+				if (product.Картинки[key]) {
+					nodes.push(...collect(product.Картинки[key]))
+				}
+			}
+		}
+		for (const key of ['Picture', 'picture', 'Image', 'image']) {
+			if (product?.[key]) nodes.push(...collect(product[key]))
+		}
+
+		const unique = new Set<string>()
+		for (const node of nodes) {
+			const imageRef = extractImageValue(node)
+			if (imageRef) unique.add(imageRef)
+		}
+		return [...unique]
+	}
+
 	// Получаем сервисы через lazy loading
 	const getXmlParserService = () => strapi.service('api::commerceml-sync.xml-parser')
 	const getMapperService = () => strapi.service('api::commerceml-sync.commerceml-mapper')
@@ -145,29 +209,10 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 							continue
 						}
 
-						// Извлекаем имена файлов из тегов <Картинка>
-						let pictureTags: any = null
-						if (product.Картинка) {
-							pictureTags = product.Картинка
-						} else if (product.Картинки) {
-							pictureTags =
-								(product.Картинки as any).Картинка ||
-								(product.Картинки as any).Picture ||
-								(product.Картинки as any).picture
-						} else if (product.Picture) {
-							pictureTags = product.Picture
-						} else if (product.picture) {
-							pictureTags = product.picture
-						}
-
-						if (!pictureTags) {
+						const imageFilenames = extractPictureReferences(product)
+						if (imageFilenames.length === 0) {
 							continue
 						}
-
-						const pictureArray = Array.isArray(pictureTags) ? pictureTags : [pictureTags]
-						const imageFilenames = pictureArray.filter(
-							(pic: any) => pic && typeof pic === 'string' && pic.trim().length > 0
-						)
 
 						// Создаем папку для продукта
 						const productDir = path.join(productsDir, String(productId))
@@ -183,16 +228,20 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 							}
 
 							const imageName = path.basename(filename)
-							
+							const normalizedFilename = normalizeImageKey(filename)
+							const normalizedImageName = normalizeImageKey(imageName)
+							const imageBuffer =
+								tempImageMap.get(filename) ||
+								tempImageMap.get(normalizedFilename) ||
+								tempImageMap.get(imageName) ||
+								tempImageMap.get(normalizedImageName)
+
 							// Проверяем, есть ли файл во временной мапе
-							if (!tempImageMap.has(imageName)) {
+							if (!imageBuffer) {
 								continue
 							}
 
 							try {
-								// Получаем buffer из временной мапы
-								const imageBuffer = tempImageMap.get(imageName)!
-								
 								// Создаем безопасное имя файла
 								const safeImageName = imageName.replace(/[^a-zA-Z0-9._-]/g, '_')
 								
@@ -207,8 +256,11 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 								const relativePath = `/uploads/commerceml/products/${productId}/${safeImageName}`
 								const fullUrl = `${publicUrl}${relativePath}`
 								
-								// Сохраняем в imageMap полный URL
+								// Сохраняем в imageMap полный URL по нескольким ключам.
+								imageMap.set(filename, fullUrl)
+								imageMap.set(normalizedFilename, fullUrl)
 								imageMap.set(imageName, fullUrl)
+								imageMap.set(normalizedImageName, fullUrl)
 								
 								strapi.log.debug(
 									`[CommerceML Sync] Moved image ${imageName} to ${fullUrl}`

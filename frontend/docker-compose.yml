@@ -11,6 +11,7 @@ services:
       PORT: 3000
       HOSTNAME: '0.0.0.0'
       NEXT_PUBLIC_STRAPI_URL: ${NEXT_PUBLIC_STRAPI_URL:-https://api.borkssport.ru}
+      NEXT_STRAPI_URL: ${NEXT_STRAPI_URL:-https://api.borkssport.ru}
       NEXT_PUBLIC_EMAIL_AUTH_DISABLED: ${NEXT_PUBLIC_EMAIL_AUTH_DISABLED:-}
     ports:
       - '127.0.0.1:3000:3000'
