@@ -1,12 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import type { IBuyButtonProps } from '../types'
 import { cartApi } from '@/features/Cart/api/cartApi'
 import { useAuthStore } from '@/features/Auth/model/store'
 import { useAuthModal } from '@/shared/lib/contexts/AuthModalContext'
-import { refreshCartCount } from '@/features/Cart/lib/useCartCount'
+import { refreshCartCount, useCartItem } from '@/features/Cart/lib/useCartCount'
 
 // Main BuyButton component
 export const BuyButton = ({ ...props }: IBuyButtonProps) => {
@@ -16,7 +16,23 @@ export const BuyButton = ({ ...props }: IBuyButtonProps) => {
 	const [isLoading, setIsLoading] = useState(false)
 	const { isAuthenticated, jwt } = useAuthStore()
 	const { openModal } = useAuthModal()
+	const { cartItem, isLoading: isCartLoading } = useCartItem(props.productId)
 	const router = useRouter()
+
+	useEffect(() => {
+		if (cartItem) {
+			setIsInCart(true)
+			setCartItemId(cartItem.cartItemId)
+			setQuantity(cartItem.quantity)
+			return
+		}
+
+		if (!isCartLoading) {
+			setIsInCart(false)
+			setCartItemId(null)
+			setQuantity(props.quantity || 1)
+		}
+	}, [cartItem, isCartLoading, props.quantity])
 
 	const handleAddToCart = async () => {
 		// Если пользователь не авторизован, показываем модальное окно
