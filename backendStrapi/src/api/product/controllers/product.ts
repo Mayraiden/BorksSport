@@ -816,6 +816,15 @@ export default factories.createCoreController(
 		async getPopular(ctx) {
 			try {
 				const limit = Number(ctx.query.limit) || 15
+				const fetchLimit = Math.max(limit * 5, limit)
+				const withAvailableStock = (rows: any[]) =>
+					rows
+						.map((product: any) => ({
+							...product,
+							availableStock: this._computeAvailableStock(product),
+						}))
+						.filter((product: any) => product.availableStock > 0)
+						.slice(0, limit)
 
 				// Сначала пробуем найти товары с популярностью > 0 и stock > 0
 				let products = await strapi.entityService.findMany(
@@ -831,9 +840,10 @@ export default factories.createCoreController(
 							},
 						},
 						sort: 'sbisPopularityScore:desc',
-						limit,
+						limit: fetchLimit,
 					}
 				)
+				products = withAvailableStock(products as any[])
 
 				// Если не нашли товары с популярностью, возвращаем любые опубликованные с stock > 0
 				// сортируя по количеству продаж или просто по дате создания
@@ -848,9 +858,10 @@ export default factories.createCoreController(
 								},
 							},
 							sort: ['sbisSalesCount:desc', 'createdAt:desc'],
-							limit,
+							limit: fetchLimit,
 						}
 					)
+					products = withAvailableStock(products as any[])
 				}
 
 				ctx.body = {
@@ -876,6 +887,15 @@ export default factories.createCoreController(
 		async getNew(ctx) {
 			try {
 				const limit = Number(ctx.query.limit) || 15
+				const fetchLimit = Math.max(limit * 5, limit)
+				const withAvailableStock = (rows: any[]) =>
+					rows
+						.map((product: any) => ({
+							...product,
+							availableStock: this._computeAvailableStock(product),
+						}))
+						.filter((product: any) => product.availableStock > 0)
+						.slice(0, limit)
 
 				// Сначала пробуем найти товары, синхронизированные за последние 30 дней с stock > 0
 				const thirtyDaysAgo = new Date()
@@ -894,9 +914,10 @@ export default factories.createCoreController(
 							},
 						},
 						sort: 'lastSyncAt:desc',
-						limit,
+						limit: fetchLimit,
 					}
 				)
+				products = withAvailableStock(products as any[])
 
 				// Если не нашли недавно синхронизированные товары,
 				// возвращаем любые опубликованные с stock > 0, сортируя по дате создания (новые первыми)
@@ -911,9 +932,10 @@ export default factories.createCoreController(
 								},
 							},
 							sort: 'createdAt:desc',
-							limit,
+							limit: fetchLimit,
 						}
 					)
+					products = withAvailableStock(products as any[])
 				}
 
 				ctx.body = {
