@@ -105,6 +105,27 @@
 		"stockOps": {
 			"type": "json"
 		},
+		"sbisExternalId": {
+			"type": "string",
+			"unique": true
+		},
+		"sbisSyncStatus": {
+			"type": "enumeration",
+			"enum": ["pending", "syncing", "synced", "failed"],
+			"default": "pending"
+		},
+		"sbisSyncedAt": {
+			"type": "datetime"
+		},
+		"sbisLastError": {
+			"type": "text"
+		},
+		"sbisPayload": {
+			"type": "json"
+		},
+		"sbisResponse": {
+			"type": "json"
+		},
 		"cancelReason": {
 			"type": "text"
 		},

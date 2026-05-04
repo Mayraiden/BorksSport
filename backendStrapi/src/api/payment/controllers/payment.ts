@@ -106,6 +106,26 @@ const mapRemoteStatusToLocal = (remoteStatus: string): {
 	}
 }
 
+const syncPaidOrderToSbis = async (strapi: any, orderId: number) => {
+	try {
+		const result = await strapi
+			.service('api::sync-control.sbis-order-sync')
+			.syncPaidOrder(orderId)
+		if (!result?.skipped) {
+			strapi.log.info('[SBIS Order Sync] Paid order synced', {
+				orderId,
+				sbisExternalId: result?.sbisExternalId,
+			})
+		}
+	} catch (error: any) {
+		strapi.log.error('[SBIS Order Sync] Paid order sync failed', {
+			orderId,
+			error: error?.message || String(error),
+			response: error?.response?.data,
+		})
+	}
+}
+
 export default factories.createCoreController(
 	'api::payment.payment',
 	({ strapi }) => ({
@@ -866,6 +886,10 @@ export default factories.createCoreController(
 						})
 					})
 
+					if (orderStatus === 'paid') {
+						await syncPaidOrderToSbis(strapi, Number(paymentOrder.id))
+					}
+
 					// Best-effort: try cancel CDEK order when refund succeeded
 					if (orderStatus === 'cancelled' && isRefundEvent && refundStatus === 'succeeded') {
 						const cdekUuid = String((paymentOrder as any).cdekOrderUuid || '').trim()
@@ -1016,6 +1040,9 @@ export default factories.createCoreController(
 								data: { status: orderStatus },
 							})
 						})
+						if (orderStatus === 'paid') {
+							await syncPaidOrderToSbis(strapi, Number(paymentOrder.id))
+						}
 						strapi.log.info('Tochka Pay status check: order status updated', {
 							orderId: paymentOrder.id,
 							oldStatus: currentOrderStatus,

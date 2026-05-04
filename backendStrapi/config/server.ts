@@ -20,6 +20,44 @@ export default ({ env }) => {
       enabled: true,
       tasks: {
         /**
+         * Hourly SBIS catalog sync.
+         * Uses the same in-process lock as manual sync to avoid overlapping runs.
+         */
+        sbisCatalogSync: {
+          task: async ({ strapi }) => {
+            const enabled = String(process.env.SBIS_SYNC_CRON_ENABLED ?? 'true').toLowerCase()
+            if (!['1', 'true', 'yes', 'on'].includes(enabled)) {
+              return
+            }
+
+            const { acquireSyncLock, releaseSyncLock, getActiveSyncRun } = await import('../src/utils/sync-lock')
+            const lock = acquireSyncLock('sbis-api')
+            if (lock.ok === false) {
+              strapi.log.warn('SBIS cron sync skipped: sync is already running', {
+                active: lock.active,
+              })
+              return
+            }
+
+            try {
+              strapi.log.info('SBIS cron sync started')
+              const summary = await strapi.service('api::sync-control.sync-control').runSbisCatalogSync()
+              strapi.log.info('SBIS cron sync finished', { summary })
+            } catch (e) {
+              strapi.log.error('SBIS cron sync failed', {
+                error: e?.message || String(e),
+                active: getActiveSyncRun(),
+              })
+            } finally {
+              releaseSyncLock(lock.run.token)
+            }
+          },
+          options: {
+            // Every 60 minutes
+            rule: '0 * * * *',
+          },
+        },
+        /**
          * Expire unpaid online orders (awaiting_payment) after reservedUntil.
          * Variant B: does not affect product stock; only cancels stale orders.
          */

@@ -35,4 +35,38 @@ export default ({ strapi }: { strapi: Core.Strapi }) => ({
 			releaseSyncLock(lock.run.token)
 		}
 	},
+
+	async retrySbisOrderSync(ctx: any) {
+		try {
+			const orderId = Number(ctx.params.id)
+			if (!Number.isInteger(orderId) || orderId <= 0) {
+				ctx.status = 400
+				ctx.body = {
+					success: false,
+					message: 'Invalid order id',
+				}
+				return
+			}
+
+			const result = await strapi
+				.service('api::sync-control.sbis-order-sync')
+				.syncPaidOrder(orderId, { force: true })
+
+			ctx.status = 200
+			ctx.body = {
+				success: true,
+				source: 'sbis-order-sync',
+				result,
+			}
+		} catch (error: any) {
+			strapi.log.error(`[SBIS Order Sync] Retry failed: ${error?.message || error}`)
+			ctx.status = 500
+			ctx.body = {
+				success: false,
+				source: 'sbis-order-sync',
+				message: error?.message || 'SBIS order sync retry failed',
+				response: error?.response?.data,
+			}
+		}
+	},
 })

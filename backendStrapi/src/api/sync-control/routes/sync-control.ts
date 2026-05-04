@@ -10,5 +10,15 @@ export default {
 				middlewares: [],
 			},
 		},
+		{
+			method: 'POST',
+			path: '/sync-control/sbis/orders/:id/retry',
+			handler: 'sync-control.retrySbisOrderSync',
+			config: {
+				auth: false,
+				policies: [],
+				middlewares: [],
+			},
+		},
 	],
 }
