@@ -29,6 +29,13 @@ type ApiResponse<T> = {
 	meta?: unknown
 }
 
+export type ManagementPaymentEntity = PaymentEntity & {
+	paymentId?: string | null
+	sessionId?: string | null
+	externalId?: string | null
+	paymentData?: unknown
+}
+
 export const managementOrdersApi = {
 	async getOrders(query: ManagementOrdersQuery, token: string): Promise<{ orders: ManagementOrderEntity[]; meta?: unknown }> {
 		const params = new URLSearchParams()
@@ -77,7 +84,7 @@ export const managementOrdersApi = {
 		return data.data
 	},
 
-	async getOrderPayments(orderId: number, token: string): Promise<PaymentEntity[]> {
+	async getOrderPayments(orderId: number, token: string): Promise<ManagementPaymentEntity[]> {
 		const response = await fetchWithAuth(`/api/management/orders/${orderId}/payments`, {
 			method: 'GET',
 			accessToken: token,
@@ -93,12 +100,16 @@ export const managementOrdersApi = {
 				status: string
 				amount?: number | string
 				currency?: string
+				paymentId?: string | null
+				sessionId?: string | null
+				externalId?: string | null
 				paymentMethod?: string
 				provider?: string | null
 				paymentUrl?: string | null
 				refundId?: string | null
 				refundStatus?: string | null
 				refundedAt?: string | null
+				paymentData?: unknown
 				createdAt: string
 				updatedAt: string
 			}>
@@ -112,12 +123,16 @@ export const managementOrdersApi = {
 			status: raw.status as PaymentEntity['status'],
 			amount: Number(raw.amount || 0),
 			currency: raw.currency || 'RUB',
+			paymentId: raw.paymentId || null,
+			sessionId: raw.sessionId || null,
+			externalId: raw.externalId || null,
 			paymentMethod: raw.paymentMethod,
 			provider: (raw.provider || null) as PaymentEntity['provider'],
 			paymentUrl: raw.paymentUrl || null,
 			refundId: raw.refundId || null,
 			refundStatus: (raw.refundStatus as PaymentEntity['refundStatus']) || null,
 			refundedAt: raw.refundedAt || null,
+			paymentData: raw.paymentData,
 			createdAt: raw.createdAt,
 			updatedAt: raw.updatedAt,
 		}))

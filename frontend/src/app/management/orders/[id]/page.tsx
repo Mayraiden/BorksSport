@@ -4,7 +4,11 @@ import { use, useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { useAuthStore } from '@/features/Auth/model/store'
-import { managementOrdersApi, type ManagementOrderEntity } from '@/features/ManagementOrders/api/managementOrdersApi'
+import {
+	managementOrdersApi,
+	type ManagementOrderEntity,
+	type ManagementPaymentEntity,
+} from '@/features/ManagementOrders/api/managementOrdersApi'
 import { OrderStatusBadge } from '@/features/Orders/ui/OrderStatusBadge'
 import type { PaymentEntity } from '@/features/Orders/model/types'
 
@@ -83,7 +87,7 @@ export default function ManagementOrderDetailsPage({ params }: ManagementOrderDe
 	const { isAuthenticated, jwt } = useAuthStore()
 
 	const [order, setOrder] = useState<ManagementOrderEntity | null>(null)
-	const [payments, setPayments] = useState<PaymentEntity[]>([])
+	const [payments, setPayments] = useState<ManagementPaymentEntity[]>([])
 	const [isLoading, setIsLoading] = useState(true)
 	const [isSyncingPaymentId, setIsSyncingPaymentId] = useState<number | null>(null)
 	const [error, setError] = useState<string | null>(null)
@@ -128,6 +132,42 @@ export default function ManagementOrderDetailsPage({ params }: ManagementOrderDe
 		return parts.length ? parts.join(', ') : 'Адрес доставки уточняется'
 	}, [order])
 
+	const formatDateTime = (value?: string | null) => {
+		if (!value) return '—'
+		const date = new Date(value)
+		if (Number.isNaN(date.getTime())) return value
+		return date.toLocaleString('ru-RU')
+	}
+
+	const getTochkaMeta = (payment: ManagementPaymentEntity) => {
+		const data = (payment.paymentData ?? {}) as Record<string, any>
+		const rawStatus = data?.lastPolledStatus as
+			| {
+					Data?: {
+						Operation?: Array<{
+							status?: string
+							paidAt?: string
+							paymentId?: string
+							operationId?: string
+						}>
+					}
+				}
+			| undefined
+
+		const operation = Array.isArray(rawStatus?.Data?.Operation)
+			? rawStatus?.Data?.Operation?.[0]
+			: undefined
+
+		return {
+			rawStatus: operation?.status || '—',
+			paidAt: operation?.paidAt || null,
+			operationId: operation?.operationId || payment.sessionId || null,
+			providerPaymentId: operation?.paymentId || payment.paymentId || null,
+			lastStatusSyncAt:
+				typeof data?.lastStatusSyncAt === 'string' ? data.lastStatusSyncAt : null,
+		}
+	}
+
 	const loadOrderData = useCallback(async () => {
 		if (!isAuthenticated || !jwt || Number.isNaN(orderId)) {
 			setIsLoading(false)
@@ -137,7 +177,7 @@ export default function ManagementOrderDetailsPage({ params }: ManagementOrderDe
 		setIsLoading(true)
 		try {
 			const orderData = await managementOrdersApi.getOrderById(orderId, jwt)
-			let paymentsData: PaymentEntity[] = []
+			let paymentsData: ManagementPaymentEntity[] = []
 			try {
 				paymentsData = await managementOrdersApi.getOrderPayments(orderId, jwt)
 			} catch (paymentsError) {
@@ -293,17 +333,17 @@ export default function ManagementOrderDetailsPage({ params }: ManagementOrderDe
 						) : (
 							<div className="flex flex-col gap-3 text-sm text-gray-700">
 								{payments.map((payment) => {
-									const canSyncTochka =
-										payment.status === 'pending' && payment.provider === 'tochka'
+									const canSyncTochka = payment.provider === 'tochka'
 									const isSyncing = isSyncingPaymentId === payment.id
 									const refundLabel = formatRefundStatus(payment.refundStatus)
+									const tochkaMeta = getTochkaMeta(payment)
 
 									return (
 										<div
 											key={payment.id}
 											className="border border-gray-100 rounded-md p-3 flex flex-col md:flex-row md:items-center md:justify-between gap-2"
 										>
-											<div>
+											<div className="min-w-0">
 												<p className="font-medium text-black">
 													{formatCurrency(payment.amount)} ({payment.currency || 'RUB'})
 												</p>
@@ -314,6 +354,22 @@ export default function ManagementOrderDetailsPage({ params }: ManagementOrderDe
 												<p className="text-xs text-gray-400">
 													Провайдер: {payment.provider || '—'}
 												</p>
+												{payment.provider === 'tochka' ? (
+													<div className="mt-1.5 grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-1 text-xs text-gray-500">
+														<div>Статус в Точке: {tochkaMeta.rawStatus}</div>
+														<div>Оплачен в: {formatDateTime(tochkaMeta.paidAt)}</div>
+														<div className="truncate">
+															operationId: {tochkaMeta.operationId || '—'}
+														</div>
+														<div className="truncate">
+															paymentId: {tochkaMeta.providerPaymentId || '—'}
+														</div>
+														<div>
+															Последняя синхронизация:{' '}
+															{formatDateTime(tochkaMeta.lastStatusSyncAt)}
+														</div>
+													</div>
+												) : null}
 											</div>
 											{canSyncTochka ? (
 												<button
@@ -322,7 +378,7 @@ export default function ManagementOrderDetailsPage({ params }: ManagementOrderDe
 													disabled={isSyncing}
 													className="inline-flex items-center justify-center px-3 py-2 text-xs border border-[#7B1931] text-[#7B1931] rounded-md hover:bg-[#f8f0f2] disabled:opacity-60 disabled:cursor-not-allowed"
 												>
-													{isSyncing ? 'Проверяем...' : 'Проверить статус оплаты'}
+													{isSyncing ? 'Проверяем...' : 'Обновить статус оплаты'}
 												</button>
 											) : null}
 										</div>
