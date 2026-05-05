@@ -140,8 +140,11 @@ export default function ManagementOrderDetailsPage({ params }: ManagementOrderDe
 	}
 
 	const getTochkaMeta = (payment: ManagementPaymentEntity) => {
-		const data = (payment.paymentData ?? {}) as Record<string, any>
-		const rawStatus = data?.lastPolledStatus as
+		const data = (payment.paymentData ?? {}) as {
+			lastPolledStatus?: unknown
+			lastStatusSyncAt?: unknown
+		}
+		const rawStatus = data.lastPolledStatus as
 			| {
 					Data?: {
 						Operation?: Array<{
@@ -164,7 +167,7 @@ export default function ManagementOrderDetailsPage({ params }: ManagementOrderDe
 			operationId: operation?.operationId || payment.sessionId || null,
 			providerPaymentId: operation?.paymentId || payment.paymentId || null,
 			lastStatusSyncAt:
-				typeof data?.lastStatusSyncAt === 'string' ? data.lastStatusSyncAt : null,
+				typeof data.lastStatusSyncAt === 'string' ? data.lastStatusSyncAt : null,
 		}
 	}
 
