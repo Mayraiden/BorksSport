@@ -262,7 +262,7 @@ export default {
 			}
 
 			const payments = await strapi.entityService.findMany('api::payment.payment', {
-				filters: { order: orderId },
+				filters: { order: { id: { $eq: orderId } } } as any,
 				sort: 'createdAt:desc',
 			})
 
