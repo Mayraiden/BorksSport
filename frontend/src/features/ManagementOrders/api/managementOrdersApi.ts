@@ -1,5 +1,6 @@
 import { fetchWithAuth } from '@/shared/lib/apiClient'
 import type { OrderEntity } from '@/features/Orders/model/types'
+import type { PaymentEntity } from '@/features/Orders/model/types'
 
 export type ManagementOrderEntity = OrderEntity & {
 	cdekStatus?: string | null
@@ -71,6 +72,83 @@ export const managementOrdersApi = {
 		const data: ApiResponse<ManagementOrderEntity> = await response.json()
 		if (!data.success || !data.data) {
 			throw new Error(data.message || data.error || 'Не удалось получить заказ')
+		}
+
+		return data.data
+	},
+
+	async getOrderPayments(orderId: number, token: string): Promise<PaymentEntity[]> {
+		const response = await fetchWithAuth(`/api/management/orders/${orderId}/payments`, {
+			method: 'GET',
+			accessToken: token,
+		})
+
+		if (!response.ok) {
+			throw new Error(`Не удалось получить платежи заказа: ${response.status}`)
+		}
+
+		const data: ApiResponse<
+			Array<{
+				id: number
+				status: string
+				amount?: number | string
+				currency?: string
+				paymentMethod?: string
+				provider?: string | null
+				paymentUrl?: string | null
+				refundId?: string | null
+				refundStatus?: string | null
+				refundedAt?: string | null
+				createdAt: string
+				updatedAt: string
+			}>
+		> = await response.json()
+		if (!data.success || !data.data) {
+			return []
+		}
+
+		return data.data.map((raw) => ({
+			id: raw.id,
+			status: raw.status as PaymentEntity['status'],
+			amount: Number(raw.amount || 0),
+			currency: raw.currency || 'RUB',
+			paymentMethod: raw.paymentMethod,
+			provider: (raw.provider || null) as PaymentEntity['provider'],
+			paymentUrl: raw.paymentUrl || null,
+			refundId: raw.refundId || null,
+			refundStatus: (raw.refundStatus as PaymentEntity['refundStatus']) || null,
+			refundedAt: raw.refundedAt || null,
+			createdAt: raw.createdAt,
+			updatedAt: raw.updatedAt,
+		}))
+	},
+
+	async syncTochkaPaymentStatus(paymentId: number, token: string): Promise<{
+		status: PaymentEntity['status']
+		rawStatus?: unknown
+	}> {
+		const response = await fetchWithAuth(
+			`/api/management/payments/${paymentId}/tochka-status-sync`,
+			{
+				method: 'POST',
+				accessToken: token,
+			}
+		)
+
+		if (!response.ok) {
+			const body = await response.json().catch(() => ({}))
+			throw new Error(
+				body?.message ||
+					body?.error ||
+					`Не удалось синхронизировать статус платежа: ${response.status}`
+			)
+		}
+
+		const data: ApiResponse<{ status: PaymentEntity['status']; rawStatus?: unknown }> =
+			await response.json()
+
+		if (!data.success || !data.data) {
+			throw new Error(data.message || data.error || 'Не удалось получить статус платежа')
 		}
 
 		return data.data

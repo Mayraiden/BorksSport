@@ -81,6 +81,11 @@ const nextConfig: NextConfig = {
 			},
 			{
 				protocol: 'https',
+				hostname: 'api.sbis.ru',
+				pathname: '/retail/v2/img',
+			},
+			{
+				protocol: 'https',
 				hostname: 'disk.sbis.ru',
 				pathname: '/disk/api/v1/**',
 			},

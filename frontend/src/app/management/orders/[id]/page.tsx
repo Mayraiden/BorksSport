@@ -1,11 +1,12 @@
 'use client'
 
-import { use, useEffect, useMemo, useState } from 'react'
+import { use, useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { useAuthStore } from '@/features/Auth/model/store'
 import { managementOrdersApi, type ManagementOrderEntity } from '@/features/ManagementOrders/api/managementOrdersApi'
 import { OrderStatusBadge } from '@/features/Orders/ui/OrderStatusBadge'
+import type { PaymentEntity } from '@/features/Orders/model/types'
 
 type ManagementOrderDetailsPageProps = {
 	params: Promise<{ id: string }>
@@ -44,13 +45,47 @@ const formatPaymentProvider = (value?: ManagementOrderEntity['paymentProvider'] 
 	}
 }
 
+const formatPaymentStatus = (value: PaymentEntity['status']) => {
+	switch (value) {
+		case 'pending':
+			return 'Ожидает оплату'
+		case 'paid':
+			return 'Оплачен'
+		case 'failed':
+			return 'Ошибка оплаты'
+		case 'refunded':
+			return 'Возврат выполнен'
+		default:
+			return String(value)
+	}
+}
+
+const formatRefundStatus = (value?: PaymentEntity['refundStatus'] | null) => {
+	switch (value) {
+		case 'pending':
+			return 'Возврат в обработке'
+		case 'succeeded':
+			return 'Возврат подтверждён'
+		case 'failed':
+			return 'Возврат не выполнен'
+		case 'none':
+		case null:
+		case undefined:
+			return null
+		default:
+			return String(value)
+	}
+}
+
 export default function ManagementOrderDetailsPage({ params }: ManagementOrderDetailsPageProps) {
 	const resolvedParams = use(params)
 	const orderId = Number(resolvedParams.id)
 	const { isAuthenticated, jwt } = useAuthStore()
 
 	const [order, setOrder] = useState<ManagementOrderEntity | null>(null)
+	const [payments, setPayments] = useState<PaymentEntity[]>([])
 	const [isLoading, setIsLoading] = useState(true)
+	const [isSyncingPaymentId, setIsSyncingPaymentId] = useState<number | null>(null)
 	const [error, setError] = useState<string | null>(null)
 
 	const customer = useMemo(() => {
@@ -93,33 +128,53 @@ export default function ManagementOrderDetailsPage({ params }: ManagementOrderDe
 		return parts.length ? parts.join(', ') : 'Адрес доставки уточняется'
 	}, [order])
 
+	const loadOrderData = useCallback(async () => {
+		if (!isAuthenticated || !jwt || Number.isNaN(orderId)) {
+			setIsLoading(false)
+			return
+		}
+
+		setIsLoading(true)
+		try {
+			const orderData = await managementOrdersApi.getOrderById(orderId, jwt)
+			let paymentsData: PaymentEntity[] = []
+			try {
+				paymentsData = await managementOrdersApi.getOrderPayments(orderId, jwt)
+			} catch (paymentsError) {
+				console.warn('Management payments endpoint unavailable, continue without payments', paymentsError)
+				paymentsData = []
+			}
+			setOrder(orderData)
+			setPayments(paymentsData)
+			setError(null)
+		} catch (e: unknown) {
+			setError(e instanceof Error ? e.message : 'Не удалось загрузить заказ')
+		} finally {
+			setIsLoading(false)
+		}
+	}, [isAuthenticated, jwt, orderId])
+
 	useEffect(() => {
 		if (!isAuthenticated || !jwt || Number.isNaN(orderId)) {
 			setIsLoading(false)
 			return
 		}
 
-		let cancelled = false
-		const load = async () => {
-			try {
-				setIsLoading(true)
-				const data = await managementOrdersApi.getOrderById(orderId, jwt)
-				if (cancelled) return
-				setOrder(data)
-				setError(null)
-			} catch (e: unknown) {
-				if (cancelled) return
-				setError(e instanceof Error ? e.message : 'Не удалось загрузить заказ')
-			} finally {
-				if (!cancelled) setIsLoading(false)
-			}
-		}
+		loadOrderData()
+	}, [isAuthenticated, jwt, orderId, loadOrderData])
 
-		load()
-		return () => {
-			cancelled = true
+	const handleSyncPaymentStatus = async (paymentId: number) => {
+		if (!jwt) return
+		try {
+			setIsSyncingPaymentId(paymentId)
+			await managementOrdersApi.syncTochkaPaymentStatus(paymentId, jwt)
+			await loadOrderData()
+		} catch (e: unknown) {
+			setError(e instanceof Error ? e.message : 'Не удалось синхронизировать статус платежа')
+		} finally {
+			setIsSyncingPaymentId(null)
 		}
-	}, [isAuthenticated, jwt, orderId])
+	}
 
 	return (
 		<div className="flex flex-col gap-4">
@@ -229,6 +284,52 @@ export default function ManagementOrderDetailsPage({ params }: ManagementOrderDe
 								</div>
 							))}
 						</div>
+					</div>
+
+					<div className="bg-white rounded-md p-5 border border-gray-100 shadow-sm lg:col-span-2">
+						<h2 className="text-lg font-semibold text-black mb-3">Платежи</h2>
+						{payments.length === 0 ? (
+							<p className="text-sm text-gray-500">Платежи не найдены.</p>
+						) : (
+							<div className="flex flex-col gap-3 text-sm text-gray-700">
+								{payments.map((payment) => {
+									const canSyncTochka =
+										payment.status === 'pending' && payment.provider === 'tochka'
+									const isSyncing = isSyncingPaymentId === payment.id
+									const refundLabel = formatRefundStatus(payment.refundStatus)
+
+									return (
+										<div
+											key={payment.id}
+											className="border border-gray-100 rounded-md p-3 flex flex-col md:flex-row md:items-center md:justify-between gap-2"
+										>
+											<div>
+												<p className="font-medium text-black">
+													{formatCurrency(payment.amount)} ({payment.currency || 'RUB'})
+												</p>
+												<p className="text-xs text-gray-500">
+													Статус: {formatPaymentStatus(payment.status)}
+													{refundLabel ? ` • ${refundLabel}` : ''}
+												</p>
+												<p className="text-xs text-gray-400">
+													Провайдер: {payment.provider || '—'}
+												</p>
+											</div>
+											{canSyncTochka ? (
+												<button
+													type="button"
+													onClick={() => handleSyncPaymentStatus(payment.id)}
+													disabled={isSyncing}
+													className="inline-flex items-center justify-center px-3 py-2 text-xs border border-[#7B1931] text-[#7B1931] rounded-md hover:bg-[#f8f0f2] disabled:opacity-60 disabled:cursor-not-allowed"
+												>
+													{isSyncing ? 'Проверяем...' : 'Проверить статус оплаты'}
+												</button>
+											) : null}
+										</div>
+									)
+								})}
+							</div>
+						)}
 					</div>
 				</div>
 			)}

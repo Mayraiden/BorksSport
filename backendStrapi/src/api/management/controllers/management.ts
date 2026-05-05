@@ -58,6 +58,43 @@ const parseIntOr = (value: unknown, fallback: number): number => {
 	return Number.isFinite(parsed) ? parsed : fallback
 }
 
+type PaymentStatus = 'pending' | 'paid' | 'failed' | 'refunded'
+
+const mapRemoteStatusToLocal = (remoteStatus: string): {
+	paymentStatus: PaymentStatus
+	orderStatus?: 'awaiting_payment' | 'paid' | 'payment_failed' | 'cancelled'
+} => {
+	const normalizedStatus = remoteStatus.toLowerCase()
+	switch (normalizedStatus) {
+		case 'paid':
+		case 'succeeded':
+		case 'success':
+		case 'completed':
+		case 'approved':
+			return { paymentStatus: 'paid', orderStatus: 'paid' }
+		case 'cancelled':
+		case 'canceled':
+		case 'failed':
+		case 'declined':
+		case 'rejected':
+			return {
+				paymentStatus: 'failed',
+				orderStatus: 'payment_failed',
+			}
+		case 'refunded':
+		case 'refund':
+		case 'refund_succeeded':
+		case 'refund_success':
+		case 'reversed':
+			return {
+				paymentStatus: 'refunded',
+				orderStatus: 'cancelled',
+			}
+		default:
+			return { paymentStatus: 'pending', orderStatus: 'awaiting_payment' }
+	}
+}
+
 export default {
 	/**
 	 * Manager: list orders with filters
@@ -187,6 +224,140 @@ export default {
 			}
 
 			ctx.body = { success: true, data: order }
+		} catch (error: any) {
+			ctx.status = 500
+			ctx.body = { success: false, error: error.message }
+		}
+	},
+
+	/**
+	 * Manager: payments by order id
+	 * GET /api/management/orders/:id/payments
+	 */
+	async orderPayments(ctx: any) {
+		try {
+			const userId = await resolveUserId(strapi, ctx)
+
+			if (!userId) {
+				ctx.status = 401
+				ctx.body = { success: false, message: 'User not authenticated' }
+				return
+			}
+
+			const ok = await requireManager(strapi, ctx, userId)
+			if (!ok) return
+
+			const orderId = Number(ctx.params?.id)
+			if (!Number.isInteger(orderId) || orderId <= 0) {
+				ctx.status = 400
+				ctx.body = { success: false, message: 'Invalid order id' }
+				return
+			}
+
+			const order = await strapi.entityService.findOne('api::order.order', orderId)
+			if (!order) {
+				ctx.status = 404
+				ctx.body = { success: false, message: 'Order not found' }
+				return
+			}
+
+			const payments = await strapi.entityService.findMany('api::payment.payment', {
+				filters: { order: orderId },
+				sort: 'createdAt:desc',
+			})
+
+			ctx.body = { success: true, data: payments }
+		} catch (error: any) {
+			ctx.status = 500
+			ctx.body = { success: false, error: error.message }
+		}
+	},
+
+	/**
+	 * Manager: force sync payment status from Tochka by payment id
+	 * POST /api/management/payments/:id/tochka-status-sync
+	 */
+	async syncTochkaPaymentStatus(ctx: any) {
+		try {
+			const userId = await resolveUserId(strapi, ctx)
+
+			if (!userId) {
+				ctx.status = 401
+				ctx.body = { success: false, message: 'User not authenticated' }
+				return
+			}
+
+			const ok = await requireManager(strapi, ctx, userId)
+			if (!ok) return
+
+			const paymentId = Number(ctx.params?.id)
+			if (!Number.isInteger(paymentId) || paymentId <= 0) {
+				ctx.status = 400
+				ctx.body = { success: false, message: 'Invalid payment id' }
+				return
+			}
+
+			const payment = await strapi.entityService.findOne('api::payment.payment', paymentId, {
+				populate: ['order'],
+			})
+			if (!payment) {
+				ctx.status = 404
+				ctx.body = { success: false, message: 'Payment not found' }
+				return
+			}
+
+			if ((payment as any).provider !== 'tochka') {
+				ctx.status = 400
+				ctx.body = {
+					success: false,
+					message: 'Payment provider is not Tochka',
+				}
+				return
+			}
+
+			const statusIdentifier = (payment as any).sessionId || (payment as any).paymentId
+			if (!statusIdentifier) {
+				ctx.status = 400
+				ctx.body = {
+					success: false,
+					message: 'Payment identifier is missing',
+				}
+				return
+			}
+
+			const tochkaPayService = strapi.service('api::payment.tochka-pay')
+			const statusResponse = await tochkaPayService.getPaymentStatus(statusIdentifier)
+			const paymentStatusResponse = String(statusResponse.status ?? 'pending')
+			const { paymentStatus, orderStatus } = mapRemoteStatusToLocal(paymentStatusResponse)
+
+			const prevPaymentData = ((payment as any).paymentData ?? {}) as Record<string, unknown>
+			const nextPaymentData = {
+				...prevPaymentData,
+				lastPolledStatus: statusResponse.raw,
+				lastStatusSyncAt: new Date().toISOString(),
+			}
+
+			await strapi.entityService.update('api::payment.payment', paymentId, {
+				data: {
+					status: paymentStatus,
+					paymentData: nextPaymentData,
+				},
+			})
+
+			const paymentOrder = (payment as any)?.order
+			if (orderStatus && paymentOrder?.id && paymentOrder.status !== orderStatus) {
+				await strapi.entityService.update('api::order.order', paymentOrder.id, {
+					data: { status: orderStatus },
+				})
+			}
+
+			ctx.body = {
+				success: true,
+				data: {
+					status: paymentStatus,
+					rawStatus: statusResponse.raw,
+				},
+			}
 		} catch (error: any) {
 			ctx.status = 500
 			ctx.body = { success: false, error: error.message }
