@@ -193,6 +193,14 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 			optionalEnv('NEXT_PUBLIC_APP_URL') ||
 			'https://borkssport.ru'
 
+		const rawCustomerExternalId = String(
+			(order as any).user?.id ?? (order as any).user ?? order.id ?? ''
+		).trim()
+		const customerExternalId: string | null =
+			rawCustomerExternalId && UUID_RE.test(rawCustomerExternalId)
+				? rawCustomerExternalId
+				: null
+
 		return {
 			product: optionalEnv('SBIS_ORDER_PRODUCT') || 'delivery',
 			pointId,
@@ -202,7 +210,7 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 				order.notes ? `Комментарий: ${order.notes}` : undefined,
 			].filter(Boolean).join('\n'),
 			customer: {
-				externalId: String(order.user?.id || order.user || order.id),
+				externalId: customerExternalId,
 				...splitCustomerName(customerName),
 				email: String(customerData.email || '').trim() || undefined,
 				phone,
@@ -280,6 +288,15 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 					timeout,
 				})
 
+				const created = createResponse.data as JsonRecord | undefined
+				const saleExternalId = String(
+					created?.externalId ||
+						created?.id ||
+						created?.key ||
+						created?.saleKey ||
+						sbisExternalId
+				).trim()
+
 				let registerPaymentResponse: any = null
 				if (boolEnv('SBIS_ORDER_REGISTER_PAYMENT', true)) {
 					const registerParams = {
@@ -294,11 +311,12 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 						paymentType: 'full',
 						nonFiscal: boolEnv('SBIS_ORDER_NON_FISCAL', false),
 					}
-					registerPaymentResponse = await axios.get(
-						`${apiBaseUrl}/order/${encodeURIComponent(sbisExternalId)}/register-payment`,
+					// Saby API ожидает POST (GET больше не допускается).
+					registerPaymentResponse = await axios.post(
+						`${apiBaseUrl}/order/${encodeURIComponent(saleExternalId)}/register-payment`,
+						registerParams,
 						{
 							headers,
-							params: registerParams,
 							timeout,
 						}
 					)
@@ -311,6 +329,7 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 
 				await strapi.entityService.update('api::order.order', orderId, {
 					data: {
+						sbisExternalId: saleExternalId,
 						sbisSyncStatus: 'synced',
 						sbisSyncedAt: new Date().toISOString(),
 						sbisLastError: null,
@@ -319,7 +338,7 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 					} as any,
 				})
 
-				return { success: true, orderId, sbisExternalId, response: responseData }
+				return { success: true, orderId, sbisExternalId: saleExternalId, response: responseData }
 			} catch (error: any) {
 				await markFailed(orderId, payload, error)
 				throw error

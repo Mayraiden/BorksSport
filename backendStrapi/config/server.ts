@@ -158,35 +158,10 @@ export default ({ env }) => {
          */
         cdekStatusSync: {
           task: async ({ strapi }) => {
-            const mapCdekStatusToOrderStatus = (rawStatus) => {
-              const value = String(rawStatus ?? '').trim()
-              if (!value) return undefined
-              const normalized = value.toLowerCase()
-              if (
-                normalized.includes('delivered') ||
-                normalized.includes('handed') ||
-                normalized.includes('received') ||
-                normalized.includes('вручен') ||
-                normalized.includes('доставлен')
-              ) {
-                return 'delivered'
-              }
-              if (
-                normalized.includes('shipped') ||
-                normalized.includes('in_transit') ||
-                normalized.includes('transit') ||
-                normalized.includes('accepted') ||
-                normalized.includes('created') ||
-                normalized.includes('pickup') ||
-                normalized.includes('передан') ||
-                normalized.includes('принят') ||
-                normalized.includes('в пути') ||
-                normalized.includes('отправ')
-              ) {
-                return 'shipped'
-              }
-              return undefined
-            }
+            const {
+              extractCdekDeliveryStatusString,
+              mapCdekStatusToOrderStatus,
+            } = await import('../src/utils/cdek-order-status')
 
             try {
               const cdekService = strapi.service('api::cdek-sync.cdek-sync')
@@ -207,6 +182,7 @@ export default ({ env }) => {
                 try {
                   const tracked = await cdekService.trackOrder(trackNumber)
                   const nextCdekStatus =
+                    extractCdekDeliveryStatusString(tracked) ||
                     tracked?.entity?.status ||
                     tracked?.entity?.state ||
                     tracked?.status ||
@@ -242,6 +218,7 @@ export default ({ env }) => {
          */
         cdekTrackSync: {
           task: async ({ strapi }) => {
+            const { extractCdekDeliveryStatusString } = await import('../src/utils/cdek-order-status')
             const extractTrackNumber = (payload: any): string | null => {
               const entity = payload?.entity || payload
               const candidate =
@@ -276,6 +253,7 @@ export default ({ env }) => {
                   const info = await cdekService.getOrderByUuid(uuid)
                   const track = extractTrackNumber(info)
                   const nextStatus =
+                    extractCdekDeliveryStatusString(info) ||
                     (info as any)?.entity?.status ||
                     (info as any)?.entity?.state ||
                     null

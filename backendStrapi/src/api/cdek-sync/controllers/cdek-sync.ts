@@ -1,46 +1,12 @@
 import type { Core } from '@strapi/strapi'
+import {
+	extractCdekDeliveryStatusString,
+	mapCdekStatusToOrderStatus,
+} from '../../../utils/cdek-order-status'
 
 const webhookRateLimit = new Map<string, { count: number; windowStart: number }>()
 const WEBHOOK_WINDOW_MS = 60_000
 const WEBHOOK_MAX_PER_WINDOW = 120
-
-const mapCdekStatusToOrderStatus = (
-	rawStatus: unknown
-): 'shipped' | 'delivered' | undefined => {
-	const value = String(rawStatus ?? '').trim()
-	if (!value) return undefined
-
-	const normalized = value.toLowerCase()
-
-	// Delivered / handed to recipient
-	if (
-		normalized.includes('delivered') ||
-		normalized.includes('handed') ||
-		normalized.includes('received') ||
-		normalized.includes('вручен') ||
-		normalized.includes('доставлен')
-	) {
-		return 'delivered'
-	}
-
-	// In transit / shipped / accepted
-	if (
-		normalized.includes('shipped') ||
-		normalized.includes('in_transit') ||
-		normalized.includes('transit') ||
-		normalized.includes('accepted') ||
-		normalized.includes('created') ||
-		normalized.includes('pickup') ||
-		normalized.includes('передан') ||
-		normalized.includes('принят') ||
-		normalized.includes('в пути') ||
-		normalized.includes('отправ')
-	) {
-		return 'shipped'
-	}
-
-	return undefined
-}
 
 export default ({ strapi }: { strapi: Core.Strapi }) => ({
 	/**
@@ -320,8 +286,15 @@ export default ({ strapi }: { strapi: Core.Strapi }) => ({
 			}
 
 			const webhookData = ctx.request.body
-			const uuid = webhookData?.entity?.uuid
-			const status = webhookData?.entity?.status
+			const uuid =
+				(typeof webhookData?.entity?.uuid === 'string' && webhookData.entity.uuid) ||
+				(typeof webhookData?.uuid === 'string' && webhookData.uuid) ||
+				undefined
+			const status =
+				extractCdekDeliveryStatusString(webhookData) ||
+				webhookData?.entity?.status ||
+				webhookData?.attributes?.status_code ||
+				webhookData?.attributes?.code
 			const trackNumber =
 				webhookData?.entity?.cdek_number ||
 				webhookData?.entity?.cdekNumber ||
@@ -331,7 +304,7 @@ export default ({ strapi }: { strapi: Core.Strapi }) => ({
 
 			if (!uuid || typeof uuid !== 'string') {
 				ctx.status = 400
-				ctx.body = { success: false, message: 'Invalid webhook payload: missing entity.uuid' }
+				ctx.body = { success: false, message: 'Invalid webhook payload: missing order uuid' }
 				return
 			}
 
