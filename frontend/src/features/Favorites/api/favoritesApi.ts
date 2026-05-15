@@ -127,7 +127,6 @@ export const favoritesApi = {
 			const validItems = data.data.filter((item: FavoriteItem) => {
 				const hasProduct = item.product !== null && item.product !== undefined
 				if (!hasProduct && process.env.NODE_ENV === 'development') {
-					console.warn(`[favoritesApi] Favorite item ${item.id} has null product, filtering out`)
 				}
 				return hasProduct
 			})
@@ -196,7 +195,6 @@ export const favoritesApi = {
 				!err.message?.includes('403') &&
 				!err.message?.includes('Forbidden')
 			) {
-				console.error('Error fetching favorites:', error)
 			}
 			throw error
 		}
@@ -256,7 +254,6 @@ export const favoritesApi = {
 
 				return data.data?.isFavorite === true
 			} catch (error) {
-				console.error('Error toggling favorite:', error)
 				throw error
 			}
 		},
@@ -285,7 +282,6 @@ export const favoritesApi = {
 				throw new Error(data.message || data.error || 'Failed to add favorite')
 			}
 		} catch (error) {
-			console.error('Error adding favorite:', error)
 			throw error
 		}
 	},
@@ -327,7 +323,6 @@ export const favoritesApi = {
 				)
 			}
 		} catch (error) {
-			console.error('Error removing favorite:', error)
 			throw error
 		}
 	},

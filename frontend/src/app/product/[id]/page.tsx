@@ -45,8 +45,7 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
 				<Footer />
 			</main>
 		)
-	} catch (error) {
-		console.error('Error loading product:', error)
+	} catch {
 		notFound()
 	}
 }

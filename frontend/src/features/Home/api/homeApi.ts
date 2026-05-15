@@ -47,8 +47,7 @@ export const homeApi = {
 				showDiscounts: data.data.showDiscounts ?? true,
 				showNew: data.data.showNew ?? true,
 			}
-		} catch (error) {
-			console.error('Error fetching homepage settings:', error)
+		} catch {
 			return defaultSettings
 		}
 	},

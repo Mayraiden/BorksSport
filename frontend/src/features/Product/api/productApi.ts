@@ -104,11 +104,7 @@ function normalizeProductImageUrl(url: string): string | null {
 const transformApiProduct = (apiProduct: ApiProduct): Product | null => {
 	try {
 		return transformApiProductInternal(apiProduct)
-	} catch (error) {
-		console.error('[ProductApi] Error transforming product:', error, {
-			productId: apiProduct.id,
-			productName: apiProduct.name,
-		})
+	} catch {
 		return null
 	}
 }
@@ -372,7 +368,6 @@ export const productApi = {
 		// Filters
 		if (params.search) {
 			// Temporarily use Strapi search until Meilisearch is fixed
-			console.log(`🔍 [Search] Using Strapi search for: "${params.search}"`)
 			searchParams.append('filters[$or][0][name][$containsi]', params.search)
 			searchParams.append(
 				'filters[$or][1][description][$containsi]',
@@ -390,7 +385,6 @@ export const productApi = {
 
 		// Category filter (level 1 - product categories like "Обувь", "Сумки")
 		if (params.category) {
-			console.log('🔍 [Filter] Category filter:', params.category)
 			if (params.category.includes(',')) {
 				const categories = params.category.split(',').filter(Boolean)
 				categories.forEach((category, index) => {
@@ -406,7 +400,6 @@ export const productApi = {
 
 		// Brand filter (level 2 - brands like "OSAKA", "Rawlings")
 		if (params.brand) {
-			console.log('🔍 [Filter] Brand filter:', params.brand)
 			if (params.brand.includes(',')) {
 				const brands = params.brand.split(',').filter(Boolean)
 				brands.forEach((brand, index) => {
@@ -422,7 +415,6 @@ export const productApi = {
 
 		// Sport type filter (level 0 - main categories like "Бейсбол и Софтбол")
 		if (params.sport) {
-			console.log('🔍 [Filter] Sport type filter:', params.sport)
 			if (params.sport.includes(',')) {
 				const sports = params.sport.split(',').filter(Boolean)
 				sports.forEach((sport, index) => {
@@ -438,7 +430,6 @@ export const productApi = {
 
 		// Colors filter (exact match, multi-select)
 		if (params.colors && Array.isArray(params.colors) && params.colors.length > 0) {
-			console.log('🔍 [Filter] Colors filter:', params.colors)
 			if (params.colors.length > 1) {
 				params.colors.forEach((color, index) => {
 					const value = String(color || '').trim()
@@ -453,7 +444,6 @@ export const productApi = {
 
 		// Sizes filter (exact match, multi-select)
 		if (params.sizes && Array.isArray(params.sizes) && params.sizes.length > 0) {
-			console.log('🔍 [Filter] Sizes filter:', params.sizes)
 			if (params.sizes.length > 1) {
 				params.sizes.forEach((size, index) => {
 					const value = String(size || '').trim()
@@ -478,11 +468,6 @@ export const productApi = {
 		try {
 			const url = `${getApiUrl()}/api/products?${searchParams}`
 
-			// Log URL for debugging
-			if (params.search || params.category || params.brand || params.sport) {
-				console.log(`🌐 [API] Request:`, url)
-			}
-
 			const response = await fetch(url)
 
 			if (!response.ok) {
@@ -491,65 +476,6 @@ export const productApi = {
 
 			const data: ApiResponse<ApiProduct[]> | ApiErrorResponse =
 				await response.json()
-
-			// Always log for debugging when no filters
-			if (!params.search && !params.category && !params.brand && !params.sport) {
-				console.log('[getProducts] API response:', {
-					success: data.success,
-					dataLength: data.success ? data.data?.length : 0,
-					total: data.success ? data.meta?.pagination?.total : 0,
-					url,
-				})
-			}
-
-			// Logging for debugging when filters are applied
-			if (params.search || params.category || params.brand || params.sport) {
-				const queryType = params.search
-					? 'Search'
-					: params.category
-						? 'Category Filter'
-						: params.brand
-							? 'Brand Filter'
-							: params.sport
-								? 'Sport Filter'
-								: 'Filter'
-				const filterValue = params.search || params.category || params.brand || params.sport
-				console.log(
-					`🔍 [${queryType}] ${filterValue} → ${data.success ? data.data.length : 0} results, total=${data.success ? data.meta?.pagination?.total : 0}`
-				)
-				console.log(
-					`📊 [${queryType}] Full API response:`,
-					{
-						success: data.success,
-						dataLength: data.success ? data.data?.length : 0,
-						total: data.success ? data.meta?.pagination?.total : 0,
-						url,
-					}
-				)
-
-				// Show first few results to debug
-				if (data.success && data.data.length > 0) {
-					console.log(
-						`📋 [${queryType}] First 3 results:`,
-						data.data.slice(0, 3).map((item) => ({
-							name: item.name,
-							category: item.categoryName,
-							rootCategory: item.rootCategoryName,
-							article: item.sbisNomNumber,
-						}))
-					)
-				} else if (data.success && (params.category || params.brand || params.sport)) {
-					const filterType = params.category ? 'category' : params.brand ? 'brand' : 'sport'
-					const filterValue = params.category || params.brand || params.sport
-					console.warn(
-						`⚠️ [Filter] No products found for ${filterType}:`,
-						filterValue
-					)
-					console.log(
-						`💡 [Filter] Tip: Check if products have correct ${filterType} relation or ${filterType === 'sport' ? 'rootCategoryName' : 'category.name'} field`
-					)
-				}
-			}
 
 			if (!data.success) {
 				throw new Error(data.message || data.error)
@@ -571,7 +497,6 @@ export const productApi = {
 					Math.ceil((pagination?.total || products.length) / limit),
 			}
 		} catch (error) {
-			console.error('Error fetching products:', error)
 			throw error
 		}
 	},
@@ -614,7 +539,6 @@ export const productApi = {
 			return product
 		} catch (error) {
 			const err = error as Error
-			console.error('Error fetching product:', err.message)
 			// Пробрасываем ошибку дальше для обработки в компоненте
 			throw err
 		}
@@ -677,7 +601,6 @@ export const productApi = {
 				category: item.categoryName || item.rootCategoryName || null,
 			}))
 		} catch (error) {
-			console.error('Error fetching search suggestions:', error)
 			throw error
 		}
 	},
@@ -711,7 +634,6 @@ export const productApi = {
 				.map(transformApiProduct)
 				.filter((p): p is Product => p !== null)
 		} catch (error) {
-			console.error('Error fetching popular products:', error)
 			throw error
 		}
 	},
@@ -745,7 +667,6 @@ export const productApi = {
 				.map(transformApiProduct)
 				.filter((p): p is Product => p !== null)
 		} catch (error) {
-			console.error('Error fetching new products:', error)
 			throw error
 		}
 	},

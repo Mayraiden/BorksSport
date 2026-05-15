@@ -22,8 +22,7 @@ export const Favorites = () => {
 		try {
 			const favorites = await favoritesApi.getFavorites(jwt)
 			setProducts(favorites)
-		} catch (err) {
-			console.error('Failed to refresh favorites:', err)
+		} catch {
 		}
 	}
 
@@ -45,11 +44,9 @@ export const Favorites = () => {
 				// Handle 403 as permission issue - show user-friendly message
 				if (errMsg.includes('403') || errMsg.includes('Forbidden')) {
 					setError('Нет доступа к избранному. Обратитесь к администратору.')
-					console.warn('[Favorites] Permission denied - check Strapi settings')
 				} else if (errMsg.includes('401') || errMsg.includes('Unauthorized')) {
 					setError('Необходимо войти в аккаунт')
 				} else {
-					console.error('Failed to load favorites:', err)
 					setError(errMsg || 'Не удалось загрузить избранное')
 				}
 				setProducts([])

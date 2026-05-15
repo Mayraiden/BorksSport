@@ -92,8 +92,7 @@ export const ProfileInfo = () => {
 			setSaveSuccess(true)
 			// Скрываем сообщение об успехе через 5 секунд
 			setTimeout(() => setSaveSuccess(false), 5000)
-		} catch (error) {
-			console.error('Ошибка при обновлении профиля:', error)
+		} catch {
 			setSaveSuccess(false)
 		}
 	}
@@ -145,8 +144,7 @@ export const ProfileInfo = () => {
 			await deleteAccountMutation.mutateAsync()
 			// После успешного удаления происходит logout и очистка через onSuccess в useDeleteAccount
 			router.push('/')
-		} catch (error) {
-			console.error('Ошибка при удалении аккаунта:', error)
+		} catch {
 			// Модальное окно останется открытым, можно показать ошибку
 		}
 	}

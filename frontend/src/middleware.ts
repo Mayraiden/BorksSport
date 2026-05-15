@@ -54,19 +54,10 @@ export function middleware(request: NextRequest) {
 	const pathname = url.pathname
 	const searchParams = url.searchParams.toString()
 	const userAgent = request.headers.get('user-agent') || ''
-	// Получаем IP из заголовков (x-forwarded-for или x-real-ip)
-	const forwardedFor = request.headers.get('x-forwarded-for')
-	const realIp = request.headers.get('x-real-ip')
-	const ip = forwardedFor?.split(',')[0]?.trim() || realIp || 'unknown'
 
 	// Проверяем pathname на блокированные пути
 	for (const blockedPath of BLOCKED_PATHS) {
 		if (pathname.includes(blockedPath)) {
-			console.warn(`[SECURITY] Blocked system file access: ${pathname}`, {
-				ip,
-				userAgent,
-				timestamp: new Date().toISOString(),
-			})
 			return new NextResponse('Forbidden', { status: 403 })
 		}
 	}
@@ -74,13 +65,6 @@ export function middleware(request: NextRequest) {
 	// Проверяем pathname на паттерны атак
 	for (const pattern of BLOCKED_PATTERNS) {
 		if (pattern.test(pathname) || pattern.test(searchParams) || pattern.test(userAgent)) {
-			console.warn(`[SECURITY] Blocked suspicious request: ${pathname}`, {
-				searchParams,
-				userAgent,
-				ip,
-				pattern: pattern.toString(),
-				timestamp: new Date().toISOString(),
-			})
 			return new NextResponse('Forbidden', { status: 403 })
 		}
 	}
@@ -88,13 +72,6 @@ export function middleware(request: NextRequest) {
 	// Проверяем query параметры
 	for (const pattern of BLOCKED_QUERY_PATTERNS) {
 		if (pattern.test(searchParams)) {
-			console.warn(`[SECURITY] Blocked suspicious query: ${searchParams}`, {
-				pathname,
-				ip,
-				userAgent,
-				pattern: pattern.toString(),
-				timestamp: new Date().toISOString(),
-			})
 			return new NextResponse('Forbidden', { status: 403 })
 		}
 	}

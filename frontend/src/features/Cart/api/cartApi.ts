@@ -129,7 +129,6 @@ export const cartApi = {
 				!err.message?.includes('403') &&
 				!err.message?.includes('Forbidden')
 			) {
-				console.error('Error fetching cart:', error)
 			}
 			throw error
 		}
@@ -174,7 +173,6 @@ export const cartApi = {
 				quantity: item.quantity,
 			}
 		} catch (error) {
-			console.error('Error adding to cart:', error)
 			throw error
 		}
 	},
@@ -239,7 +237,6 @@ export const cartApi = {
 				quantity: item.quantity,
 			}
 		} catch (error) {
-			console.error('Error updating cart item:', error)
 			throw error
 		}
 	},
@@ -272,7 +269,6 @@ export const cartApi = {
 				)
 			}
 		} catch (error) {
-			console.error('Error removing from cart:', error)
 			throw error
 		}
 	},
@@ -300,7 +296,6 @@ export const cartApi = {
 				throw new Error(data.message || data.error || 'Failed to clear cart')
 			}
 		} catch (error) {
-			console.error('Error clearing cart:', error)
 			throw error
 		}
 	},

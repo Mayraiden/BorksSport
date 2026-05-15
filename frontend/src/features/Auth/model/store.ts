@@ -64,15 +64,9 @@ export const useAuthStore = create<IUserStoreType>()(
 					if (state.user && state.jwt) {
 						state.isAuthenticated = true
 						state.isEmailConfirmed = !!state.user.confirmed
-						if (process.env.NODE_ENV === 'development') {
-							console.log('[AuthStore] Rehydrated: user and jwt found, isAuthenticated = true')
-						}
 					} else {
 						state.isAuthenticated = false
 						state.isEmailConfirmed = false
-						if (process.env.NODE_ENV === 'development') {
-							console.log('[AuthStore] Rehydrated: no user or jwt, isAuthenticated = false')
-						}
 					}
 				}
 			},

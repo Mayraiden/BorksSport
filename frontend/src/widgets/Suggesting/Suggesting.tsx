@@ -40,8 +40,7 @@ export const Suggesting = ({ title }: ISuggestingProps) => {
 				}
 
 				setProducts(fetchedProducts)
-			} catch (error) {
-				console.error(`Error loading products for "${title}":`, error)
+			} catch {
 				setProducts([])
 			} finally {
 				setLoading(false)

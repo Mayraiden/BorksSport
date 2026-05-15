@@ -42,11 +42,7 @@ export function safeArrayFrom<T>(
 		}
 
 		return []
-	} catch (error) {
-		console.error('[SafeUtils] Error in safeArrayFrom:', error, {
-			iterableType: typeof iterable,
-			iterableValue: iterable,
-		})
+	} catch {
 		return []
 	}
 }
@@ -74,11 +70,7 @@ export function safeMapFrom<K, V>(
 		}
 
 		return new Map()
-	} catch (error) {
-		console.error('[SafeUtils] Error in safeMapFrom:', error, {
-			entriesType: typeof entries,
-			entriesValue: entries,
-		})
+	} catch {
 		return new Map()
 	}
 }
@@ -94,11 +86,7 @@ export function safeParseJSON<T = unknown>(json: string, fallback: T | null = nu
 
 	try {
 		return JSON.parse(json) as T
-	} catch (error) {
-		console.error('[SafeUtils] Error parsing JSON:', error, {
-			jsonLength: json.length,
-			jsonPreview: json.substring(0, 100),
-		})
+	} catch {
 		return fallback
 	}
 }
@@ -121,8 +109,7 @@ export function safeSetFrom<T>(iterable: Iterable<T> | null | undefined): Set<T>
 		}
 
 		return new Set()
-	} catch (error) {
-		console.error('[SafeUtils] Error in safeSetFrom:', error)
+	} catch {
 		return new Set()
 	}
 }

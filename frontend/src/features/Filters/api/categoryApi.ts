@@ -51,7 +51,6 @@ export const categoryApi = {
 
 			return data.data
 		} catch (error) {
-			console.error('Error fetching main categories:', error)
 			throw error
 		}
 	},
@@ -83,7 +82,6 @@ export const categoryApi = {
 
 			return data.data
 		} catch (error) {
-			console.error(`Error fetching categories for level ${level}${type ? ` (${type})` : ''}:`, error)
 			throw error
 		}
 	},
@@ -113,7 +111,6 @@ export const categoryApi = {
 
 			return data.data
 		} catch (error) {
-			console.error('Error fetching home brands:', error)
 			throw error
 		}
 	},

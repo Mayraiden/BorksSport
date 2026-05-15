@@ -68,8 +68,7 @@ export const footerApi = {
 				workModeText: data.data.workModeText || defaultSettings.workModeText,
 				copyrightText: data.data.copyrightText || defaultSettings.copyrightText,
 			}
-		} catch (error) {
-			console.error('Error fetching footer settings:', error)
+		} catch {
 			return defaultSettings
 		}
 	},

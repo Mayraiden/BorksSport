@@ -10,25 +10,6 @@ import type { CartItemDisplay } from '@/features/Cart/api/cartApi'
 
 const API_URL = process.env.NEXT_PUBLIC_STRAPI_URL || process.env.NEXT_STRAPI_URL || 'http://localhost:1337'
 
-const checkoutLogger = {
-	maskToken(token?: string) {
-		if (!token) return 'NO_TOKEN'
-		return `${token.substring(0, 6)}…${token.substring(Math.max(token.length - 4, 6))}`
-	},
-	group(label: string, data: Record<string, unknown>) {
-		if (typeof console.groupCollapsed === 'function') {
-			console.groupCollapsed(`[CheckoutAPI] ${label}`)
-			console.log(data)
-			console.groupEnd()
-		} else {
-			console.log(`[CheckoutAPI] ${label}`, data)
-		}
-	},
-	error(label: string, data: unknown) {
-		console.error(`[CheckoutAPI] ${label}`, data)
-	},
-}
-
 interface ApiResponse<T> {
 	success: boolean
 	data?: T
@@ -107,13 +88,6 @@ export const checkoutApi = {
 				}
 			}
 
-			checkoutLogger.group('POST /api/orders → request', {
-				url: `${API_URL}/api/orders`,
-				headers: {
-					Authorization: checkoutLogger.maskToken(token),
-				},
-				payload: orderData,
-			})
 
 			const response = await fetch(`${API_URL}/api/orders`, {
 				method: 'POST',
@@ -137,35 +111,19 @@ export const checkoutApi = {
 				}
 				if (response.status === 409) {
 					const errorData = await response.json().catch(() => ({}))
-					checkoutLogger.group('POST /api/orders ← insufficient stock', {
-						status: response.status,
-						error: errorData,
-					})
 					throw new Error(errorData.message || 'Недостаточно товара')
 				}
 				if (response.status === 400) {
 					const errorData = await response.json().catch(() => ({}))
-					checkoutLogger.group('POST /api/orders ← error', {
-						status: response.status,
-						error: errorData,
-					})
 					throw new Error(
 						errorData.message || 'Ошибка при создании заказа'
 					)
 				}
-				checkoutLogger.group('POST /api/orders ← error', {
-					status: response.status,
-					error: await response.text().catch(() => 'Unknown error'),
-				})
 				throw new Error(`Ошибка сервера: ${response.status}`)
 			}
 
 			const data: ApiResponse<OrderResponse> = await response.json()
 
-			checkoutLogger.group('POST /api/orders ← response', {
-				status: response.status,
-				body: data,
-			})
 
 			if (!data.success || !data.data) {
 				throw new Error(
@@ -182,7 +140,6 @@ export const checkoutApi = {
 					: order.totalAmount,
 			}
 		} catch (error) {
-			checkoutLogger.error('createOrder failed', error)
 			throw error
 		}
 	},
@@ -284,9 +241,6 @@ export const checkoutApi = {
 				tariffCode: tariffCode || (deliveryType === 'door' ? 139 : 138),
 			}
 
-			checkoutLogger.group('POST /api/cdek-sync/calculate → request', {
-				payload: requestData,
-			})
 
 			const response = await fetch(`${API_URL}/api/cdek-sync/calculate`, {
 				method: 'POST',
@@ -298,10 +252,6 @@ export const checkoutApi = {
 
 			if (!response.ok) {
 				const errorData = await response.json().catch(() => ({}))
-				checkoutLogger.group('POST /api/cdek-sync/calculate ← error', {
-					status: response.status,
-					error: errorData,
-				})
 				throw new Error(
 					errorData.message || 'Не удалось рассчитать стоимость доставки'
 				)
@@ -318,10 +268,6 @@ export const checkoutApi = {
 				}>
 			}> = await response.json()
 
-			checkoutLogger.group('POST /api/cdek-sync/calculate ← response', {
-				status: response.status,
-				body: data,
-			})
 
 			if (!data.success || !data.data) {
 				throw new Error('Не удалось получить расчет стоимости доставки')
@@ -370,7 +316,6 @@ export const checkoutApi = {
 				})),
 			}
 		} catch (error) {
-			checkoutLogger.error('calculateDeliveryCost failed', error)
 			throw error
 		}
 	},
@@ -382,12 +327,6 @@ export const checkoutApi = {
 		orderId: number,
 		token: string
 	): Promise<PaymentSessionResponse> {
-		checkoutLogger.group('POST /api/payments/tochka/session → request', {
-			orderId,
-			headers: {
-				Authorization: checkoutLogger.maskToken(token),
-			},
-		})
 
 		const response = await fetch(`${API_URL}/api/payments/tochka/session`, {
 			method: 'POST',
@@ -403,10 +342,6 @@ export const checkoutApi = {
 			if (response.status === 403 && errorData.code === 'EMAIL_NOT_CONFIRMED') {
 				throw new Error('Подтвердите email, чтобы перейти к оплате')
 			}
-			checkoutLogger.group('POST /api/payments/tochka/session ← error', {
-				status: response.status,
-				error: errorData,
-			})
 			throw new Error(
 				errorData.message || errorData.error || 'Не удалось создать платеж'
 			)
@@ -414,10 +349,6 @@ export const checkoutApi = {
 
 		const data: ApiResponse<PaymentSessionResponse> = await response.json()
 
-		checkoutLogger.group('POST /api/payments/tochka/session ← response', {
-			status: response.status,
-			body: data,
-		})
 
 		if (!data.success || !data.data) {
 			throw new Error(
@@ -435,12 +366,6 @@ export const checkoutApi = {
 		paymentId: number,
 		token: string
 	): Promise<PaymentStatusResponse> {
-		checkoutLogger.group('GET /api/payments/tochka/:id/status → request', {
-			paymentId,
-			headers: {
-				Authorization: checkoutLogger.maskToken(token),
-			},
-		})
 
 		const response = await fetch(
 			`${API_URL}/api/payments/tochka/${paymentId}/status`,
@@ -453,11 +378,6 @@ export const checkoutApi = {
 
 		if (!response.ok) {
 			const errorData = await response.json().catch(() => ({}))
-			checkoutLogger.group('GET /api/payments/tochka/:id/status ← error', {
-				paymentId,
-				status: response.status,
-				error: errorData,
-			})
 			throw new Error(
 				errorData.message || errorData.error || 'Не удалось получить статус платежа'
 			)
@@ -465,11 +385,6 @@ export const checkoutApi = {
 
 		const data: ApiResponse<PaymentStatusResponse> = await response.json()
 
-		checkoutLogger.group('GET /api/payments/tochka/:id/status ← response', {
-			paymentId,
-			status: response.status,
-			body: data,
-		})
 
 		if (!data.success || !data.data) {
 			throw new Error(
@@ -498,19 +413,12 @@ export const checkoutApi = {
 				return []
 			}
 
-			checkoutLogger.group('GET /api/cdek-sync/cities → request', {
-				query,
-			})
 
 			const response = await fetch(
 				`${API_URL}/api/cdek-sync/cities?query=${encodeURIComponent(query)}`
 			)
 
 			if (!response.ok) {
-				checkoutLogger.group('GET /api/cdek-sync/cities ← error', {
-					status: response.status,
-					body: await response.text().catch(() => ''),
-				})
 				return []
 			}
 
@@ -525,10 +433,6 @@ export const checkoutApi = {
 				}>
 			> = await response.json()
 
-			checkoutLogger.group('GET /api/cdek-sync/cities ← response', {
-				status: response.status,
-				body: data,
-			})
 
 			if (!data.success || !data.data) {
 				return []
@@ -542,8 +446,7 @@ export const checkoutApi = {
 				country: city.country,
 				postalCodes: city.postal_codes,
 			}))
-		} catch (error) {
-			checkoutLogger.error('searchCities failed', error)
+		} catch {
 			return []
 		}
 	},
@@ -572,19 +475,12 @@ export const checkoutApi = {
 				return []
 			}
 
-			checkoutLogger.group('GET /api/cdek-sync/pvz-list → request', {
-				cityCode,
-			})
 
 			const response = await fetch(
 				`${API_URL}/api/cdek-sync/pvz-list?cityCode=${cityCode}`
 			)
 
 			if (!response.ok) {
-				checkoutLogger.group('GET /api/cdek-sync/pvz-list ← error', {
-					status: response.status,
-					body: await response.text().catch(() => ''),
-				})
 				return []
 			}
 
@@ -607,10 +503,6 @@ export const checkoutApi = {
 				}>
 			> = await response.json()
 
-			checkoutLogger.group('GET /api/cdek-sync/pvz-list ← response', {
-				status: response.status,
-				body: data,
-			})
 
 			if (!data.success || !data.data) {
 				return []
@@ -630,8 +522,7 @@ export const checkoutApi = {
 				phones: pvz.phones,
 				email: pvz.email,
 			}))
-		} catch (error) {
-			checkoutLogger.error('getPvzList failed', error)
+		} catch {
 			return []
 		}
 	},
@@ -657,10 +548,6 @@ export const checkoutApi = {
 
 			if (!geoData.city) return null
 
-			checkoutLogger.group('detectCity → geo result', {
-				city: geoData.city,
-				region: geoData.region,
-			})
 
 			const cities = await checkoutApi.searchCities(geoData.city)
 
@@ -671,8 +558,7 @@ export const checkoutApi = {
 				city: cities[0].city,
 				region: cities[0].region,
 			}
-		} catch (error) {
-			checkoutLogger.error('detectCity failed', error)
+		} catch {
 			return null
 		}
 	},

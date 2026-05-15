@@ -155,8 +155,7 @@ export const DeliveryMethodForm = ({
 			if (pvzListData.length === 0) {
 				setCalculationError('ПВЗ в выбранном городе не найдены')
 			}
-		} catch (error) {
-			console.error('Error loading PVZ list:', error)
+		} catch {
 			setCalculationError('Не удалось загрузить список ПВЗ')
 		} finally {
 			setIsLoadingPvz(false)
@@ -197,8 +196,7 @@ export const DeliveryMethodForm = ({
 			const cities = await checkoutApi.searchCities(query)
 			setCitySearchResults(cities)
 			setShowCitySearch(cities.length > 0)
-		} catch (error) {
-			console.error('Error searching cities:', error)
+		} catch {
 			setCitySearchResults([])
 			setShowCitySearch(false)
 		}
@@ -308,8 +306,7 @@ export const DeliveryMethodForm = ({
 					deliveryDate: result.deliveryDate,
 					deliveryTime: result.deliveryTime,
 				})
-			} catch (error: unknown) {
-				console.error('Error calculating delivery cost:', error)
+			} catch {
 				setCalculationError('Не удалось рассчитать стоимость доставки')
 			} finally {
 				setIsCalculating(false)

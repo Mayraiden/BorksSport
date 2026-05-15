@@ -61,7 +61,6 @@ export const BuyButton = ({ ...props }: IBuyButtonProps) => {
 			refreshCartCount(jwt)
 			props.onClick?.()
 		} catch (error) {
-			console.error('Failed to add to cart:', error)
 			if (error instanceof Error && error.message === 'Unauthorized') {
 				openModal()
 			}
@@ -97,8 +96,7 @@ export const BuyButton = ({ ...props }: IBuyButtonProps) => {
 			const updatedItem = await cartApi.updateQuantity(cartItemId, newQuantity, jwt)
 			setQuantity(updatedItem.quantity)
 			refreshCartCount(jwt)
-		} catch (error) {
-			console.error('Failed to increase quantity:', error)
+		} catch {
 		} finally {
 			setIsLoading(false)
 		}
@@ -124,8 +122,7 @@ export const BuyButton = ({ ...props }: IBuyButtonProps) => {
 				setIsInCart(false)
 				setQuantity(1)
 				setCartItemId(null)
-			} catch (error) {
-				console.error('Failed to remove from cart:', error)
+			} catch {
 			} finally {
 				setIsLoading(false)
 			}
@@ -138,8 +135,7 @@ export const BuyButton = ({ ...props }: IBuyButtonProps) => {
 			const updatedItem = await cartApi.updateQuantity(cartItemId, newQuantity, jwt)
 			setQuantity(updatedItem.quantity)
 			refreshCartCount(jwt)
-		} catch (error) {
-			console.error('Failed to decrease quantity:', error)
+		} catch {
 		} finally {
 			setIsLoading(false)
 		}

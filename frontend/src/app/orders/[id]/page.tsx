@@ -140,7 +140,6 @@ export default function OrderDetailsPage({ params }: OrderDetailsPageProps) {
 			setPayments(paymentData)
 			setError(null)
 		} catch (err: unknown) {
-			console.error('Failed to load order', err)
 			const errorMessage = err instanceof Error ? err.message : 'Не удалось получить информацию о заказе.'
 			setError(errorMessage)
 		} finally {
@@ -172,8 +171,7 @@ export default function OrderDetailsPage({ params }: OrderDetailsPageProps) {
 				if (statusResult.status !== 'pending') {
 					await loadOrder()
 				}
-			} catch (err) {
-				console.error('Failed to check payment status', err)
+			} catch {
 			}
 		}
 
@@ -542,5 +540,4 @@ export default function OrderDetailsPage({ params }: OrderDetailsPageProps) {
 		</ProfileLayout>
 	)
 }
-
 

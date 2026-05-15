@@ -67,7 +67,6 @@ export const CartItemCard = ({
 				onUpdate()
 			}
 		} catch (error) {
-			console.error('Failed to update quantity:', error)
 			// Best-effort: show a simple message without adding new UI libs.
 			if (error instanceof Error) {
 				alert(error.message)
@@ -87,8 +86,7 @@ export const CartItemCard = ({
 			if (onRemove) {
 				onRemove()
 			}
-		} catch (error) {
-			console.error('Failed to remove item:', error)
+		} catch {
 		} finally {
 			setIsUpdating(false)
 		}

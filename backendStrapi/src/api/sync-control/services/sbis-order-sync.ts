@@ -232,7 +232,8 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 				email: String(customerData.email || '').trim() || undefined,
 				phone,
 			},
-			datetime: formatSbisDateTime(new Date(order.createdAt || Date.now())),
+			// Saby retail отклоняет datetime в прошлом; при отложенном синке — текущее время.
+			datetime: formatSbisDateTime(new Date()),
 			nomenclatures,
 			delivery: {
 				isPickup,

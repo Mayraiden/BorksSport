@@ -75,15 +75,8 @@ export const FavoriteButton = ({
 					checkedProductIdRef.current = productId
 				}
 			})
-			.catch((err) => {
+			.catch(() => {
 				if (!cancelled) {
-					const errMsg = err?.message || ''
-					console.warn('[FavoriteButton] Check failed:', {
-						productId,
-						errMsg,
-						isAuthenticated,
-						hasJwt: !!jwt,
-					})
 					// При ошибке проверки не сбрасываем состояние - оставляем текущее
 					// Только помечаем, что проверка была выполнена
 					checkedProductIdRef.current = productId
@@ -118,7 +111,6 @@ export const FavoriteButton = ({
 				onToggle()
 			}
 		} catch (error) {
-			console.error('Failed to toggle favorite:', error)
 			if (error instanceof Error && error.message === 'Unauthorized') {
 				openModal()
 			}

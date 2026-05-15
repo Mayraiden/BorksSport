@@ -43,7 +43,6 @@ export default function Orders() {
 				setOrders(data)
 				setError(null)
 			} catch (err: unknown) {
-				console.error('Failed to load orders', err)
 				const errorMessage = err instanceof Error ? err.message : 'Не удалось загрузить историю заказов.'
 				setError(errorMessage)
 			} finally {

@@ -20,13 +20,8 @@ export const getGlobalRestoreInProgress = (): boolean => {
  * Устанавливает состояние восстановления
  * @deprecated Используйте sessionManager напрямую
  */
-export const setGlobalRestoreInProgress = (value: boolean): void => {
+export const setGlobalRestoreInProgress = (): void => {
 	// Состояние теперь управляется через sessionManager и store
 	// Эта функция оставлена для обратной совместимости, но не делает ничего
 	// так как sessionManager управляет состоянием автоматически
-	if (process.env.NODE_ENV === 'development' && value) {
-		console.warn(
-			'[sessionRestoreCoordinator] setGlobalRestoreInProgress is deprecated. Use sessionManager directly.'
-		)
-	}
 }

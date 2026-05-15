@@ -79,8 +79,7 @@ const PaymentPageContent = () => {
 					)
 				}
 			}
-		} catch (storageError) {
-			console.warn('Unable to restore payment session', storageError)
+		} catch {
 		}
 	}, [storageKey])
 
@@ -92,8 +91,7 @@ const PaymentPageContent = () => {
 
 			try {
 				sessionStorage.setItem(storageKey, JSON.stringify(next))
-			} catch (storageError) {
-				console.warn('Unable to persist payment session', storageError)
+			} catch {
 			}
 		},
 		[storageKey]
@@ -155,7 +153,6 @@ const PaymentPageContent = () => {
 				return nextSession
 			})
 		} catch (statusError: unknown) {
-			console.error('Unable to refresh payment статус', statusError)
 			const errorMessage =
 				statusError instanceof Error
 					? statusError.message

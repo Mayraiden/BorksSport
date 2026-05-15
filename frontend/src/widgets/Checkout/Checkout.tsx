@@ -87,8 +87,7 @@ export const Checkout = () => {
 						},
 					}))
 				}
-			} catch (error) {
-				console.error('Failed to load checkout data:', error)
+			} catch {
 			} finally {
 				setIsLoading(false)
 			}
@@ -182,8 +181,7 @@ export const Checkout = () => {
 				await cartApi.clearCart(jwt)
 				setCartItems([])
 				await refreshCartCount(jwt)
-			} catch (clearError) {
-				console.warn('Unable to clear cart after order creation', clearError)
+			} catch {
 			}
 
 			if (formData.payment.type === 'online' && formData.payment.provider) {
@@ -194,7 +192,6 @@ export const Checkout = () => {
 						jwt
 					)
 				} catch (paymentError: unknown) {
-					console.error('Failed to create payment session:', paymentError)
 					const errorMessage = paymentError instanceof Error ? paymentError.message : 'Не удалось инициировать оплату. Попробуйте позже или выберите другой способ оплаты.'
 					setErrors({
 						general: errorMessage || 'Не удалось инициировать оплату. Попробуйте позже или выберите другой способ оплаты.',
@@ -214,8 +211,7 @@ export const Checkout = () => {
 								timestamp: Date.now(),
 							})
 						)
-					} catch (storageError) {
-						console.warn('Unable to persist payment session in sessionStorage', storageError)
+					} catch {
 					}
 				}
 
@@ -228,7 +224,6 @@ export const Checkout = () => {
 				router.push(`/orders/${order.id}?status=${order.status}`)
 			}
 		} catch (error: unknown) {
-			console.error('Failed to create order:', error)
 			const errorMessage = error instanceof Error ? error.message : 'Не удалось создать заказ. Попробуйте позже.'
 			setErrors({
 				general: errorMessage,

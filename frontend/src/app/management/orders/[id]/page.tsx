@@ -183,8 +183,7 @@ export default function ManagementOrderDetailsPage({ params }: ManagementOrderDe
 			let paymentsData: ManagementPaymentEntity[] = []
 			try {
 				paymentsData = await managementOrdersApi.getOrderPayments(orderId, jwt)
-			} catch (paymentsError) {
-				console.warn('Management payments endpoint unavailable, continue without payments', paymentsError)
+			} catch {
 				paymentsData = []
 			}
 			setOrder(orderData)

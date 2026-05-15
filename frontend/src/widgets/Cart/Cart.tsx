@@ -24,8 +24,7 @@ export const Cart = () => {
 		try {
 			const items = await cartApi.getCart(jwt)
 			setCartItems(items)
-		} catch (err) {
-			console.error('Failed to refresh cart:', err)
+		} catch {
 		}
 	}
 
@@ -46,11 +45,9 @@ export const Cart = () => {
 				const errMsg = err instanceof Error ? err.message : String(err)
 				if (errMsg.includes('403') || errMsg.includes('Forbidden')) {
 					setError('Нет доступа к корзине. Обратитесь к администратору.')
-					console.warn('[Cart] Permission denied - check Strapi settings')
 				} else if (errMsg.includes('401') || errMsg.includes('Unauthorized')) {
 					setError('Необходимо войти в аккаунт')
 				} else {
-					console.error('Failed to load cart:', err)
 					setError(errMsg || 'Не удалось загрузить корзину')
 				}
 				setCartItems([])

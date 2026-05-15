@@ -272,8 +272,7 @@ export const YandexMap = ({
 			} else if (markers.length === 1) {
 				map.setCenter([markers[0].latitude, markers[0].longitude], 15)
 			}
-		} catch (err) {
-			console.error('Error updating markers:', err)
+		} catch {
 		}
 	}, [markers])
 
@@ -321,8 +320,7 @@ export const YandexMap = ({
 				renderMarkersFn?.()
 
 				onMapReady?.(map)
-			} catch (err) {
-				console.error('Error initializing map:', err)
+			} catch {
 				setError('Ошибка инициализации карты')
 				setIsLoading(false)
 			}
@@ -334,8 +332,7 @@ export const YandexMap = ({
 					initializeMap()
 				}
 			})
-			.catch((err) => {
-				console.error(err)
+			.catch(() => {
 				if (!isUnmounted) {
 					setError('Не удалось загрузить Яндекс-Карты')
 					setIsLoading(false)
@@ -347,8 +344,7 @@ export const YandexMap = ({
 			if (mapInstanceRef.current) {
 				try {
 					mapInstanceRef.current.destroy()
-				} catch (e) {
-					console.error('Error destroying map:', e)
+				} catch {
 				}
 				mapInstanceRef.current = null
 			}

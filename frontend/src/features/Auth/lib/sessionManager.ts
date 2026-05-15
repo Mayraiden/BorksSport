@@ -154,10 +154,6 @@ class SessionManager {
 
 		for (let attempt = 1; attempt <= maxRetries; attempt++) {
 			try {
-				if (process.env.NODE_ENV === 'development') {
-					console.log(`[SessionManager] Restore attempt ${attempt}/${maxRetries}`)
-				}
-
 				// Пытаемся обновить токен
 				const refreshResult = await strapiAuth.refreshToken()
 
@@ -167,10 +163,6 @@ class SessionManager {
 
 				// Устанавливаем новый JWT
 				store.setJwt(refreshResult.jwt)
-
-				if (process.env.NODE_ENV === 'development') {
-					console.log('[SessionManager] Token refreshed successfully')
-				}
 
 				// Загружаем данные пользователя с retry логикой
 				const user = await this.loadUserData(refreshResult.jwt, 3)
@@ -182,36 +174,18 @@ class SessionManager {
 				// Устанавливаем пользователя
 				store.setUser(user)
 
-				if (process.env.NODE_ENV === 'development') {
-					console.log('[SessionManager] Session restored successfully')
-				}
-
 				return { jwt: refreshResult.jwt, user }
 			} catch (error) {
 				const classifiedError = this.classifyError(error)
 
-				if (process.env.NODE_ENV === 'development') {
-					console.warn(`[SessionManager] Restore attempt ${attempt} failed:`, {
-						type: classifiedError.type,
-						message: classifiedError.message,
-						retryable: classifiedError.retryable,
-					})
-				}
-
 				// Если это авторизационная ошибка - не повторяем, разлогиниваем
 				if (classifiedError.type === ErrorType.AUTH_ERROR) {
-					if (process.env.NODE_ENV === 'development') {
-						console.log('[SessionManager] Auth error detected, logging out')
-					}
 					store.logout()
 					return null
 				}
 
 				// Если это последняя попытка или ошибка не повторяемая - прекращаем
 				if (attempt === maxRetries || !classifiedError.retryable) {
-					if (process.env.NODE_ENV === 'development') {
-						console.warn('[SessionManager] Max retries reached or non-retryable error')
-					}
 					// Не разлогиниваем при сетевых/серверных ошибках
 					return null
 				}

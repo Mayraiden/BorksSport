@@ -23,8 +23,6 @@ export const MeilisearchStatus = ({
 		setIsTesting(true)
 		try {
 			await testMeilisearchQueries()
-		} catch (error) {
-			console.error('Error testing Meilisearch:', error)
 		} finally {
 			setIsTesting(false)
 		}

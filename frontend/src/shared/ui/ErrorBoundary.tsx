@@ -23,12 +23,8 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
 		return { hasError: true, error }
 	}
 
-	componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-		// Логируем ошибку, но не падаем
-		console.error('[ErrorBoundary] Caught error:', error, errorInfo)
-
+	componentDidCatch() {
 		// Можно отправить в систему мониторинга (Sentry и т.д.)
-		// Но не падаем - просто логируем
 		// if (typeof window !== 'undefined' && window.Sentry) {
 		//   window.Sentry.captureException(error, {
 		//     contexts: {
