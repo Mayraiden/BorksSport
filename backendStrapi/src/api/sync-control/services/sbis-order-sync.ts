@@ -72,13 +72,30 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 		return toMoney(sum)
 	}
 
+	const SBIS_DATETIME_TZ =
+		optionalEnv('SBIS_ORDER_DATETIME_TZ') || 'Europe/Moscow'
+
 	function formatSbisDateTime(date = new Date()): string {
-		const pad = (n: number) => String(n).padStart(2, '0')
-		return [
-			date.getFullYear(),
-			pad(date.getMonth() + 1),
-			pad(date.getDate()),
-		].join('-') + ` ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
+		const offsetMin = Number(optionalEnv('SBIS_ORDER_DATETIME_OFFSET_MINUTES') || '0')
+		const when = Number.isFinite(offsetMin) && offsetMin !== 0
+			? new Date(date.getTime() + offsetMin * 60_000)
+			: date
+
+		const parts = new Intl.DateTimeFormat('en-GB', {
+			timeZone: SBIS_DATETIME_TZ,
+			year: 'numeric',
+			month: '2-digit',
+			day: '2-digit',
+			hour: '2-digit',
+			minute: '2-digit',
+			second: '2-digit',
+			hour12: false,
+		}).formatToParts(when)
+
+		const pick = (type: Intl.DateTimeFormatPartTypes) =>
+			parts.find((p) => p.type === type)?.value || '00'
+
+		return `${pick('year')}-${pick('month')}-${pick('day')} ${pick('hour')}:${pick('minute')}:${pick('second')}`
 	}
 
 	function splitCustomerName(fullName: string): {
@@ -275,7 +292,26 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 
 	function hasRegisterPaymentResponse(order: any): boolean {
 		const response = order?.sbisResponse as JsonRecord | undefined
-		return response?.registerPayment != null
+		const reg = response?.registerPayment as JsonRecord | undefined
+		if (!reg) return false
+		if (reg.successFlag === false) return false
+		const msg = String(reg.message || '').toLowerCase()
+		if (msg.includes('не найден') || msg.includes('not found')) return false
+		return true
+	}
+
+	function hasSuccessfulSbisCreate(order: any): boolean {
+		const created = (order?.sbisResponse as JsonRecord | undefined)?.create as
+			| JsonRecord
+			| undefined
+		if (!created) return false
+		if (created.error) return false
+		return !!(
+			created.externalId ||
+			created.id ||
+			created.key ||
+			created.saleKey
+		)
 	}
 
 	const SBIS_ELIGIBLE_ORDER_STATUSES = new Set(['paid', 'shipped', 'delivered'])
@@ -358,7 +394,9 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 			const existingSaleId = resolveSaleExternalId(order)
 			const registerPaymentOnly =
 				options.registerPaymentOnly ||
-				(options.force && !!existingSaleId && !hasRegisterPaymentResponse(order))
+				(options.force &&
+					hasSuccessfulSbisCreate(order) &&
+					!hasRegisterPaymentResponse(order))
 
 			if (registerPaymentOnly && !existingSaleId) {
 				throw new Error(
@@ -386,7 +424,11 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 				return { skipped: true, reason: 'already_syncing', orderId }
 			}
 
-			const sbisExternalId = existingSaleId || String((order as any).sbisExternalId || randomUUID())
+			const needsFreshSale =
+				!hasSuccessfulSbisCreate(order) && !options.registerPaymentOnly
+			const sbisExternalId = needsFreshSale
+				? randomUUID()
+				: existingSaleId || String((order as any).sbisExternalId || randomUUID())
 			await strapi.entityService.update('api::order.order', orderId, {
 				data: {
 					sbisExternalId,
@@ -421,10 +463,17 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 						)
 					}
 
+					const regData = (registerPaymentResponse?.data || null) as JsonRecord | null
+					if (regData?.successFlag === false) {
+						const errMsg =
+							String(regData.message || '') || 'SBIS register-payment failed'
+						throw new Error(errMsg)
+					}
+
 					const previousResponse = ((freshOrder as any).sbisResponse || {}) as JsonRecord
 					const responseData = {
 						...previousResponse,
-						registerPayment: registerPaymentResponse?.data || null,
+						registerPayment: regData,
 					}
 
 					await strapi.entityService.update('api::order.order', orderId, {
@@ -447,6 +496,9 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 				}
 
 				payload = await buildOrderPayload(freshOrder)
+				strapi.log.info(
+					`[SBIS Order Sync] order ${orderId} create datetime=${payload.datetime} tz=${SBIS_DATETIME_TZ} externalId=${payload.externalId}`
+				)
 				const createResponse = await axios.post(`${apiBaseUrl}/order/create`, payload, {
 					headers,
 					timeout,
@@ -472,9 +524,16 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 					)
 				}
 
+				const regData = (registerPaymentResponse?.data || null) as JsonRecord | null
+				if (regData?.successFlag === false) {
+					const errMsg =
+						String(regData.message || '') || 'SBIS register-payment failed'
+					throw new Error(errMsg)
+				}
+
 				const responseData = {
 					create: createResponse.data,
-					registerPayment: registerPaymentResponse?.data || null,
+					registerPayment: regData,
 				}
 
 				await strapi.entityService.update('api::order.order', orderId, {
