@@ -350,9 +350,12 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 			Authorization: `Bearer ${token}`,
 			'X-SBISAccessToken': token,
 		}
+		const amount = orderGoodsBankSum(freshOrder)
+		const nonFiscal = boolEnv('SBIS_ORDER_NON_FISCAL', true)
+		// Saby: nonFiscal допустим для наличных, не для bankSum (оплата на сайте / Точка).
 		const registerParams = {
-			bankSum: orderGoodsBankSum(freshOrder),
-			cashSum: 0,
+			bankSum: nonFiscal ? 0 : amount,
+			cashSum: nonFiscal ? amount : 0,
 			salarySum: 0,
 			retailPlace:
 				optionalEnv('SBIS_ORDER_RETAIL_PLACE') ||
@@ -360,7 +363,7 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 				optionalEnv('NEXT_PUBLIC_APP_URL') ||
 				'https://borkssport.ru',
 			paymentType: 'full',
-			nonFiscal: boolEnv('SBIS_ORDER_NON_FISCAL', true),
+			nonFiscal,
 		}
 		// В справке указан GET, фактически API принимает только POST (см. ответ «допустимы типы: POST»).
 		const registerPaymentResponse = await axios.post(
