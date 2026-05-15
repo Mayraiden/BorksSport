@@ -20,9 +20,26 @@ export function extractCdekDeliveryStatusString(raw: unknown): string | null {
 
 	const statuses = entity.statuses
 	if (Array.isArray(statuses) && statuses.length > 0) {
-		const last = statuses[statuses.length - 1] as Record<string, unknown> | undefined
-		if (last && typeof last === 'object') {
-			const code = last.code ?? last.name ?? last.status
+		// CDEK v2 отдаёт statuses от нового к старому; раньше брали последний → ACCEPTED вместо DELIVERED.
+		let latest: Record<string, unknown> | undefined
+		let latestTs = -Infinity
+		for (const item of statuses) {
+			if (!item || typeof item !== 'object') continue
+			const row = item as Record<string, unknown>
+			const rawDate = row.date_time ?? row.dateTime
+			const ts = rawDate ? Date.parse(String(rawDate)) : NaN
+			if (!Number.isFinite(ts)) {
+				if (!latest) latest = row
+				continue
+			}
+			if (ts >= latestTs) {
+				latestTs = ts
+				latest = row
+			}
+		}
+		const picked = latest ?? (statuses[0] as Record<string, unknown>)
+		if (picked && typeof picked === 'object') {
+			const code = picked.code ?? picked.name ?? picked.status
 			if (code != null && String(code).trim()) {
 				return String(code).trim()
 			}
