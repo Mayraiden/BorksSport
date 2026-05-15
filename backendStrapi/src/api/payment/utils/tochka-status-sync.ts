@@ -65,6 +65,33 @@ export const mapRemoteStatusToLocal = (
 const normalizeStoredStatus = (value: unknown): string =>
 	String(value ?? '').trim()
 
+/** Уже ушёл в доставку — не откатывать на paid при повторной синхронизации Точки. */
+const DELIVERY_STATUSES_AFTER_PAID = new Set(['shipped', 'delivered'])
+
+/**
+ * Статус заказа из оплаты: обновляем payment, order — только если не ломаем цепочку доставки.
+ */
+export function resolveOrderStatusFromPaymentSync(
+	currentStatus: unknown,
+	proposed: OrderPaymentStatus | undefined
+): OrderPaymentStatus | undefined {
+	if (!proposed) return undefined
+	const current = normalizeStoredStatus(currentStatus)
+
+	if (proposed === 'cancelled') {
+		return proposed
+	}
+
+	if (
+		(proposed === 'paid' || proposed === 'awaiting_payment' || proposed === 'payment_failed') &&
+		DELIVERY_STATUSES_AFTER_PAID.has(current)
+	) {
+		return undefined
+	}
+
+	return proposed
+}
+
 const shouldUpdateOrderStatus = (
 	currentStatus: unknown,
 	nextStatus: OrderPaymentStatus
@@ -142,11 +169,19 @@ export async function applyTochkaPaymentStatusUpdate(
 
 	if (input.orderStatus && paymentOrder?.id) {
 		const currentOrderStatus = (paymentOrder as any).status
-		if (shouldUpdateOrderStatus(currentOrderStatus, input.orderStatus)) {
-			const stockOps = stockOpsFactory({ strapi })
-			const orderUpdate: Record<string, unknown> = { status: input.orderStatus }
+		const orderStatusToApply = resolveOrderStatusFromPaymentSync(
+			currentOrderStatus,
+			input.orderStatus
+		)
 
-			if (input.orderStatus === 'cancelled' && input.isRefundEvent) {
+		if (
+			orderStatusToApply &&
+			shouldUpdateOrderStatus(currentOrderStatus, orderStatusToApply)
+		) {
+			const stockOps = stockOpsFactory({ strapi })
+			const orderUpdate: Record<string, unknown> = { status: orderStatusToApply }
+
+			if (orderStatusToApply === 'cancelled' && input.isRefundEvent) {
 				orderUpdate.cancelledAt = new Date().toISOString()
 				orderUpdate.cancelReason =
 					(paymentOrder as any).cancelReason ||
@@ -154,7 +189,7 @@ export async function applyTochkaPaymentStatusUpdate(
 			}
 
 			await strapi.db.transaction(async ({ trx }) => {
-				if (input.orderStatus === 'paid') {
+				if (orderStatusToApply === 'paid') {
 					await stockOps.applyOrderStockOp({
 						trx,
 						orderId: paymentOrder.id,
@@ -162,7 +197,7 @@ export async function applyTochkaPaymentStatusUpdate(
 					})
 				}
 				if (
-					input.orderStatus === 'cancelled' &&
+					orderStatusToApply === 'cancelled' &&
 					input.isRefundEvent &&
 					input.paymentStatus === 'refunded'
 				) {
@@ -180,7 +215,7 @@ export async function applyTochkaPaymentStatusUpdate(
 
 			orderUpdated = true
 
-			if (input.orderStatus === 'paid') {
+			if (orderStatusToApply === 'paid') {
 				await syncPaidOrderToSbis(strapi, Number(paymentOrder.id))
 			}
 
@@ -188,9 +223,17 @@ export async function applyTochkaPaymentStatusUpdate(
 				source: input.source,
 				orderId: paymentOrder.id,
 				previousStatus: currentOrderStatus ?? null,
-				newStatus: input.orderStatus,
+				newStatus: orderStatusToApply,
 				paymentId: input.paymentId,
 				paymentStatus: input.paymentStatus,
+			})
+		} else if (input.orderStatus && !orderStatusToApply) {
+			strapi.log.info('Tochka payment sync: order status unchanged (delivery ahead of paid)', {
+				source: input.source,
+				orderId: paymentOrder.id,
+				currentStatus: currentOrderStatus ?? null,
+				proposedStatus: input.orderStatus,
+				paymentId: input.paymentId,
 			})
 		}
 	}
