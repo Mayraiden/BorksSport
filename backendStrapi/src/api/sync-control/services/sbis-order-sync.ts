@@ -339,6 +339,16 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 		}
 	}
 
+	function resolveRegisterPaymentMode(): 'unknown' | 'cash' | 'bank' {
+		const fromEnv = optionalEnv('SBIS_ORDER_REGISTER_PAYMENT_MODE')?.toLowerCase()
+		if (fromEnv === 'unknown' || fromEnv === 'cash' || fromEnv === 'bank') {
+			return fromEnv
+		}
+		if (boolEnv('SBIS_ORDER_USE_UNKNOWN_SUM', false)) return 'unknown'
+		if (boolEnv('SBIS_ORDER_REGISTER_AS_CASH', false)) return 'cash'
+		return 'unknown'
+	}
+
 	function buildRegisterPaymentParams(freshOrder: any): JsonRecord {
 		const amount = orderGoodsBankSum(freshOrder)
 		const retailPlace =
@@ -346,26 +356,42 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 			optionalEnv('FRONTEND_URL') ||
 			optionalEnv('NEXT_PUBLIC_APP_URL') ||
 			'https://borkssport.ru'
+		const base = {
+			retailPlace,
+			paymentType: 'full',
+			nonFiscal: boolEnv('SBIS_ORDER_NON_FISCAL', true),
+		}
 
-		// По умолчанию — нал + nonFiscal (оплата на сайте / Точка). bankSum+nonFiscal Saby отклоняет.
-		if (boolEnv('SBIS_ORDER_REGISTER_AS_CASH', true)) {
+		const mode = resolveRegisterPaymentMode()
+		if (mode === 'unknown') {
+			const sumField =
+				optionalEnv('SBIS_ORDER_CUSTOM_SUM_FIELD') || 'unknownSum'
 			return {
 				bankSum: 0,
-				cashSum: amount,
+				cashSum: 0,
 				salarySum: 0,
-				retailPlace,
-				paymentType: 'full',
+				[sumField]: amount,
+				...base,
 				nonFiscal: true,
 			}
 		}
 
-		const nonFiscal = boolEnv('SBIS_ORDER_NON_FISCAL', true)
+		if (mode === 'cash') {
+			return {
+				bankSum: 0,
+				cashSum: amount,
+				salarySum: 0,
+				...base,
+				nonFiscal: true,
+			}
+		}
+
+		const nonFiscal = base.nonFiscal
 		return {
 			bankSum: nonFiscal ? 0 : amount,
 			cashSum: nonFiscal ? amount : 0,
 			salarySum: 0,
-			retailPlace,
-			paymentType: 'full',
+			...base,
 			nonFiscal,
 		}
 	}
