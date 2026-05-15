@@ -339,39 +339,69 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 		}
 	}
 
+	function buildRegisterPaymentParams(freshOrder: any): JsonRecord {
+		const amount = orderGoodsBankSum(freshOrder)
+		const retailPlace =
+			optionalEnv('SBIS_ORDER_RETAIL_PLACE') ||
+			optionalEnv('FRONTEND_URL') ||
+			optionalEnv('NEXT_PUBLIC_APP_URL') ||
+			'https://borkssport.ru'
+
+		// По умолчанию — нал + nonFiscal (оплата на сайте / Точка). bankSum+nonFiscal Saby отклоняет.
+		if (boolEnv('SBIS_ORDER_REGISTER_AS_CASH', true)) {
+			return {
+				bankSum: 0,
+				cashSum: amount,
+				salarySum: 0,
+				retailPlace,
+				paymentType: 'full',
+				nonFiscal: true,
+			}
+		}
+
+		const nonFiscal = boolEnv('SBIS_ORDER_NON_FISCAL', true)
+		return {
+			bankSum: nonFiscal ? 0 : amount,
+			cashSum: nonFiscal ? amount : 0,
+			salarySum: 0,
+			retailPlace,
+			paymentType: 'full',
+			nonFiscal,
+		}
+	}
+
+	function throwRegisterPaymentFailed(message: string, registerParams: JsonRecord): never {
+		const err = new Error(message) as Error & { sbisRegisterPaymentParams?: JsonRecord }
+		err.sbisRegisterPaymentParams = registerParams
+		throw err
+	}
+
 	async function postRegisterPayment(
 		freshOrder: any,
 		saleExternalId: string,
 		token: string,
 		apiBaseUrl: string,
 		timeout: number
-	) {
+	): Promise<{ axiosResponse: any; registerParams: JsonRecord }> {
 		const headers = {
 			Authorization: `Bearer ${token}`,
 			'X-SBISAccessToken': token,
 		}
-		const amount = orderGoodsBankSum(freshOrder)
-		const nonFiscal = boolEnv('SBIS_ORDER_NON_FISCAL', true)
-		// Saby: nonFiscal допустим для наличных, не для bankSum (оплата на сайте / Точка).
-		const registerParams = {
-			bankSum: nonFiscal ? 0 : amount,
-			cashSum: nonFiscal ? amount : 0,
-			salarySum: 0,
-			retailPlace:
-				optionalEnv('SBIS_ORDER_RETAIL_PLACE') ||
-				optionalEnv('FRONTEND_URL') ||
-				optionalEnv('NEXT_PUBLIC_APP_URL') ||
-				'https://borkssport.ru',
-			paymentType: 'full',
-			nonFiscal,
-		}
-		// В справке указан GET, фактически API принимает только POST (см. ответ «допустимы типы: POST»).
-		const registerPaymentResponse = await axios.post(
-			`${apiBaseUrl}/order/${encodeURIComponent(saleExternalId)}/register-payment`,
-			registerParams,
-			{ headers, timeout }
+		const registerParams = buildRegisterPaymentParams(freshOrder)
+		strapi.log.info(
+			`[SBIS Order Sync] register-payment sale=${saleExternalId} params=${JSON.stringify(registerParams)}`
 		)
-		return registerPaymentResponse
+		try {
+			const axiosResponse = await axios.post(
+				`${apiBaseUrl}/order/${encodeURIComponent(saleExternalId)}/register-payment`,
+				registerParams,
+				{ headers, timeout }
+			)
+			return { axiosResponse, registerParams }
+		} catch (error: any) {
+			error.sbisRegisterPaymentParams = registerParams
+			throw error
+		}
 	}
 
 	async function fetchOrderState(externalId: string) {
@@ -494,9 +524,10 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 
 				if (registerPaymentOnly) {
 					const saleExternalId = resolveSaleExternalId(freshOrder, sbisExternalId)
-					let registerPaymentResponse: any = null
+					let registerPaymentResult: Awaited<ReturnType<typeof postRegisterPayment>> | null =
+						null
 					if (boolEnv('SBIS_ORDER_REGISTER_PAYMENT', true)) {
-						registerPaymentResponse = await postRegisterPayment(
+						registerPaymentResult = await postRegisterPayment(
 							freshOrder,
 							saleExternalId,
 							token,
@@ -505,17 +536,23 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 						)
 					}
 
-					const regData = (registerPaymentResponse?.data || null) as JsonRecord | null
+					const registerParams = registerPaymentResult?.registerParams || null
+					const regData = (registerPaymentResult?.axiosResponse?.data ||
+						null) as JsonRecord | null
 					if (regData?.successFlag === false) {
 						const errMsg =
 							String(regData.message || '') || 'SBIS register-payment failed'
-						throw new Error(errMsg)
+						throwRegisterPaymentFailed(
+							errMsg,
+							registerParams || buildRegisterPaymentParams(freshOrder)
+						)
 					}
 
 					const previousResponse = ((freshOrder as any).sbisResponse || {}) as JsonRecord
 					const responseData = {
 						...previousResponse,
 						registerPayment: regData,
+						registerPaymentRequest: registerParams,
 					}
 
 					await strapi.entityService.update('api::order.order', orderId, {
@@ -555,9 +592,10 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 						sbisExternalId
 				).trim()
 
-				let registerPaymentResponse: any = null
+				let registerPaymentResult: Awaited<ReturnType<typeof postRegisterPayment>> | null =
+					null
 				if (boolEnv('SBIS_ORDER_REGISTER_PAYMENT', true)) {
-					registerPaymentResponse = await postRegisterPayment(
+					registerPaymentResult = await postRegisterPayment(
 						freshOrder,
 						saleExternalId,
 						token,
@@ -566,16 +604,21 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 					)
 				}
 
-				const regData = (registerPaymentResponse?.data || null) as JsonRecord | null
+				const registerParams = registerPaymentResult?.registerParams || null
+				const regData = (registerPaymentResult?.axiosResponse?.data || null) as JsonRecord | null
 				if (regData?.successFlag === false) {
 					const errMsg =
 						String(regData.message || '') || 'SBIS register-payment failed'
-					throw new Error(errMsg)
+					throwRegisterPaymentFailed(
+						errMsg,
+						registerParams || buildRegisterPaymentParams(freshOrder)
+					)
 				}
 
 				const responseData = {
 					create: createResponse.data,
 					registerPayment: regData,
+					registerPaymentRequest: registerParams,
 				}
 
 				await strapi.entityService.update('api::order.order', orderId, {
