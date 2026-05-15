@@ -1,5 +1,9 @@
 import { factories } from '@strapi/strapi'
 import stockOpsFactory from '../../../shared/stock/stock-ops'
+import {
+	applyTochkaPaymentStatusUpdate,
+	mapRemoteStatusToLocal,
+} from '../utils/tochka-status-sync'
 
 type PaymentStatus = 'pending' | 'paid' | 'failed' | 'refunded'
 
@@ -69,61 +73,6 @@ const requireConfirmedUser = async (strapi: any, ctx: any, userId: number): Prom
 	}
 
 	return true
-}
-
-const mapRemoteStatusToLocal = (remoteStatus: string): {
-	paymentStatus: PaymentStatus
-	orderStatus?: 'awaiting_payment' | 'paid' | 'payment_failed' | 'cancelled'
-} => {
-	const normalizedStatus = remoteStatus.toLowerCase()
-	switch (normalizedStatus) {
-		case 'paid':
-		case 'succeeded':
-		case 'success':
-		case 'completed':
-		case 'approved': // Статус APPROVED от Точки банка означает успешную оплату
-			return { paymentStatus: 'paid', orderStatus: 'paid' }
-		case 'cancelled':
-		case 'canceled':
-		case 'failed':
-		case 'declined':
-		case 'rejected':
-			return {
-				paymentStatus: 'failed',
-				orderStatus: 'payment_failed',
-			}
-		case 'refunded':
-		case 'refund':
-		case 'refund_succeeded':
-		case 'refund_success':
-		case 'reversed':
-			return {
-				paymentStatus: 'refunded',
-				orderStatus: 'cancelled',
-			}
-		default:
-			return { paymentStatus: 'pending', orderStatus: 'awaiting_payment' }
-	}
-}
-
-const syncPaidOrderToSbis = async (strapi: any, orderId: number) => {
-	try {
-		const result = await strapi
-			.service('api::sync-control.sbis-order-sync')
-			.syncPaidOrder(orderId)
-		if (!result?.skipped) {
-			strapi.log.info('[SBIS Order Sync] Paid order synced', {
-				orderId,
-				sbisExternalId: result?.sbisExternalId,
-			})
-		}
-	} catch (error: any) {
-		strapi.log.error('[SBIS Order Sync] Paid order sync failed', {
-			orderId,
-			error: error?.message || String(error),
-			response: error?.response?.data,
-		})
-	}
 }
 
 export default factories.createCoreController(
@@ -825,23 +774,16 @@ export default factories.createCoreController(
 					orderStatus,
 				})
 
-				const previousWebhookData = (
-					payment.paymentData ?? {}
-				) as JsonObject
+				const paymentOrder = (payment as any)?.order
 
-				const nextPaymentData: JsonObject = {
-					...previousWebhookData,
-					lastWebhookEvent: payload as JsonValue,
-				}
-
-				await strapi.entityService.update('api::payment.payment', payment.id, {
-					data: {
-						status: paymentStatus,
-						refundId: refundIdFromPayload || (payment as any).refundId,
-						refundStatus: refundStatus || (payment as any).refundStatus,
-						refundedAt: refundedAt || (payment as any).refundedAt,
-						refundData: isRefundEvent ? (payload as JsonValue) : (payment as any).refundData,
-						paymentData: nextPaymentData,
+				await applyTochkaPaymentStatusUpdate(strapi, {
+					paymentId: payment.id,
+					paymentStatus,
+					orderStatus,
+					paymentData: {
+						lastWebhookEvent: payload as JsonValue,
+					},
+					paymentPatch: {
 						paymentUrl:
 							(payload.payment_url as string) || payment.paymentUrl,
 						sessionId:
@@ -851,72 +793,43 @@ export default factories.createCoreController(
 						expiresAt:
 							(payload.expires_at as string) || payment.expiresAt,
 					},
+					refundFields: isRefundEvent
+						? {
+								refundId: refundIdFromPayload || (payment as any).refundId,
+								refundStatus: refundStatus || (payment as any).refundStatus,
+								refundedAt: refundedAt || (payment as any).refundedAt,
+								refundData: payload as JsonValue,
+							}
+						: undefined,
+					order: paymentOrder,
+					source: 'webhook',
+					isRefundEvent,
 				})
 
-				const paymentOrder = (payment as any)?.order
-
-				if (orderStatus && paymentOrder) {
-					const orderUpdate: any = { status: orderStatus }
-					if (orderStatus === 'cancelled' && isRefundEvent) {
-						orderUpdate.cancelledAt = new Date().toISOString()
-						orderUpdate.cancelReason =
-							(paymentOrder.cancelReason as string | undefined) ||
-							'Отменено: возврат средств подтверждён'
-					}
-
-					const stockOps = stockOpsFactory({ strapi })
-					await strapi.db.transaction(async ({ trx }) => {
-						if (orderStatus === 'paid') {
-							await stockOps.applyOrderStockOp({
-								trx,
+				if (
+					orderStatus === 'cancelled' &&
+					isRefundEvent &&
+					refundStatus === 'succeeded' &&
+					paymentOrder
+				) {
+					const cdekUuid = String((paymentOrder as any).cdekOrderUuid || '').trim()
+					if (cdekUuid) {
+						try {
+							const cdekService = strapi.service('api::cdek-sync.cdek-sync')
+							const result = await cdekService.cancelOrder(cdekUuid)
+							await strapi.entityService.update('api::order.order', paymentOrder.id, {
+								data: {
+									cdekStatus: result.ok ? 'CANCELLED' : 'CANCEL_CANCELLED_FAILED',
+								},
+							})
+						} catch (cdekError: any) {
+							strapi.log.warn('CDEK cancel after refund failed', {
 								orderId: paymentOrder.id,
-								kind: 'commit',
+								cdekOrderUuid: (paymentOrder as any).cdekOrderUuid,
+								error: cdekError?.message,
 							})
 						}
-						if (orderStatus === 'cancelled' && isRefundEvent && refundStatus === 'succeeded') {
-							await stockOps.applyOrderStockOp({
-								trx,
-								orderId: paymentOrder.id,
-								kind: 'return',
-							})
-						}
-
-						await strapi.entityService.update('api::order.order', paymentOrder.id, {
-							data: orderUpdate,
-						})
-					})
-
-					if (orderStatus === 'paid') {
-						await syncPaidOrderToSbis(strapi, Number(paymentOrder.id))
 					}
-
-					// Best-effort: try cancel CDEK order when refund succeeded
-					if (orderStatus === 'cancelled' && isRefundEvent && refundStatus === 'succeeded') {
-						const cdekUuid = String((paymentOrder as any).cdekOrderUuid || '').trim()
-						if (cdekUuid) {
-							try {
-								const cdekService = strapi.service('api::cdek-sync.cdek-sync')
-								const result = await cdekService.cancelOrder(cdekUuid)
-								await strapi.entityService.update('api::order.order', paymentOrder.id, {
-									data: {
-										cdekStatus: result.ok ? 'CANCELLED' : 'CANCEL_CANCELLED_FAILED',
-									},
-								})
-							} catch (cdekError: any) {
-								strapi.log.warn('CDEK cancel after refund failed', {
-									orderId: paymentOrder.id,
-									cdekOrderUuid: (paymentOrder as any).cdekOrderUuid,
-									error: cdekError?.message,
-								})
-							}
-						}
-					}
-
-					strapi.log.info('Tochka Pay webhook: order status updated', {
-						orderId: paymentOrder.id,
-						oldStatus: paymentOrder.status,
-						newStatus: orderStatus,
-					})
 				}
 
 				ctx.body = { success: true }
@@ -1004,53 +917,16 @@ export default factories.createCoreController(
 					paymentStatusResponse
 				)
 
-				const previousPolledData = (
-					payment.paymentData ?? {}
-				) as JsonObject
-
-				const nextPaymentData: JsonObject = {
-					...previousPolledData,
-					lastPolledStatus: statusResponse.raw as JsonValue,
-					lastStatusSyncAt: new Date().toISOString(),
-				}
-
-				await strapi.entityService.update('api::payment.payment', id, {
-					data: {
-						status: paymentStatus,
-						paymentData: nextPaymentData,
+				await applyTochkaPaymentStatusUpdate(strapi, {
+					paymentId: Number(id),
+					paymentStatus,
+					orderStatus,
+					paymentData: {
+						lastPolledStatus: statusResponse.raw as JsonValue,
+						lastStatusSyncAt: new Date().toISOString(),
 					},
+					source: 'poll',
 				})
-
-				const paymentOrder = (payment as any)?.order
-
-				if (orderStatus && paymentOrder) {
-					const currentOrderStatus = paymentOrder.status
-					if (currentOrderStatus !== orderStatus) {
-						const stockOps = stockOpsFactory({ strapi })
-						await strapi.db.transaction(async ({ trx }) => {
-							if (orderStatus === 'paid') {
-								await stockOps.applyOrderStockOp({
-									trx,
-									orderId: paymentOrder.id,
-									kind: 'commit',
-								})
-							}
-
-							await strapi.entityService.update('api::order.order', paymentOrder.id, {
-								data: { status: orderStatus },
-							})
-						})
-						if (orderStatus === 'paid') {
-							await syncPaidOrderToSbis(strapi, Number(paymentOrder.id))
-						}
-						strapi.log.info('Tochka Pay status check: order status updated', {
-							orderId: paymentOrder.id,
-							oldStatus: currentOrderStatus,
-							newStatus: orderStatus,
-							paymentStatus: paymentStatus,
-						})
-					}
-				}
 
 				ctx.body = {
 					success: true,

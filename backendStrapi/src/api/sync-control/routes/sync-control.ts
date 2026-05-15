@@ -20,5 +20,15 @@ export default {
 				middlewares: [],
 			},
 		},
+		{
+			method: 'POST',
+			path: '/sync-control/sbis/orders/:id/register-payment',
+			handler: 'sync-control.registerSbisOrderPayment',
+			config: {
+				auth: false,
+				policies: [],
+				middlewares: [],
+			},
+		},
 	],
 }

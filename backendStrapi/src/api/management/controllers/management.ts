@@ -58,42 +58,10 @@ const parseIntOr = (value: unknown, fallback: number): number => {
 	return Number.isFinite(parsed) ? parsed : fallback
 }
 
-type PaymentStatus = 'pending' | 'paid' | 'failed' | 'refunded'
-
-const mapRemoteStatusToLocal = (remoteStatus: string): {
-	paymentStatus: PaymentStatus
-	orderStatus?: 'awaiting_payment' | 'paid' | 'payment_failed' | 'cancelled'
-} => {
-	const normalizedStatus = remoteStatus.toLowerCase()
-	switch (normalizedStatus) {
-		case 'paid':
-		case 'succeeded':
-		case 'success':
-		case 'completed':
-		case 'approved':
-			return { paymentStatus: 'paid', orderStatus: 'paid' }
-		case 'cancelled':
-		case 'canceled':
-		case 'failed':
-		case 'declined':
-		case 'rejected':
-			return {
-				paymentStatus: 'failed',
-				orderStatus: 'payment_failed',
-			}
-		case 'refunded':
-		case 'refund':
-		case 'refund_succeeded':
-		case 'refund_success':
-		case 'reversed':
-			return {
-				paymentStatus: 'refunded',
-				orderStatus: 'cancelled',
-			}
-		default:
-			return { paymentStatus: 'pending', orderStatus: 'awaiting_payment' }
-	}
-}
+import {
+	applyTochkaPaymentStatusUpdate,
+	mapRemoteStatusToLocal,
+} from '../../payment/utils/tochka-status-sync'
 
 export default {
 	/**
@@ -330,26 +298,16 @@ export default {
 			const paymentStatusResponse = String(statusResponse.status ?? 'pending')
 			const { paymentStatus, orderStatus } = mapRemoteStatusToLocal(paymentStatusResponse)
 
-			const prevPaymentData = ((payment as any).paymentData ?? {}) as Record<string, unknown>
-			const nextPaymentData = {
-				...prevPaymentData,
-				lastPolledStatus: statusResponse.raw,
-				lastStatusSyncAt: new Date().toISOString(),
-			}
-
-			await strapi.entityService.update('api::payment.payment', paymentId, {
-				data: {
-					status: paymentStatus,
-					paymentData: nextPaymentData,
+			await applyTochkaPaymentStatusUpdate(strapi, {
+				paymentId,
+				paymentStatus,
+				orderStatus,
+				paymentData: {
+					lastPolledStatus: statusResponse.raw as any,
+					lastStatusSyncAt: new Date().toISOString(),
 				},
+				source: 'management',
 			})
-
-			const paymentOrder = (payment as any)?.order
-			if (orderStatus && paymentOrder?.id && paymentOrder.status !== orderStatus) {
-				await strapi.entityService.update('api::order.order', paymentOrder.id, {
-					data: { status: orderStatus },
-				})
-			}
 
 			ctx.body = {
 				success: true,

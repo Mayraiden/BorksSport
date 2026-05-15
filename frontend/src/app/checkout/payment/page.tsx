@@ -188,7 +188,7 @@ const PaymentPageContent = () => {
 		if (status === 'paid' && orderId) {
 			// После подтверждения оплаты перенаправляем пользователя в заказ
 			const timeout = setTimeout(() => {
-				router.replace(`/orders/${orderId}?status=paid`)
+				router.replace(`/orders/${orderId}?payment=success`)
 			}, 2000)
 
 			return () => clearTimeout(timeout)

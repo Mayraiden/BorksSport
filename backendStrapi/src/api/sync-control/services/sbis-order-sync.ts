@@ -55,6 +55,23 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 		return Math.round(n * 100) / 100
 	}
 
+	/** Сумма к оплате в Saby только по товарам (без доставки СДЭК и прочего из totalAmount). */
+	function orderGoodsBankSum(order: any): number {
+		const items = Array.isArray(order?.items) ? order.items : []
+		let sum = 0
+		for (const it of items) {
+			const qty = Number(it?.quantity || 0)
+			const price = Number(it?.price || 0)
+			const subtotal = Number(it?.subtotal)
+			if (Number.isFinite(subtotal) && subtotal > 0) {
+				sum += subtotal
+			} else if (qty > 0 && Number.isFinite(price)) {
+				sum += price * qty
+			}
+		}
+		return toMoney(sum)
+	}
+
 	function formatSbisDateTime(date = new Date()): string {
 		const pad = (n: number) => String(n).padStart(2, '0')
 		return [
@@ -241,8 +258,68 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 		})
 	}
 
+	function resolveSaleExternalId(order: any, fallbackId?: string): string {
+		const fromOrder = String(order?.sbisExternalId || '').trim()
+		if (fromOrder) return fromOrder
+
+		const response = order?.sbisResponse as JsonRecord | undefined
+		const created = response?.create as JsonRecord | undefined
+		const fromCreate = String(
+			created?.externalId || created?.id || created?.key || created?.saleKey || ''
+		).trim()
+		if (fromCreate) return fromCreate
+
+		return String(fallbackId || '').trim()
+	}
+
+	function hasRegisterPaymentResponse(order: any): boolean {
+		const response = order?.sbisResponse as JsonRecord | undefined
+		return response?.registerPayment != null
+	}
+
+	async function postRegisterPayment(
+		freshOrder: any,
+		saleExternalId: string,
+		token: string,
+		apiBaseUrl: string,
+		timeout: number
+	) {
+		const headers = {
+			Authorization: `Bearer ${token}`,
+			'X-SBISAccessToken': token,
+		}
+		const registerParams = {
+			bankSum: orderGoodsBankSum(freshOrder),
+			cashSum: 0,
+			salarySum: 0,
+			retailPlace:
+				optionalEnv('SBIS_ORDER_RETAIL_PLACE') ||
+				optionalEnv('FRONTEND_URL') ||
+				optionalEnv('NEXT_PUBLIC_APP_URL') ||
+				'https://borkssport.ru',
+			paymentType: 'full',
+			nonFiscal: boolEnv('SBIS_ORDER_NON_FISCAL', false),
+		}
+		const registerPaymentResponse = await axios.post(
+			`${apiBaseUrl}/order/${encodeURIComponent(saleExternalId)}/register-payment`,
+			registerParams,
+			{ headers, timeout }
+		)
+		return registerPaymentResponse
+	}
+
 	return {
-		async syncPaidOrder(orderId: number, options: { force?: boolean } = {}) {
+		async registerSbisPayment(orderId: number) {
+			return this.syncPaidOrder(orderId, {
+				force: true,
+				registerPaymentOnly: true,
+			})
+		},
+
+		async syncPaidOrder(
+			orderId: number,
+			options: { force?: boolean; registerPaymentOnly?: boolean } = {}
+		) {
 			const order = await strapi.entityService.findOne('api::order.order', orderId, {
 				populate: ['user'],
 			})
@@ -253,14 +330,38 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 			if ((order as any).status !== 'paid') {
 				throw new Error(`Order ${orderId} is not paid`)
 			}
-			if ((order as any).sbisSyncStatus === 'synced' && !options.force) {
+			const existingSaleId = resolveSaleExternalId(order)
+			const registerPaymentOnly =
+				options.registerPaymentOnly ||
+				(options.force && !!existingSaleId && !hasRegisterPaymentResponse(order))
+
+			if (registerPaymentOnly && !existingSaleId) {
+				throw new Error(
+					`Order ${orderId}: sale id in Saby is missing (sbisExternalId / sbisResponse.create)`
+				)
+			}
+
+			if (
+				(order as any).sbisSyncStatus === 'synced' &&
+				hasRegisterPaymentResponse(order) &&
+				!options.registerPaymentOnly
+			) {
+				return {
+					skipped: true,
+					reason: 'already_synced_with_payment',
+					orderId,
+					sbisExternalId: existingSaleId,
+				}
+			}
+
+			if ((order as any).sbisSyncStatus === 'synced' && !options.force && !registerPaymentOnly) {
 				return { skipped: true, reason: 'already_synced', orderId }
 			}
 			if ((order as any).sbisSyncStatus === 'syncing' && !options.force) {
 				return { skipped: true, reason: 'already_syncing', orderId }
 			}
 
-			const sbisExternalId = String((order as any).sbisExternalId || randomUUID())
+			const sbisExternalId = existingSaleId || String((order as any).sbisExternalId || randomUUID())
 			await strapi.entityService.update('api::order.order', orderId, {
 				data: {
 					sbisExternalId,
@@ -274,8 +375,6 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 				const freshOrder = await strapi.entityService.findOne('api::order.order', orderId, {
 					populate: ['user'],
 				})
-				payload = await buildOrderPayload(freshOrder)
-
 				const token = await getToken()
 				const apiBaseUrl = normalizeApiBaseUrl()
 				const headers = {
@@ -283,6 +382,46 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 					'X-SBISAccessToken': token,
 				}
 				const timeout = Number(process.env.SBIS_TIMEOUT || 30000)
+
+				if (registerPaymentOnly) {
+					const saleExternalId = resolveSaleExternalId(freshOrder, sbisExternalId)
+					let registerPaymentResponse: any = null
+					if (boolEnv('SBIS_ORDER_REGISTER_PAYMENT', true)) {
+						registerPaymentResponse = await postRegisterPayment(
+							freshOrder,
+							saleExternalId,
+							token,
+							apiBaseUrl,
+							timeout
+						)
+					}
+
+					const previousResponse = ((freshOrder as any).sbisResponse || {}) as JsonRecord
+					const responseData = {
+						...previousResponse,
+						registerPayment: registerPaymentResponse?.data || null,
+					}
+
+					await strapi.entityService.update('api::order.order', orderId, {
+						data: {
+							sbisExternalId: saleExternalId,
+							sbisSyncStatus: 'synced',
+							sbisSyncedAt: new Date().toISOString(),
+							sbisLastError: null,
+							sbisResponse: responseData,
+						} as any,
+					})
+
+					return {
+						success: true,
+						orderId,
+						sbisExternalId: saleExternalId,
+						registerPaymentOnly: true,
+						response: responseData,
+					}
+				}
+
+				payload = await buildOrderPayload(freshOrder)
 				const createResponse = await axios.post(`${apiBaseUrl}/order/create`, payload, {
 					headers,
 					timeout,
@@ -299,26 +438,12 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 
 				let registerPaymentResponse: any = null
 				if (boolEnv('SBIS_ORDER_REGISTER_PAYMENT', true)) {
-					const registerParams = {
-						bankSum: toMoney((freshOrder as any).totalAmount || 0),
-						cashSum: 0,
-						salarySum: 0,
-						retailPlace:
-							optionalEnv('SBIS_ORDER_RETAIL_PLACE') ||
-							optionalEnv('FRONTEND_URL') ||
-							optionalEnv('NEXT_PUBLIC_APP_URL') ||
-							'https://borkssport.ru',
-						paymentType: 'full',
-						nonFiscal: boolEnv('SBIS_ORDER_NON_FISCAL', false),
-					}
-					// Saby API ожидает POST (GET больше не допускается).
-					registerPaymentResponse = await axios.post(
-						`${apiBaseUrl}/order/${encodeURIComponent(saleExternalId)}/register-payment`,
-						registerParams,
-						{
-							headers,
-							timeout,
-						}
+					registerPaymentResponse = await postRegisterPayment(
+						freshOrder,
+						saleExternalId,
+						token,
+						apiBaseUrl,
+						timeout
 					)
 				}
 

@@ -120,7 +120,9 @@ export default function OrderDetailsPage({ params }: OrderDetailsPageProps) {
 	}>(null)
 
 	const orderId = Number(resolvedParams.id)
-	const paymentSuccess = searchParams?.get('payment') === 'success'
+	const paymentSuccess =
+		searchParams?.get('payment') === 'success' ||
+		searchParams?.get('status') === 'paid'
 
 	const loadOrder = useCallback(async () => {
 		if (!isAuthenticated || !jwt || Number.isNaN(orderId)) {

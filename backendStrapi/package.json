@@ -19,7 +19,12 @@
     "migrate:categories": "npx ts-node --transpile-only scripts/migrate-product-categories.ts",
     "backfill:brands": "npx ts-node --transpile-only scripts/backfill-brands.ts",
     "sbis:smoke": "node scripts/sbis-api-smoke.js",
-    "sbis:order-smoke": "node scripts/sbis-order-create-smoke.js"
+    "sbis:order-smoke": "node scripts/sbis-order-create-smoke.js",
+    "sbis:register-payment": "node scripts/sbis-order-create-smoke.js --register-payment-only",
+    "sbis:balance-roundtrip": "node scripts/sbis-balance-around-order-smoke.js",
+    "sbis:retail-cancel": "node scripts/sbis-retail-order-cancel.js",
+    "sbis:jsonrpc-probe": "node scripts/sbis-jsonrpc-probe.js",
+    "sbis:jsonrpc-realiz": "node scripts/sbis-jsonrpc-realiz-probe.js"
   },
   "dependencies": {
     "@strapi/plugin-cloud": "5.33.4",
