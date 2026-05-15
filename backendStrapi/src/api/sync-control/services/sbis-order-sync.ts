@@ -360,8 +360,9 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 				optionalEnv('NEXT_PUBLIC_APP_URL') ||
 				'https://borkssport.ru',
 			paymentType: 'full',
-			nonFiscal: boolEnv('SBIS_ORDER_NON_FISCAL', false),
+			nonFiscal: boolEnv('SBIS_ORDER_NON_FISCAL', true),
 		}
+		// В справке указан GET, фактически API принимает только POST (см. ответ «допустимы типы: POST»).
 		const registerPaymentResponse = await axios.post(
 			`${apiBaseUrl}/order/${encodeURIComponent(saleExternalId)}/register-payment`,
 			registerParams,
@@ -370,7 +371,45 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 		return registerPaymentResponse
 	}
 
+	async function fetchOrderState(externalId: string) {
+		const token = await getToken()
+		const apiBaseUrl = normalizeApiBaseUrl()
+		const headers = {
+			Authorization: `Bearer ${token}`,
+			'X-SBISAccessToken': token,
+		}
+		const timeout = Number(process.env.SBIS_TIMEOUT || 30000)
+		const response = await axios.get(
+			`${apiBaseUrl}/order/${encodeURIComponent(externalId)}/state`,
+			{ headers, timeout }
+		)
+		return response.data
+	}
+
 	return {
+		async getOrderState(orderId: number) {
+			const order = await strapi.entityService.findOne('api::order.order', orderId)
+			if (!order) {
+				throw new Error(`Order ${orderId} not found`)
+			}
+
+			const sbisExternalId = resolveSaleExternalId(order)
+			if (!sbisExternalId) {
+				throw new Error(
+					`Order ${orderId} has no SBIS external id (sbisExternalId / sbisResponse.create)`
+				)
+			}
+
+			const state = await fetchOrderState(sbisExternalId)
+			return {
+				orderId,
+				orderNumber: (order as any).orderNumber,
+				sbisExternalId,
+				sbisSyncStatus: (order as any).sbisSyncStatus,
+				state,
+			}
+		},
+
 		async registerSbisPayment(orderId: number) {
 			return this.syncPaidOrder(orderId, {
 				force: true,

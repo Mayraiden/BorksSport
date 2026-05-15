@@ -70,6 +70,40 @@ export default ({ strapi }: { strapi: Core.Strapi }) => ({
 		}
 	},
 
+	async getSbisOrderState(ctx: any) {
+		try {
+			const orderId = Number(ctx.params.id)
+			if (!Number.isInteger(orderId) || orderId <= 0) {
+				ctx.status = 400
+				ctx.body = {
+					success: false,
+					message: 'Invalid order id',
+				}
+				return
+			}
+
+			const result = await strapi
+				.service('api::sync-control.sbis-order-sync')
+				.getOrderState(orderId)
+
+			ctx.status = 200
+			ctx.body = {
+				success: true,
+				source: 'sbis-order-state',
+				result,
+			}
+		} catch (error: any) {
+			strapi.log.error(`[SBIS Order Sync] State failed: ${error?.message || error}`)
+			ctx.status = error?.response?.status || 500
+			ctx.body = {
+				success: false,
+				source: 'sbis-order-state',
+				message: error?.message || 'SBIS order state failed',
+				response: error?.response?.data,
+			}
+		}
+	},
+
 	async registerSbisOrderPayment(ctx: any) {
 		try {
 			const orderId = Number(ctx.params.id)

@@ -30,5 +30,15 @@ export default {
 				middlewares: [],
 			},
 		},
+		{
+			method: 'GET',
+			path: '/sync-control/sbis/orders/:id/state',
+			handler: 'sync-control.getSbisOrderState',
+			config: {
+				auth: false,
+				policies: [],
+				middlewares: [],
+			},
+		},
 	],
 }
