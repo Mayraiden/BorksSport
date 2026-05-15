@@ -17,16 +17,7 @@
     "db:down": "docker-compose -f docker-compose.dev.yml down",
     "db:reset": "docker-compose -f docker-compose.dev.yml down -v && docker-compose -f docker-compose.dev.yml up -d",
     "migrate:categories": "npx ts-node --transpile-only scripts/migrate-product-categories.ts",
-    "backfill:brands": "npx ts-node --transpile-only scripts/backfill-brands.ts",
-    "sbis:smoke": "node scripts/sbis-api-smoke.js",
-    "sbis:order-smoke": "node scripts/sbis-order-create-smoke.js",
-    "sbis:register-payment": "node scripts/sbis-order-create-smoke.js --register-payment-only",
-    "sbis:balance-roundtrip": "node scripts/sbis-balance-around-order-smoke.js",
-    "sbis:retail-cancel": "node scripts/sbis-retail-order-cancel.js",
-    "sbis:jsonrpc-probe": "node scripts/sbis-jsonrpc-probe.js",
-    "sbis:jsonrpc-realiz": "node scripts/sbis-jsonrpc-realiz-probe.js",
-    "fix:order-paid:20260512-0002": "node scripts/fix-order-paid-and-sbis.js --order-number 20260512-0002",
-    "fix:order-paid": "node scripts/fix-order-paid-and-sbis.js"
+    "backfill:brands": "npx ts-node --transpile-only scripts/backfill-brands.ts"
   },
   "dependencies": {
     "@strapi/plugin-cloud": "5.33.4",
