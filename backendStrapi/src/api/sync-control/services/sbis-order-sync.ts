@@ -278,6 +278,31 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 		return response?.registerPayment != null
 	}
 
+	const SBIS_ELIGIBLE_ORDER_STATUSES = new Set(['paid', 'shipped', 'delivered'])
+
+	async function assertOrderEligibleForSbisSync(order: any, orderId: number) {
+		const orderStatus = String((order as any)?.status || '').trim()
+		if (!SBIS_ELIGIBLE_ORDER_STATUSES.has(orderStatus)) {
+			throw new Error(
+				`Order ${orderId} status "${orderStatus || 'empty'}" is not eligible for SBIS sync (need paid/shipped/delivered)`
+			)
+		}
+
+		const paidPayments = await strapi.entityService.findMany('api::payment.payment', {
+			filters: {
+				order: orderId,
+				status: 'paid',
+			} as any,
+			limit: 1,
+		})
+
+		if (!paidPayments?.length) {
+			throw new Error(
+				`Order ${orderId} has no paid payment record — sync Tochka payment status first`
+			)
+		}
+	}
+
 	async function postRegisterPayment(
 		freshOrder: any,
 		saleExternalId: string,
@@ -328,9 +353,8 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 			if (!order) {
 				throw new Error(`Order ${orderId} not found`)
 			}
-			if ((order as any).status !== 'paid') {
-				throw new Error(`Order ${orderId} is not paid`)
-			}
+			await assertOrderEligibleForSbisSync(order, orderId)
+
 			const existingSaleId = resolveSaleExternalId(order)
 			const registerPaymentOnly =
 				options.registerPaymentOnly ||
