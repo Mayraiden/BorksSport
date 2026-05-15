@@ -4,7 +4,8 @@ import axios from 'axios'
 
 type JsonRecord = Record<string, any>
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+const UUID_RE =
+	/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
 export default ({ strapi }: { strapi: Core.Strapi }) => {
 	function requiredEnv(name: string): string {
@@ -21,7 +22,8 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 	}
 
 	function orderPointId(): number {
-		const value = optionalEnv('SBIS_ORDER_POINT_ID') || optionalEnv('SBIS_POINT_ID')
+		const value =
+			optionalEnv('SBIS_ORDER_POINT_ID') || optionalEnv('SBIS_POINT_ID')
 		const parsed = Number(value)
 		if (!Number.isInteger(parsed) || parsed <= 0) {
 			throw new Error('Missing valid SBIS_ORDER_POINT_ID or SBIS_POINT_ID')
@@ -30,10 +32,14 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 	}
 
 	function orderPriceListId(): number {
-		const value = optionalEnv('SBIS_ORDER_PRICE_LIST_ID') || optionalEnv('SBIS_PRICE_LIST_ID')
+		const value =
+			optionalEnv('SBIS_ORDER_PRICE_LIST_ID') ||
+			optionalEnv('SBIS_PRICE_LIST_ID')
 		const parsed = Number(value)
 		if (!Number.isInteger(parsed) || parsed <= 0) {
-			throw new Error('Missing valid SBIS_ORDER_PRICE_LIST_ID or SBIS_PRICE_LIST_ID')
+			throw new Error(
+				'Missing valid SBIS_ORDER_PRICE_LIST_ID or SBIS_PRICE_LIST_ID',
+			)
 		}
 		return parsed
 	}
@@ -76,10 +82,13 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 		optionalEnv('SBIS_ORDER_DATETIME_TZ') || 'Europe/Moscow'
 
 	function formatSbisDateTime(date = new Date()): string {
-		const offsetMin = Number(optionalEnv('SBIS_ORDER_DATETIME_OFFSET_MINUTES') || '0')
-		const when = Number.isFinite(offsetMin) && offsetMin !== 0
-			? new Date(date.getTime() + offsetMin * 60_000)
-			: date
+		const offsetMin = Number(
+			optionalEnv('SBIS_ORDER_DATETIME_OFFSET_MINUTES') || '0',
+		)
+		const when =
+			Number.isFinite(offsetMin) && offsetMin !== 0
+				? new Date(date.getTime() + offsetMin * 60_000)
+				: date
 
 		const parts = new Intl.DateTimeFormat('en-GB', {
 			timeZone: SBIS_DATETIME_TZ,
@@ -117,7 +126,9 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 	function addressFull(order: any): string {
 		const shipping = order?.shippingAddress || {}
 		if (shipping.type === 'pickup') {
-			return String(shipping.pickupAddress?.address || order?.cdekPvzAddress || '').trim()
+			return String(
+				shipping.pickupAddress?.address || order?.cdekPvzAddress || '',
+			).trim()
 		}
 		if (shipping.selectedPvz?.address) {
 			return String(shipping.selectedPvz.address).trim()
@@ -128,11 +139,14 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 			delivery.street,
 			delivery.house,
 			delivery.apartment ? `кв. ${delivery.apartment}` : undefined,
-		].filter(Boolean).join(', ')
+		]
+			.filter(Boolean)
+			.join(', ')
 	}
 
 	async function getToken(): Promise<string> {
-		const oauthUrl = process.env.SBIS_OAUTH_URL || 'https://online.sbis.ru/oauth/service/'
+		const oauthUrl =
+			process.env.SBIS_OAUTH_URL || 'https://online.sbis.ru/oauth/service/'
 		const payload = {
 			app_client_id: requiredEnv('SBIS_APP_CLIENT_ID'),
 			app_secret: requiredEnv('SBIS_APP_SECRET'),
@@ -146,7 +160,9 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 			const token = response.data?.access_token || response.data?.token
 			if (token) return String(token)
 		} catch (error: any) {
-			strapi.log.warn(`[SBIS Order Sync] JSON auth failed, retrying form auth: ${error?.message || error}`)
+			strapi.log.warn(
+				`[SBIS Order Sync] JSON auth failed, retrying form auth: ${error?.message || error}`,
+			)
 		}
 
 		const form = new URLSearchParams(payload)
@@ -182,10 +198,15 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 			const productId = Number(item?.productId)
 			const quantity = Number(item?.quantity || 0)
 			if (!productId || quantity <= 0) {
-				throw new Error(`Invalid order item for SBIS order: ${JSON.stringify(item)}`)
+				throw new Error(
+					`Invalid order item for SBIS order: ${JSON.stringify(item)}`,
+				)
 			}
 
-			const product = await strapi.entityService.findOne('api::product.product', productId)
+			const product = await strapi.entityService.findOne(
+				'api::product.product',
+				productId,
+			)
 			if (!product) {
 				throw new Error(`Product ${productId} not found for SBIS order`)
 			}
@@ -199,7 +220,9 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 
 			const sbisId = Number((product as any).sbisId)
 			const externalId = String((product as any).sbisExternalId || '').trim()
-			const nomNumber = String((product as any).sbisNomNumber || item?.article || '').trim()
+			const nomNumber = String(
+				(product as any).sbisNomNumber || item?.article || '',
+			).trim()
 			if (Number.isInteger(sbisId) && sbisId > 0) {
 				row.id = sbisId
 			} else if (UUID_RE.test(externalId)) {
@@ -207,7 +230,9 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 			} else if (nomNumber) {
 				row.nomNumber = nomNumber
 			} else {
-				throw new Error(`Product ${productId} has no SBIS id, externalId or nomNumber`)
+				throw new Error(
+					`Product ${productId} has no SBIS id, externalId or nomNumber`,
+				)
 			}
 
 			nomenclatures.push(row)
@@ -228,7 +253,7 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 			'https://borkssport.ru'
 
 		const rawCustomerExternalId = String(
-			(order as any).user?.id ?? (order as any).user ?? order.id ?? ''
+			(order as any).user?.id ?? (order as any).user ?? order.id ?? '',
 		).trim()
 		const customerExternalId: string | null =
 			rawCustomerExternalId && UUID_RE.test(rawCustomerExternalId)
@@ -242,7 +267,9 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 			comment: [
 				`Заказ сайта ${order.orderNumber}`,
 				order.notes ? `Комментарий: ${order.notes}` : undefined,
-			].filter(Boolean).join('\n'),
+			]
+				.filter(Boolean)
+				.join('\n'),
 			customer: {
 				externalId: customerExternalId,
 				...splitCustomerName(customerName),
@@ -263,7 +290,11 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 		}
 	}
 
-	async function markFailed(orderId: number, payload: JsonRecord | null, error: any) {
+	async function markFailed(
+		orderId: number,
+		payload: JsonRecord | null,
+		error: any,
+	) {
 		const message = error?.response?.data
 			? JSON.stringify(error.response.data)
 			: error?.message || String(error)
@@ -283,7 +314,11 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 		const response = order?.sbisResponse as JsonRecord | undefined
 		const created = response?.create as JsonRecord | undefined
 		const fromCreate = String(
-			created?.externalId || created?.id || created?.key || created?.saleKey || ''
+			created?.externalId ||
+				created?.id ||
+				created?.key ||
+				created?.saleKey ||
+				'',
 		).trim()
 		if (fromCreate) return fromCreate
 
@@ -320,33 +355,26 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 		const orderStatus = String((order as any)?.status || '').trim()
 		if (!SBIS_ELIGIBLE_ORDER_STATUSES.has(orderStatus)) {
 			throw new Error(
-				`Order ${orderId} status "${orderStatus || 'empty'}" is not eligible for SBIS sync (need paid/shipped/delivered)`
+				`Order ${orderId} status "${orderStatus || 'empty'}" is not eligible for SBIS sync (need paid/shipped/delivered)`,
 			)
 		}
 
-		const paidPayments = await strapi.entityService.findMany('api::payment.payment', {
-			filters: {
-				order: orderId,
-				status: 'paid',
-			} as any,
-			limit: 1,
-		})
+		const paidPayments = await strapi.entityService.findMany(
+			'api::payment.payment',
+			{
+				filters: {
+					order: orderId,
+					status: 'paid',
+				} as any,
+				limit: 1,
+			},
+		)
 
 		if (!paidPayments?.length) {
 			throw new Error(
-				`Order ${orderId} has no paid payment record — sync Tochka payment status first`
+				`Order ${orderId} has no paid payment record — sync Tochka payment status first`,
 			)
 		}
-	}
-
-	function resolveRegisterPaymentMode(): 'unknown' | 'cash' | 'bank' {
-		const fromEnv = optionalEnv('SBIS_ORDER_REGISTER_PAYMENT_MODE')?.toLowerCase()
-		if (fromEnv === 'unknown' || fromEnv === 'cash' || fromEnv === 'bank') {
-			return fromEnv
-		}
-		if (boolEnv('SBIS_ORDER_USE_UNKNOWN_SUM', false)) return 'unknown'
-		if (boolEnv('SBIS_ORDER_REGISTER_AS_CASH', false)) return 'cash'
-		return 'unknown'
 	}
 
 	function buildRegisterPaymentParams(freshOrder: any): JsonRecord {
@@ -359,20 +387,16 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 		const base = {
 			retailPlace,
 			paymentType: 'full',
-			nonFiscal: boolEnv('SBIS_ORDER_NON_FISCAL', true),
 		}
+		const mode = (optionalEnv('SBIS_ORDER_REGISTER_PAYMENT_MODE') || 'bank').toLowerCase()
 
-		const mode = resolveRegisterPaymentMode()
-		if (mode === 'unknown') {
-			const sumField =
-				optionalEnv('SBIS_ORDER_CUSTOM_SUM_FIELD') || 'unknownSum'
+		if (mode === 'salary') {
 			return {
 				bankSum: 0,
 				cashSum: 0,
-				salarySum: 0,
-				[sumField]: amount,
+				salarySum: amount,
 				...base,
-				nonFiscal: true,
+				nonFiscal: boolEnv('SBIS_ORDER_NON_FISCAL', true),
 			}
 		}
 
@@ -382,24 +406,17 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 				cashSum: amount,
 				salarySum: 0,
 				...base,
-				nonFiscal: true,
+				nonFiscal: boolEnv('SBIS_ORDER_NON_FISCAL', true),
 			}
 		}
 
-		const nonFiscal = base.nonFiscal
 		return {
-			bankSum: nonFiscal ? 0 : amount,
-			cashSum: nonFiscal ? amount : 0,
+			bankSum: amount,
+			cashSum: 0,
 			salarySum: 0,
 			...base,
-			nonFiscal,
+			nonFiscal: boolEnv('SBIS_ORDER_NON_FISCAL', false),
 		}
-	}
-
-	function throwRegisterPaymentFailed(message: string, registerParams: JsonRecord): never {
-		const err = new Error(message) as Error & { sbisRegisterPaymentParams?: JsonRecord }
-		err.sbisRegisterPaymentParams = registerParams
-		throw err
 	}
 
 	async function postRegisterPayment(
@@ -407,8 +424,8 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 		saleExternalId: string,
 		token: string,
 		apiBaseUrl: string,
-		timeout: number
-	): Promise<{ axiosResponse: any; registerParams: JsonRecord }> {
+		timeout: number,
+	) {
 		const headers = {
 			Authorization: `Bearer ${token}`,
 			'X-SBISAccessToken': token,
@@ -417,17 +434,12 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 		strapi.log.info(
 			`[SBIS Order Sync] register-payment sale=${saleExternalId} params=${JSON.stringify(registerParams)}`
 		)
-		try {
-			const axiosResponse = await axios.post(
-				`${apiBaseUrl}/order/${encodeURIComponent(saleExternalId)}/register-payment`,
-				registerParams,
-				{ headers, timeout }
-			)
-			return { axiosResponse, registerParams }
-		} catch (error: any) {
-			error.sbisRegisterPaymentParams = registerParams
-			throw error
-		}
+		const registerPaymentResponse = await axios.post(
+			`${apiBaseUrl}/order/${encodeURIComponent(saleExternalId)}/register-payment`,
+			registerParams,
+			{ headers, timeout },
+		)
+		return registerPaymentResponse
 	}
 
 	async function fetchOrderState(externalId: string) {
@@ -440,14 +452,17 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 		const timeout = Number(process.env.SBIS_TIMEOUT || 30000)
 		const response = await axios.get(
 			`${apiBaseUrl}/order/${encodeURIComponent(externalId)}/state`,
-			{ headers, timeout }
+			{ headers, timeout },
 		)
 		return response.data
 	}
 
 	return {
 		async getOrderState(orderId: number) {
-			const order = await strapi.entityService.findOne('api::order.order', orderId)
+			const order = await strapi.entityService.findOne(
+				'api::order.order',
+				orderId,
+			)
 			if (!order) {
 				throw new Error(`Order ${orderId} not found`)
 			}
@@ -455,7 +470,7 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 			const sbisExternalId = resolveSaleExternalId(order)
 			if (!sbisExternalId) {
 				throw new Error(
-					`Order ${orderId} has no SBIS external id (sbisExternalId / sbisResponse.create)`
+					`Order ${orderId} has no SBIS external id (sbisExternalId / sbisResponse.create)`,
 				)
 			}
 
@@ -478,11 +493,15 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 
 		async syncPaidOrder(
 			orderId: number,
-			options: { force?: boolean; registerPaymentOnly?: boolean } = {}
+			options: { force?: boolean; registerPaymentOnly?: boolean } = {},
 		) {
-			const order = await strapi.entityService.findOne('api::order.order', orderId, {
-				populate: ['user'],
-			})
+			const order = await strapi.entityService.findOne(
+				'api::order.order',
+				orderId,
+				{
+					populate: ['user'],
+				},
+			)
 
 			if (!order) {
 				throw new Error(`Order ${orderId} not found`)
@@ -498,7 +517,7 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 
 			if (registerPaymentOnly && !existingSaleId) {
 				throw new Error(
-					`Order ${orderId}: sale id in Saby is missing (sbisExternalId / sbisResponse.create)`
+					`Order ${orderId}: sale id in Saby is missing (sbisExternalId / sbisResponse.create)`,
 				)
 			}
 
@@ -515,7 +534,11 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 				}
 			}
 
-			if ((order as any).sbisSyncStatus === 'synced' && !options.force && !registerPaymentOnly) {
+			if (
+				(order as any).sbisSyncStatus === 'synced' &&
+				!options.force &&
+				!registerPaymentOnly
+			) {
 				return { skipped: true, reason: 'already_synced', orderId }
 			}
 			if ((order as any).sbisSyncStatus === 'syncing' && !options.force) {
@@ -526,7 +549,8 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 				!hasSuccessfulSbisCreate(order) && !options.registerPaymentOnly
 			const sbisExternalId = needsFreshSale
 				? randomUUID()
-				: existingSaleId || String((order as any).sbisExternalId || randomUUID())
+				: existingSaleId ||
+					String((order as any).sbisExternalId || randomUUID())
 			await strapi.entityService.update('api::order.order', orderId, {
 				data: {
 					sbisExternalId,
@@ -537,9 +561,13 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 
 			let payload: JsonRecord | null = null
 			try {
-				const freshOrder = await strapi.entityService.findOne('api::order.order', orderId, {
-					populate: ['user'],
-				})
+				const freshOrder = await strapi.entityService.findOne(
+					'api::order.order',
+					orderId,
+					{
+						populate: ['user'],
+					},
+				)
 				const token = await getToken()
 				const apiBaseUrl = normalizeApiBaseUrl()
 				const headers = {
@@ -549,36 +577,34 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 				const timeout = Number(process.env.SBIS_TIMEOUT || 30000)
 
 				if (registerPaymentOnly) {
-					const saleExternalId = resolveSaleExternalId(freshOrder, sbisExternalId)
-					let registerPaymentResult: Awaited<ReturnType<typeof postRegisterPayment>> | null =
-						null
+					const saleExternalId = resolveSaleExternalId(
+						freshOrder,
+						sbisExternalId,
+					)
+					let registerPaymentResponse: any = null
 					if (boolEnv('SBIS_ORDER_REGISTER_PAYMENT', true)) {
-						registerPaymentResult = await postRegisterPayment(
+						registerPaymentResponse = await postRegisterPayment(
 							freshOrder,
 							saleExternalId,
 							token,
 							apiBaseUrl,
-							timeout
+							timeout,
 						)
 					}
 
-					const registerParams = registerPaymentResult?.registerParams || null
-					const regData = (registerPaymentResult?.axiosResponse?.data ||
+					const regData = (registerPaymentResponse?.data ||
 						null) as JsonRecord | null
 					if (regData?.successFlag === false) {
 						const errMsg =
 							String(regData.message || '') || 'SBIS register-payment failed'
-						throwRegisterPaymentFailed(
-							errMsg,
-							registerParams || buildRegisterPaymentParams(freshOrder)
-						)
+						throw new Error(errMsg)
 					}
 
-					const previousResponse = ((freshOrder as any).sbisResponse || {}) as JsonRecord
+					const previousResponse = ((freshOrder as any).sbisResponse ||
+						{}) as JsonRecord
 					const responseData = {
 						...previousResponse,
 						registerPayment: regData,
-						registerPaymentRequest: registerParams,
 					}
 
 					await strapi.entityService.update('api::order.order', orderId, {
@@ -602,12 +628,16 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 
 				payload = await buildOrderPayload(freshOrder)
 				strapi.log.info(
-					`[SBIS Order Sync] order ${orderId} create datetime=${payload.datetime} tz=${SBIS_DATETIME_TZ} externalId=${payload.externalId}`
+					`[SBIS Order Sync] order ${orderId} create datetime=${payload.datetime} tz=${SBIS_DATETIME_TZ} externalId=${payload.externalId}`,
 				)
-				const createResponse = await axios.post(`${apiBaseUrl}/order/create`, payload, {
-					headers,
-					timeout,
-				})
+				const createResponse = await axios.post(
+					`${apiBaseUrl}/order/create`,
+					payload,
+					{
+						headers,
+						timeout,
+					},
+				)
 
 				const created = createResponse.data as JsonRecord | undefined
 				const saleExternalId = String(
@@ -615,36 +645,30 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 						created?.id ||
 						created?.key ||
 						created?.saleKey ||
-						sbisExternalId
+						sbisExternalId,
 				).trim()
 
-				let registerPaymentResult: Awaited<ReturnType<typeof postRegisterPayment>> | null =
-					null
+				let registerPaymentResponse: any = null
 				if (boolEnv('SBIS_ORDER_REGISTER_PAYMENT', true)) {
-					registerPaymentResult = await postRegisterPayment(
+					registerPaymentResponse = await postRegisterPayment(
 						freshOrder,
 						saleExternalId,
 						token,
 						apiBaseUrl,
-						timeout
+						timeout,
 					)
 				}
 
-				const registerParams = registerPaymentResult?.registerParams || null
-				const regData = (registerPaymentResult?.axiosResponse?.data || null) as JsonRecord | null
+				const regData = (registerPaymentResponse?.data || null) as JsonRecord | null
 				if (regData?.successFlag === false) {
 					const errMsg =
 						String(regData.message || '') || 'SBIS register-payment failed'
-					throwRegisterPaymentFailed(
-						errMsg,
-						registerParams || buildRegisterPaymentParams(freshOrder)
-					)
+					throw new Error(errMsg)
 				}
 
 				const responseData = {
 					create: createResponse.data,
 					registerPayment: regData,
-					registerPaymentRequest: registerParams,
 				}
 
 				await strapi.entityService.update('api::order.order', orderId, {
@@ -658,7 +682,12 @@ export default ({ strapi }: { strapi: Core.Strapi }) => {
 					} as any,
 				})
 
-				return { success: true, orderId, sbisExternalId: saleExternalId, response: responseData }
+				return {
+					success: true,
+					orderId,
+					sbisExternalId: saleExternalId,
+					response: responseData,
+				}
 			} catch (error: any) {
 				await markFailed(orderId, payload, error)
 				throw error

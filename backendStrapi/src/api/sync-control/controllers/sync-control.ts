@@ -135,7 +135,6 @@ export default ({ strapi }: { strapi: Core.Strapi }) => ({
 				success: false,
 				source: 'sbis-order-register-payment',
 				message: error?.message || 'SBIS register-payment failed',
-				request: error?.sbisRegisterPaymentParams,
 				response: error?.response?.data,
 			}
 		}
