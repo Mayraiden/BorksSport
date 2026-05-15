@@ -3,6 +3,9 @@ import stockOpsFactory from '../../../shared/stock/stock-ops'
 
 export type PaymentStatus = 'pending' | 'paid' | 'failed' | 'refunded'
 
+/** Strapi entity id (numeric or document id string). */
+type EntityId = number | string
+
 export type OrderPaymentStatus =
 	| 'awaiting_payment'
 	| 'paid'
@@ -94,12 +97,12 @@ export const syncPaidOrderToSbis = async (strapi: Core.Strapi, orderId: number) 
 export async function applyTochkaPaymentStatusUpdate(
 	strapi: Core.Strapi,
 	input: {
-		paymentId: number
+		paymentId: EntityId
 		paymentStatus: PaymentStatus
 		orderStatus?: OrderPaymentStatus
 		paymentData?: JsonObject
 		paymentPatch?: Record<string, unknown>
-		order?: { id: number; status?: unknown } | null
+		order?: { id: EntityId; status?: unknown } | null
 		source: 'webhook' | 'poll' | 'management'
 		isRefundEvent?: boolean
 		refundFields?: Record<string, unknown>

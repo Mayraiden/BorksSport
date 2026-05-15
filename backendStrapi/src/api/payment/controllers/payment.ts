@@ -918,7 +918,7 @@ export default factories.createCoreController(
 				)
 
 				await applyTochkaPaymentStatusUpdate(strapi, {
-					paymentId: Number(id),
+					paymentId: id,
 					paymentStatus,
 					orderStatus,
 					paymentData: {
