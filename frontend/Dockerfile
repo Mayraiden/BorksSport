@@ -54,8 +54,9 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nextjs
+# Primary group must be nodejs (1001) so runtime uid/gid match compose tmpfs mounts
+RUN addgroup -S -g 1001 nodejs \
+  && adduser -S -u 1001 -G nodejs -D -h /home/nextjs nextjs
 
 # Копируем только необходимые файлы
 COPY --from=builder /app/public ./public

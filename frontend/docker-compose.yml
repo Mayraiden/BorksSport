@@ -10,6 +10,9 @@ services:
       NODE_ENV: production
       PORT: 3000
       HOSTNAME: '0.0.0.0'
+      # Next/Node temp + HOME must be writable under read_only root; /tmp is noexec tmpfs
+      HOME: /tmp
+      TMPDIR: /tmp
       NEXT_PUBLIC_STRAPI_URL: ${NEXT_PUBLIC_STRAPI_URL:-https://api.borkssport.ru}
       NEXT_STRAPI_URL: ${NEXT_STRAPI_URL:-https://api.borkssport.ru}
       NEXT_PUBLIC_EMAIL_AUTH_DISABLED: ${NEXT_PUBLIC_EMAIL_AUTH_DISABLED:-}
@@ -23,10 +26,44 @@ services:
     tmpfs:
       - /tmp:rw,noexec,nosuid,nodev,size=64m
       - /run:rw,nosuid,nodev,size=8m
-      - /app/.next/cache:rw,noexec,nosuid,nodev,size=128m
+      # uid/gid must match nextjs user (Dockerfile); default tmpfs is root → EACCES on cache
+      - /app/.next/cache:rw,noexec,nosuid,nodev,size=128m,uid=1001,gid=1001
+    logging:
+      driver: json-file
+      options:
+        max-size: '10m'
+        max-file: '3'
+    # restart: unless-stopped срабатывает только при exit процесса.
+    # 502 от nginx = Next завис, PID жив → нужен healthcheck + autoheal.
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:3000/').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
     pids_limit: 256
     mem_limit: 512m
     cpus: 1.0
+    networks:
+      - frontend-network
+
+  # Рестартит контейнеры со статусом unhealthy (Docker сам этого не делает).
+  autoheal:
+    image: willfarrell/autoheal:latest
+    container_name: sportmagazine-autoheal
+    restart: unless-stopped
+    environment:
+      AUTOHEAL_CONTAINER_LABEL: all
+      AUTOHEAL_INTERVAL: '30'
+      AUTOHEAL_START_PERIOD: '60'
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
     networks:
       - frontend-network
 
